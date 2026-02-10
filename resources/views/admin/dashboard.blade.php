@@ -8,6 +8,10 @@
         <i class="bi bi-speedometer2 text-primary"></i> Панель администратора
     </h2>
     <div class="d-flex gap-2">
+        <!-- ДОБАВЛЕНА КНОПКА УПРАВЛЕНИЯ ЛИМИТАМИ -->
+        <a href="{{ route('limits.index') }}" class="btn btn-info">
+            <i class="bi bi-graph-up"></i> Управление лимитами
+        </a>
         <a href="{{ route('admin.organization.create') }}" class="btn btn-success">
             <i class="bi bi-building-add"></i> Создать организацию
         </a>
@@ -216,7 +220,7 @@
                 </div>
                 <h4 class="text-muted mb-3">Лимиты не настроены</h4>
                 <p class="text-muted mb-4">Нет доступных типов отчетов или лимитов для отображения</p>
-                <a href="#" class="btn btn-info">
+                <a href="{{ route('limits.index') }}" class="btn btn-info">
                     <i class="bi bi-sliders"></i> Настроить лимиты
                 </a>
             </div>

@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Organization;
 use App\Models\OrgMemberProfile;
+use App\Models\Limit;
+use App\Models\Report;
+use App\Models\ReportType;
+use App\Models\DelegatedLimit; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class OrgMemberController extends Controller
 {
@@ -19,15 +22,55 @@ class OrgMemberController extends Controller
     public function profile()
     {
         $user = Auth::user();
+        $memberProfile = $user->orgMemberProfile;
         
-        if (!$user->isOrgMember()) {
-            abort(403, 'Доступ запрещен');
+        if (!$memberProfile) {
+            return view('org-members.profile', compact('user'));
         }
         
-        $memberProfile = $user->orgMemberProfile;
         $organization = $memberProfile->organization;
         
-        return view('org-members.profile', compact('user', 'memberProfile', 'organization'));
+        // Получаем делегированные лимиты сотрудника
+        $delegatedLimits = DelegatedLimit::where('user_id', $user->id)
+            ->where('is_active', true)
+            ->with(['limit.reportType'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        // Общая статистика по лимитам
+        $totalDelegated = $delegatedLimits->sum('quantity');
+        $totalUsed = $delegatedLimits->sum('used_quantity');
+        $totalAvailable = $totalDelegated - $totalUsed;
+        
+        // Статистика по типам отчетов
+        $limitsByType = [];
+        foreach ($delegatedLimits as $delegated) {
+            $reportTypeName = $delegated->limit->reportType->name ?? 'Без типа';
+            if (!isset($limitsByType[$reportTypeName])) {
+                $limitsByType[$reportTypeName] = [
+                    'delegated' => 0,
+                    'used' => 0,
+                    'available' => 0,
+                    'count' => 0
+                ];
+            }
+            
+            $limitsByType[$reportTypeName]['delegated'] += $delegated->quantity;
+            $limitsByType[$reportTypeName]['used'] += $delegated->used_quantity;
+            $limitsByType[$reportTypeName]['available'] += ($delegated->quantity - $delegated->used_quantity);
+            $limitsByType[$reportTypeName]['count']++;
+        }
+        
+        return view('org-members.profile', compact(
+            'user',
+            'memberProfile',
+            'organization',
+            'delegatedLimits',
+            'totalDelegated',
+            'totalUsed',
+            'totalAvailable',
+            'limitsByType'
+        ));
     }
     
     /**
@@ -36,11 +79,6 @@ class OrgMemberController extends Controller
     public function editProfile()
     {
         $user = Auth::user();
-        
-        if (!$user->isOrgMember()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
         return view('org-members.edit-profile', compact('user'));
     }
     
@@ -50,10 +88,6 @@ class OrgMemberController extends Controller
     public function updateProfile(Request $request)
     {
         $user = Auth::user();
-        
-        if (!$user->isOrgMember()) {
-            abort(403, 'Доступ запрещен');
-        }
         
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -75,117 +109,41 @@ class OrgMemberController extends Controller
     }
     
     /**
-     * Форма создания сотрудника (для админа/менеджера)
+     * Форма создания сотрудника (для админа/менеджера/владельца)
      */
     public function create($organizationId)
     {
         $user = Auth::user();
         
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
+        // Проверяем доступ к организации
+        $organization = $this->getOrganizationWithAccess($user, $organizationId);
         
-        if ($user->isAdmin()) {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
-                })
-                ->firstOrFail();
-        } else {
-            // Для менеджера
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->firstOrFail();
-        }
+        // Определяем префикс маршрута
+        $routePrefix = $this->getRoutePrefix($user);
         
-        // Получаем всех возможных начальников (владельца + менеджеров)
-        $potentialBosses = collect();
-        
-        // Владелец организации
-        if ($organization->owner && $organization->owner->user) {
-            $potentialBosses->push([
-                'id' => $organization->owner->user_id,
-                'name' => $organization->owner->user->name . ' (Владелец)',
-            ]);
-        }
-        
-        // Ответственный менеджер
-        if ($organization->manager && $organization->manager->user) {
-            $potentialBosses->push([
-                'id' => $organization->manager->user_id,
-                'name' => $organization->manager->user->name . ' (Менеджер)',
-            ]);
-        }
-        
-        $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
-        
-        return view('org-members.create', compact('user', 'organization', 'potentialBosses', 'routePrefix'));
+        return view('org-members.create', compact('user', 'organization', 'routePrefix'));
     }
     
     /**
-     * Сохранение сотрудника (для админа/менеджера)
+     * Сохранение сотрудника (для админа/менеджера/владельца)
      */
     public function store(Request $request, $organizationId)
     {
         $user = Auth::user();
         
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
+        // Проверяем доступ к организации
+        $organization = $this->getOrganizationWithAccess($user, $organizationId);
         
-        if ($user->isAdmin()) {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
-                })
-                ->with('owner')
-                ->firstOrFail();
-        } else {
-            // Для менеджера
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->with('owner')
-                ->firstOrFail();
-        }
-        
-        // Валидация
         $validated = $request->validate([
             'user.name' => 'required|string|max:255',
             'user.email' => 'required|email|unique:users,email',
             'user.password' => 'required|string|min:8|confirmed',
-            'position' => 'nullable|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'boss_id' => 'nullable|exists:users,id',
         ]);
-        
-        // Проверяем, что boss_id принадлежит этой организации
-        if ($validated['boss_id']) {
-            // Проверяем, что выбранный начальник - это либо владелец, либо менеджер
-            $validBoss = false;
-            
-            if ($organization->owner && $organization->owner->user_id == $validated['boss_id']) {
-                $validBoss = true;
-            }
-            
-            if ($organization->manager && $organization->manager->user_id == $validated['boss_id']) {
-                $validBoss = true;
-            }
-            
-            if (!$validBoss) {
-                return back()
-                    ->withInput()
-                    ->with('error', 'Выбранный начальник не принадлежит этой организации');
-            }
-        }
         
         DB::beginTransaction();
         
         try {
-            // 1. Создаем пользователя для сотрудника
+            // Создаем пользователя для сотрудника
             $memberUser = User::create([
                 'name' => $validated['user']['name'],
                 'email' => $validated['user']['email'],
@@ -195,21 +153,28 @@ class OrgMemberController extends Controller
                 'is_active' => true,
             ]);
             
-            // 2. Создаем профиль сотрудника
-            $memberProfile = OrgMemberProfile::create([
+            // Автоматически определяем начальника (владелец организации)
+            $bossId = $organization->owner->user_id ?? null;
+            
+            // Создаем профиль сотрудника
+            OrgMemberProfile::create([
                 'user_id' => $memberUser->id,
                 'organization_id' => $organization->id,
-                'boss_id' => $validated['boss_id'] ?? ($organization->owner ? $organization->owner->user_id : null),
+                'boss_id' => $bossId,
                 'manager_id' => $organization->manager->user_id,
-                'position' => $validated['position'] ?? null,
-                'phone' => $validated['phone'] ?? null,
                 'is_active' => true,
             ]);
             
             DB::commit();
             
             // Определяем префикс маршрута для редиректа
-            $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
+            $routePrefix = $this->getRoutePrefix($user);
+            
+            // Редирект в зависимости от роли
+            if ($user->isOrgOwner()) {
+                return redirect()->route('owner.dashboard')
+                    ->with('success', 'Сотрудник успешно добавлен в организацию');
+            }
             
             return redirect()->route($routePrefix . 'organization.show', $organization->id)
                 ->with('success', 'Сотрудник успешно добавлен в организацию');
@@ -228,169 +193,131 @@ class OrgMemberController extends Controller
      */
     public function show($organizationId, $memberId)
     {
-        $currentUser = Auth::user();
+        $user = Auth::user();
         
-        // Проверяем доступ
-        if (!$currentUser->isAdmin() && !$currentUser->isManager() && !$currentUser->isOrgOwner()) {
-            abort(403, 'Доступ запрещен');
-        }
+        // Проверяем доступ к организации
+        $organization = $this->getOrganizationWithAccess($user, $organizationId);
         
-        // Получаем организацию с проверкой прав
-        if ($currentUser->isAdmin()) {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($currentUser) {
-                    $query->where('admin_id', $currentUser->id);
-                })
-                ->firstOrFail();
-        } elseif ($currentUser->isManager()) {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($currentUser) {
-                    $query->where('user_id', $currentUser->id);
-                })
-                ->firstOrFail();
-        } else {
-            // Для владельца организации
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('owner', function($query) use ($currentUser) {
-                    $query->where('user_id', $currentUser->id);
-                })
-                ->firstOrFail();
-        }
-        
-        // Получаем сотрудника
+        // Получаем сотрудника с проверкой, что он принадлежит организации
         $member = OrgMemberProfile::where('id', $memberId)
             ->where('organization_id', $organizationId)
             ->with(['user', 'boss', 'manager'])
             ->firstOrFail();
         
-        // Определяем префикс маршрута
-        if ($currentUser->isAdmin()) {
-            $routePrefix = 'admin.';
-        } elseif ($currentUser->isManager()) {
-            $routePrefix = 'manager.';
-        } else {
-            $routePrefix = 'owner.';
+        // Получаем делегированные лимиты сотрудника
+        $delegatedLimits = DelegatedLimit::where('user_id', $member->user_id)
+            ->where('is_active', true)
+            ->with(['limit.reportType'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        // Статистика по лимитам
+        $totalDelegated = $delegatedLimits->sum('quantity');
+        $totalUsed = $delegatedLimits->sum('used_quantity');
+        $totalAvailable = $totalDelegated - $totalUsed;
+        
+        // Группировка по типам отчетов
+        $limitsByType = [];
+        foreach ($delegatedLimits as $delegated) {
+            $reportTypeName = $delegated->limit->reportType->name ?? 'Без типа';
+            if (!isset($limitsByType[$reportTypeName])) {
+                $limitsByType[$reportTypeName] = [
+                    'delegated' => 0,
+                    'used' => 0,
+                    'available' => 0,
+                    'count' => 0
+                ];
+            }
+            
+            $limitsByType[$reportTypeName]['delegated'] += $delegated->quantity;
+            $limitsByType[$reportTypeName]['used'] += $delegated->used_quantity;
+            $limitsByType[$reportTypeName]['available'] += ($delegated->quantity - $delegated->used_quantity);
+            $limitsByType[$reportTypeName]['count']++;
         }
         
-        return view('org-members.show', compact('currentUser', 'organization', 'member', 'routePrefix'));
+        // ДОБАВЛЯЕМ СТАТИСТИКУ ПО ОТЧЕТАМ
+        $reports = Report::where('user_id', $member->user_id)->get();
+        
+        $totalReports = $reports->count();
+        $thisMonthReports = $reports->where('created_at', '>=', now()->startOfMonth())->count();
+        $inProgressReports = $reports->whereIn('status', ['pending', 'processing'])->count();
+        $completedReports = $reports->where('status', 'completed')->count();
+        
+        // Статистика по типам отчетов
+        $reportsByType = $reports->groupBy('report_type_id')->map(function($group) {
+            return [
+                'count' => $group->count(),
+                'completed' => $group->where('status', 'completed')->count(),
+                'pending' => $group->whereIn('status', ['pending', 'processing'])->count()
+            ];
+        });
+        
+        // Получаем названия типов отчетов
+        $reportTypes = ReportType::whereIn('id', $reportsByType->keys())->pluck('name', 'id');
+        
+        // Определяем префикс маршрута для редиректов в представлениях
+        $routePrefix = $this->getRoutePrefix($user);
+        
+        return view('org-members.show', compact(
+            'user', 
+            'organization', 
+            'member', 
+            'routePrefix',
+            'delegatedLimits',
+            'totalDelegated',
+            'totalUsed',
+            'totalAvailable',
+            'limitsByType',
+            'totalReports',
+            'thisMonthReports',
+            'inProgressReports',
+            'completedReports',
+            'reportsByType',
+            'reportTypes'
+        ));
     }
     
     /**
-     * Форма редактирования сотрудника (для админа/менеджера)
+     * Форма редактирования сотрудника (для админа/менеджера/владельца)
      */
     public function edit($organizationId, $memberId)
     {
         $user = Auth::user();
         
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
-        if ($user->isAdmin()) {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
-                })
-                ->with(['owner', 'manager'])
-                ->firstOrFail();
-        } else {
-            // Для менеджера
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->with(['owner', 'manager'])
-                ->firstOrFail();
-        }
+        // Проверяем доступ к организации
+        $organization = $this->getOrganizationWithAccess($user, $organizationId);
         
         $member = OrgMemberProfile::where('id', $memberId)
             ->where('organization_id', $organizationId)
             ->with('user')
             ->firstOrFail();
         
-        // Получаем всех возможных начальников
-        $potentialBosses = collect();
+        // Определяем префикс маршрута
+        $routePrefix = $this->getRoutePrefix($user);
         
-        if ($organization->owner && $organization->owner->user) {
-            $potentialBosses->push([
-                'id' => $organization->owner->user_id,
-                'name' => $organization->owner->user->name . ' (Владелец)',
-            ]);
-        }
-        
-        if ($organization->manager && $organization->manager->user) {
-            $potentialBosses->push([
-                'id' => $organization->manager->user_id,
-                'name' => $organization->manager->user->name . ' (Менеджер)',
-            ]);
-        }
-        
-        $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
-        
-        return view('org-members.edit', compact('user', 'organization', 'member', 'potentialBosses', 'routePrefix'));
+        return view('org-members.edit', compact('user', 'organization', 'member', 'routePrefix'));
     }
     
     /**
-     * Обновление сотрудника (для админа/менеджера)
+     * Обновление сотрудника (для админа/менеджера/владельца)
      */
     public function update(Request $request, $organizationId, $memberId)
     {
         $user = Auth::user();
         
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
-        if ($user->isAdmin()) {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
-                })
-                ->with(['owner', 'manager'])
-                ->firstOrFail();
-        } else {
-            // Для менеджера
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->with(['owner', 'manager'])
-                ->firstOrFail();
-        }
+        // Проверяем доступ к организации
+        $organization = $this->getOrganizationWithAccess($user, $organizationId);
         
         $member = OrgMemberProfile::where('id', $memberId)
             ->where('organization_id', $organizationId)
             ->with('user')
             ->firstOrFail();
         
-        // Валидация
         $validated = $request->validate([
             'user.name' => 'required|string|max:255',
             'user.email' => 'required|email|unique:users,email,' . $member->user_id,
-            'position' => 'nullable|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'boss_id' => 'nullable|exists:users,id',
             'is_active' => 'boolean',
         ]);
-        
-        // Проверяем boss_id
-        if ($validated['boss_id']) {
-            $validBoss = false;
-            
-            if ($organization->owner && $organization->owner->user_id == $validated['boss_id']) {
-                $validBoss = true;
-            }
-            
-            if ($organization->manager && $organization->manager->user_id == $validated['boss_id']) {
-                $validBoss = true;
-            }
-            
-            if (!$validBoss) {
-                return back()
-                    ->withInput()
-                    ->with('error', 'Выбранный начальник не принадлежит этой организации');
-            }
-        }
         
         DB::beginTransaction();
         
@@ -403,15 +330,12 @@ class OrgMemberController extends Controller
             
             // Обновляем профиль сотрудника
             $member->update([
-                'position' => $validated['position'] ?? $member->position,
-                'phone' => $validated['phone'] ?? $member->phone,
-                'boss_id' => $validated['boss_id'] ?? $member->boss_id,
                 'is_active' => $validated['is_active'] ?? $member->is_active,
             ]);
             
             DB::commit();
             
-            $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
+            $routePrefix = $this->getRoutePrefix($user);
             
             return redirect()->route($routePrefix . 'org-members.show', [$organization->id, $member->id])
                 ->with('success', 'Данные сотрудника обновлены');
@@ -426,30 +350,14 @@ class OrgMemberController extends Controller
     }
     
     /**
-     * Изменение пароля сотрудника (для админа/менеджера)
+     * Изменение пароля сотрудника (для админа/менеджера/владельца)
      */
     public function changePassword(Request $request, $organizationId, $memberId)
     {
         $user = Auth::user();
         
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
         // Проверяем доступ к организации
-        if ($user->isAdmin()) {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
-                })
-                ->firstOrFail();
-        } else {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->firstOrFail();
-        }
+        $organization = $this->getOrganizationWithAccess($user, $organizationId);
         
         $member = OrgMemberProfile::where('id', $memberId)
             ->where('organization_id', $organizationId)
@@ -464,36 +372,21 @@ class OrgMemberController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
         
-        $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
+        $routePrefix = $this->getRoutePrefix($user);
         
         return redirect()->route($routePrefix . 'org-members.show', [$organization->id, $member->id])
             ->with('success', 'Пароль сотрудника изменен');
     }
     
     /**
-     * Изменение статуса сотрудника (для админа/менеджера)
+     * Изменение статуса сотрудника (для админа/менеджера/владельца)
      */
     public function toggleStatus(Request $request, $organizationId, $memberId)
     {
         $user = Auth::user();
         
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
-        if ($user->isAdmin()) {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
-                })
-                ->firstOrFail();
-        } else {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->firstOrFail();
-        }
+        // Проверяем доступ к организации
+        $organization = $this->getOrganizationWithAccess($user, $organizationId);
         
         $member = OrgMemberProfile::where('id', $memberId)
             ->where('organization_id', $organizationId)
@@ -512,53 +405,37 @@ class OrgMemberController extends Controller
             ]);
         }
         
-        $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
+        $routePrefix = $this->getRoutePrefix($user);
         
         return redirect()->route($routePrefix . 'org-members.show', [$organization->id, $member->id])
             ->with('success', "Сотрудник {$status}");
     }
     
     /**
-     * Удаление сотрудника (для админа/менеджера)
+     * Удаление сотрудника (для админа/менеджера/владельца)
      */
     public function destroy($organizationId, $memberId)
     {
         $user = Auth::user();
         
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
-        if ($user->isAdmin()) {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
-                })
-                ->firstOrFail();
-        } else {
-            $organization = Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->firstOrFail();
-        }
+        // Проверяем доступ к организации
+        $organization = $this->getOrganizationWithAccess($user, $organizationId);
         
         $member = OrgMemberProfile::where('id', $memberId)
             ->where('organization_id', $organizationId)
             ->with('user')
             ->firstOrFail();
         
-        $memberUser = $member->user;
-        
         DB::beginTransaction();
         
         try {
+            $memberUser = $member->user;
             $member->delete();
             $memberUser->delete();
             
             DB::commit();
             
-            $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
+            $routePrefix = $this->getRoutePrefix($user);
             
             return redirect()->route($routePrefix . 'organization.show', $organization->id)
                 ->with('success', 'Сотрудник успешно удален');
@@ -566,10 +443,53 @@ class OrgMemberController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
-            $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
+            $routePrefix = $this->getRoutePrefix($user);
             
             return redirect()->route($routePrefix . 'org-members.show', [$organization->id, $member->id])
                 ->with('error', 'Произошла ошибка при удалении: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Получить организацию с проверкой доступа пользователя
+     */
+    private function getOrganizationWithAccess($user, $organizationId)
+    {
+        if ($user->isAdmin()) {
+            return Organization::where('id', $organizationId)
+                ->whereHas('manager', function($query) use ($user) {
+                    $query->where('admin_id', $user->id);
+                })
+                ->with(['owner.user', 'manager.user'])
+                ->firstOrFail();
+        } elseif ($user->isManager()) {
+            return Organization::where('id', $organizationId)
+                ->whereHas('manager', function($query) use ($user) {
+                    $query->where('user_id', $user->id);
+                })
+                ->with(['owner.user', 'manager.user'])
+                ->firstOrFail();
+        } else {
+            // Для владельца организации
+            return Organization::where('id', $organizationId)
+                ->whereHas('owner', function($query) use ($user) {
+                    $query->where('user_id', $user->id);
+                })
+                ->with(['owner.user', 'manager.user'])
+                ->firstOrFail();
+        }
+    }
+    
+    /**
+     * Получить префикс маршрута на основе роли пользователя
+     */
+    private function getRoutePrefix($user)
+    {
+        return match($user->role) {
+            'admin' => 'admin.',
+            'manager' => 'manager.',
+            'org_owner' => 'owner.',
+            default => 'admin.'
+        };
     }
 }

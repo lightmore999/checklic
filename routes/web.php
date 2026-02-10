@@ -2,6 +2,9 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\LimitController;
+use App\Http\Controllers\DelegatedLimitController;
+use App\Http\Controllers\ReportController;
 
 // Главная страница
 Route::get('/', function () {
@@ -29,6 +32,8 @@ Route::get('/', function () {
     
     return redirect()->route('login');
 });
+
+Route::get('/order-stats', [App\Http\Controllers\OrderStatsController::class, 'index'])->name('order-stats');
 
 // Аутентификация
 Route::middleware('guest')->group(function () {
@@ -132,9 +137,19 @@ Route::middleware(['auth'])->prefix('owner')->name('owner.')->group(function () 
     // Дашборд владельца
     Route::get('/dashboard', 'App\Http\Controllers\OrganizationController@ownerDashboard')->name('dashboard');
     
-    // Просмотр сотрудников организации (только просмотр)
+    // Просмотр организации владельцем
+    Route::get('/organization/{id}', 'App\Http\Controllers\OrganizationController@ownerShow')->name('organization.show');
+    
+    // Управление сотрудниками организаций (полные права)
     Route::prefix('organization/{organizationId}/member')->name('org-members.')->group(function () {
+        Route::get('/create', 'App\Http\Controllers\OrgMemberController@create')->name('create');
+        Route::post('/store', 'App\Http\Controllers\OrgMemberController@store')->name('store');
         Route::get('/{memberId}', 'App\Http\Controllers\OrgMemberController@show')->name('show');
+        Route::get('/{memberId}/edit', 'App\Http\Controllers\OrgMemberController@edit')->name('edit');
+        Route::post('/{memberId}/update', 'App\Http\Controllers\OrgMemberController@update')->name('update');
+        Route::post('/{memberId}/change-password', 'App\Http\Controllers\OrgMemberController@changePassword')->name('change-password');
+        Route::post('/{memberId}/toggle-status', 'App\Http\Controllers\OrgMemberController@toggleStatus')->name('toggle-status');
+        Route::delete('/{memberId}/delete', 'App\Http\Controllers\OrgMemberController@destroy')->name('delete');
     });
 });
 
@@ -143,7 +158,10 @@ Route::middleware(['auth'])->prefix('owner')->name('owner.')->group(function () 
 // ============================
 Route::middleware(['auth'])->prefix('member')->name('member.')->group(function () {
     
-    // Профиль сотрудника (без дашборда)
+    // Дашборд сотрудника
+    Route::get('/dashboard', 'App\Http\Controllers\OrgMemberController@dashboard')->name('dashboard');
+    
+    // Профиль сотрудника
     Route::get('/profile', 'App\Http\Controllers\OrgMemberController@profile')->name('profile');
     Route::get('/profile/edit', 'App\Http\Controllers\OrgMemberController@editProfile')->name('profile.edit');
     Route::post('/profile/update', 'App\Http\Controllers\OrgMemberController@updateProfile')->name('profile.update');
@@ -152,12 +170,39 @@ Route::middleware(['auth'])->prefix('member')->name('member.')->group(function (
 // ============================
 // ОТЧЕТЫ
 // ============================
-Route::middleware(['auth'])->prefix('reports')->name('reports.')->group(function () {
-    Route::get('/create', 'App\Http\Controllers\ReportController@create')->name('create');
-    Route::post('/store', 'App\Http\Controllers\ReportController@store')->name('store');
-    Route::get('/', 'App\Http\Controllers\ReportController@index')->name('index');
-    Route::get('/{id}', 'App\Http\Controllers\ReportController@show')->name('show');
-    Route::get('/{id}/edit', 'App\Http\Controllers\ReportController@edit')->name('edit');
-    Route::post('/{id}/update', 'App\Http\Controllers\ReportController@update')->name('update');
-    Route::delete('/{id}/delete', 'App\Http\Controllers\ReportController@destroy')->name('destroy');
+Route::middleware('auth')->group(function () {
+    Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::get('/reports/create', [ReportController::class, 'create'])->name('reports.create');
+    Route::post('/reports', [ReportController::class, 'store'])->name('reports.store');
+    Route::get('/reports/{report}', [ReportController::class, 'show'])->name('reports.show');
+    Route::patch('/reports/{report}/cancel', [ReportController::class, 'cancel'])->name('reports.cancel');
+});
+
+
+// ============================
+// ЛИМИТЫ (с проверкой ролей)
+// ============================
+Route::middleware(['auth'])->group(function () {
+    // Админ и менеджер могут управлять лимитами
+    Route::middleware(['role:admin,manager'])->group(function () {  // ЗДЕСЬ: 'role', а не 'check.role'
+        Route::get('limits', [LimitController::class, 'index'])->name('limits.index');
+        Route::get('limits/create', [LimitController::class, 'create'])->name('limits.create');
+        Route::post('limits', [LimitController::class, 'store'])->name('limits.store');
+        Route::get('limits/bulk-create', [LimitController::class, 'bulkCreate'])->name('limits.bulk-create');
+        Route::post('limits/bulk-store', [LimitController::class, 'bulkStore'])->name('limits.bulk-store');
+        Route::get('users/{user}/limits', [LimitController::class, 'userLimits'])->name('users.limits');
+    });
+    
+    // Только админ может редактировать/удалять
+    Route::middleware(['role:admin'])->group(function () {  // ЗДЕСЬ: 'role', а не 'check.role'
+        Route::get('limits/{limit}/edit', [LimitController::class, 'edit'])->name('limits.edit');
+        Route::put('limits/{limit}', [LimitController::class, 'update'])->name('limits.update');
+        Route::delete('limits/{limit}', [LimitController::class, 'destroy'])->name('limits.destroy');
+    });
+});
+
+// Делегированные лимиты
+Route::middleware(['auth'])->group(function () {
+    Route::post('delegated-limits', [DelegatedLimitController::class, 'store'])->name('delegated-limits.store');
+    Route::delete('delegated-limits/{delegatedLimit}', [DelegatedLimitController::class, 'destroy'])->name('delegated-limits.destroy');
 });

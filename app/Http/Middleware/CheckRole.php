@@ -8,15 +8,7 @@ use Illuminate\Support\Facades\Auth;
 
 class CheckRole
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
-     * @param  string  $role
-     * @return mixed
-     */
-    public function handle(Request $request, Closure $next, $role)
+    public function handle(Request $request, Closure $next, ...$roles)  // Здесь ...$roles
     {
         $user = Auth::user();
         
@@ -24,9 +16,17 @@ class CheckRole
             return redirect()->route('login');
         }
         
-        // Проверяем роль пользователя
-        if (!$user->hasRole($role)) {
-            abort(403, 'Доступ запрещен. Требуемая роль: ' . $role);
+        // Проверяем, есть ли у пользователя хотя бы одна из требуемых ролей
+        $hasRole = false;
+        foreach ($roles as $role) {
+            if ($user->hasRole($role)) {
+                $hasRole = true;
+                break;
+            }
+        }
+        
+        if (!$hasRole) {
+            abort(403, 'Доступ запрещен. Требуемая роль: ' . implode(', ', $roles));
         }
         
         return $next($request);

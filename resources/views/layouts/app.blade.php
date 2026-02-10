@@ -141,6 +141,11 @@
                                 <i class="nav-icon bi bi-building-add"></i>
                                 Создать организацию
                             </a>
+                            <a href="{{ route('limits.index') }}" 
+                               class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
+                                <i class="nav-icon bi bi-building-add"></i>
+                                Управление лимитами
+                            </a>
                         @endif
                         
                         <!-- Manager Section -->
@@ -163,6 +168,11 @@
                                 <i class="nav-icon bi bi-person"></i>
                                 Мой профиль
                             </a>
+                            <a href="{{ route('limits.index') }}" 
+                               class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
+                                <i class="nav-icon bi bi-building-add"></i>
+                                Управление лимитами
+                            </a>
                         @endif
                         
                         <!-- Owner Section -->
@@ -178,11 +188,6 @@
                         <!-- Member Section -->
                         @if(Auth::user()->role === 'org_member')
                             <div class="sidebar-section px-3 py-2">Рабочее место</div>
-                            <a href="{{ route('member.dashboard') }}" 
-                               class="nav-link {{ request()->routeIs('member.dashboard') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-speedometer"></i>
-                                Панель сотрудника
-                            </a>
                             
                             <a href="{{ route('member.profile') }}" 
                                class="nav-link {{ request()->routeIs('member.profile') ? 'active' : '' }}">
@@ -296,13 +301,7 @@
             });
             
             // Auto-dismiss alerts after 5 seconds
-            setTimeout(function() {
-                var alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
-                alerts.forEach(function(alert) {
-                    var bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
-                });
-            }, 5000);
+
         });
     </script>
     

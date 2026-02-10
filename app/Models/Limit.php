@@ -21,6 +21,7 @@ class Limit extends Model
         'user_id',
         'report_type_id',
         'quantity',
+        'used_quantity', // Добавляем
         'date_created',
     ];
 
@@ -39,6 +40,7 @@ class Limit extends Model
     protected $casts = [
         'date_created' => 'date',
         'quantity' => 'integer',
+        'used_quantity' => 'integer', // Добавляем
     ];
 
     /**
@@ -62,7 +64,16 @@ class Limit extends Model
      */
     public function isExhausted(): bool
     {
-        return $this->quantity <= 0;
+        return $this->getAvailableQuantity() <= 0;
+    }
+
+    /**
+     * Получить доступное количество
+     * (общее количество минус использованное)
+     */
+    public function getAvailableQuantity(): int
+    {
+        return $this->quantity - $this->used_quantity;
     }
 
     /**
@@ -70,7 +81,7 @@ class Limit extends Model
      */
     public function decrementLimit(int $amount = 1): bool
     {
-        if ($this->quantity >= $amount) {
+        if ($this->getAvailableQuantity() >= $amount) {
             $this->quantity -= $amount;
             return $this->save();
         }
@@ -85,6 +96,32 @@ class Limit extends Model
     {
         $this->quantity += $amount;
         return $this->save();
+    }
+
+    /**
+     * Использовать часть лимита (при создании отчета)
+     */
+    public function useQuantity(int $amount = 1): bool
+    {
+        if ($this->getAvailableQuantity() >= $amount) {
+            $this->used_quantity += $amount;
+            return $this->save();
+        }
+        
+        return false;
+    }
+
+    /**
+     * Вернуть использованный лимит (при удалении отчета)
+     */
+    public function returnQuantity(int $amount = 1): bool
+    {
+        if ($this->used_quantity >= $amount) {
+            $this->used_quantity -= $amount;
+            return $this->save();
+        }
+        
+        return false;
     }
 
     /**
@@ -115,6 +152,7 @@ class Limit extends Model
             ],
             [
                 'quantity' => $quantity,
+                'used_quantity' => 0, // Инициализируем
             ]
         );
     }
@@ -130,15 +168,15 @@ class Limit extends Model
             return false; // Лимит не установлен
         }
         
-        return $limit->quantity >= $requiredAmount;
+        return $limit->getAvailableQuantity() >= $requiredAmount;
     }
 
     /**
-     * Scope для активных лимитов (не исчерпанных)
+     * Scope для активных лимитов (есть доступное количество)
      */
     public function scopeActive($query)
     {
-        return $query->where('quantity', '>', 0);
+        return $query->whereRaw('quantity - used_quantity > 0');
     }
 
     /**
@@ -163,5 +201,13 @@ class Limit extends Model
     public function scopeForDate($query, string $date)
     {
         return $query->where('date_created', $date);
+    }
+
+    /**
+     * Делегированные версии этого лимита
+     */
+    public function delegatedVersions()
+    {
+        return $this->hasMany(DelegatedLimit::class, 'limit_id');
     }
 }

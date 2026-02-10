@@ -103,6 +103,7 @@
                         <p><i class="bi bi-people me-2"></i> Сотрудников: {{ $organization->members->count() }}</p>
                         @if($organization->owner && $organization->owner->user)
                             <p><i class="bi bi-person-badge me-2"></i> Владелец: {{ $organization->owner->user->name }}</p>
+                            <p class="text-muted small">(будет автоматически назначен начальником)</p>
                         @endif
                         @if($organization->manager && $organization->manager->user)
                             <p><i class="bi bi-person-gear me-2"></i> Менеджер: {{ $organization->manager->user->name }}</p>
@@ -120,9 +121,10 @@
                         <h6 class="alert-heading">При добавлении сотрудника:</h6>
                         <ul class="mb-0 small">
                             <li>Создается учетная запись с ролью "Сотрудник"</li>
+                            <li>Начальником автоматически назначается владелец организации</li>
+                            <li>Менеджером назначается ответственный менеджер организации</li>
                             <li>Пароль будет отправлен на указанный email</li>
                             <li>Сотрудник сможет войти сразу после создания</li>
-                            <li>Начальник может быть назначен позже</li>
                             <li>Все поля отмеченные * обязательны</li>
                         </ul>
                     </div>

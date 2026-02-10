@@ -9,9 +9,15 @@
         <i class="bi bi-speedometer text-primary me-2"></i>
         Панель менеджера
     </h5>
-    <a href="{{ route('manager.organization.create') }}" class="btn btn-success">
-        <i class="bi bi-building-add"></i> Создать организацию
-    </a>
+    <div class="d-flex gap-2">
+        <!-- ДОБАВЛЕНА КНОПКА УПРАВЛЕНИЯ ЛИМИТАМИ -->
+        <a href="{{ route('limits.index') }}" class="btn btn-info">
+            <i class="bi bi-graph-up"></i> Управление лимитами
+        </a>
+        <a href="{{ route('manager.organization.create') }}" class="btn btn-success">
+            <i class="bi bi-building-add"></i> Создать организацию
+        </a>
+    </div>
 </div>
 
 <!-- Информация о менеджере -->
@@ -104,13 +110,14 @@
                                 </a>
                             </div>
                             <div class="col-md-3">
-                                <a href="{{ route('reports.create') }}" class="btn btn-outline-info w-100">
-                                    <i class="bi bi-file-earmark-plus me-1"></i> Создать отчет
+                                <!-- ДОБАВЛЕНА КНОПКА ДЛЯ МЕНЕДЖЕРА -->
+                                <a href="{{ route('limits.create') }}" class="btn btn-outline-info w-100">
+                                    <i class="bi bi-plus-circle me-1"></i> Создать лимит
                                 </a>
                             </div>
                             <div class="col-md-3">
-                                <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary w-100">
-                                    <i class="bi bi-files me-1"></i> Мои отчеты
+                                <a href="{{ route('reports.create') }}" class="btn btn-outline-info w-100">
+                                    <i class="bi bi-file-earmark-plus me-1"></i> Создать отчет
                                 </a>
                             </div>
                             <div class="col-md-3">
@@ -228,14 +235,37 @@
                     Исчерпано: <span class="{{ $exhaustedCount > 0 ? 'text-danger fw-bold' : 'text-success' }}">{{ $exhaustedCount }}</span>
                 </div>
                 
-                @if($exhaustedCount > 0)
-                    <div class="alert alert-danger py-1 px-3 mb-0">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        <small>{{ $exhaustedCount }} лимит(ов) исчерпано</small>
-                    </div>
-                @endif
+                <!-- ДОБАВЛЕНА ССЫЛКА ДЛЯ МЕНЕДЖЕРА -->
+                <div>
+                    <a href="{{ route('limits.index') }}" class="btn btn-sm btn-info">
+                        <i class="bi bi-graph-up me-1"></i> Управление лимитами
+                    </a>
+                </div>
             </div>
         </div>
+    </div>
+</div>
+@else
+<!-- Если у менеджера нет лимитов -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom">
+        <h6 class="mb-0">
+            <i class="bi bi-speedometer text-info me-2"></i>
+            Лимиты
+        </h6>
+    </div>
+    <div class="card-body text-center py-5">
+        <div class="mb-4">
+            <i class="bi bi-graph-up display-1 text-muted"></i>
+        </div>
+        <h4 class="text-muted mb-3">Лимиты не настроены</h4>
+        <p class="text-muted mb-4">Настройте лимиты для ваших организаций</p>
+        <a href="{{ route('limits.create') }}" class="btn btn-info">
+            <i class="bi bi-plus-circle me-1"></i> Создать лимит
+        </a>
+        <a href="{{ route('limits.bulk-create') }}" class="btn btn-success ms-2">
+            <i class="bi bi-layer-group me-1"></i> Массовое создание
+        </a>
     </div>
 </div>
 @endif
@@ -251,9 +281,15 @@
             </h6>
             <small class="text-muted">Последние созданные организации</small>
         </div>
-        <a href="{{ route('manager.organization.create') }}" class="btn btn-success">
-            <i class="bi bi-building-add"></i> Создать организацию
-        </a>
+        <div class="d-flex gap-2">
+            <!-- ДОБАВЛЕНА КНОПКА МАССОВОГО СОЗДАНИЯ ЛИМИТОВ -->
+            <a href="{{ route('limits.bulk-create') }}" class="btn btn-info">
+                <i class="bi bi-layer-group"></i> Массовые лимиты
+            </a>
+            <a href="{{ route('manager.organization.create') }}" class="btn btn-success">
+                <i class="bi bi-building-add"></i> Создать организацию
+            </a>
+        </div>
     </div>
     <div class="card-body">
         @if($organizations->count() > 0)
@@ -352,6 +388,15 @@
                                        title="Редактировать организацию"
                                        data-bs-toggle="tooltip">
                                         <i class="bi bi-pencil"></i>
+                                    </a>
+                                    
+                                    <!-- ДОБАВЛЕНА КНОПКА СОЗДАНИЯ ЛИМИТА ДЛЯ ОРГАНИЗАЦИИ -->
+                                    <a href="{{ route('limits.create') }}?user_id={{ $organization->owner?->user_id ?? '' }}" 
+                                       class="btn btn-sm btn-outline-success rounded-circle d-flex align-items-center justify-content-center"
+                                       style="width: 32px; height: 32px;"
+                                       title="Создать лимит для владельца"
+                                       data-bs-toggle="tooltip">
+                                        <i class="bi bi-plus-circle"></i>
                                     </a>
                                 </div>
                             </td>

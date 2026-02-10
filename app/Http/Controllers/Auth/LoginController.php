@@ -47,7 +47,8 @@ class LoginController extends Controller
             }
             
             if ($user->isOrgMember()) {
-                return redirect()->route('org-member.dashboard');
+                // ИСПРАВЛЕНО: правильный маршрут для сотрудников
+                return redirect()->route('member.profile');
             }
             
             return redirect()->route('admin.dashboard');

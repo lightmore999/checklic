@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Models\Manager;
 use App\Models\Organization;
 use App\Models\OrgOwnerProfile;
+use App\Models\Limit;
+use App\Models\DelegatedLimit; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -235,7 +237,6 @@ class OrganizationController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
-        // Определяем префикс маршрута
         $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
         
         if ($user->isAdmin()) {
@@ -246,7 +247,6 @@ class OrganizationController extends Controller
                 ->with(['manager.user', 'owner.user', 'members.user'])
                 ->firstOrFail();
         } else {
-            // Для менеджера
             $organization = Organization::where('id', $id)
                 ->whereHas('manager', function($query) use ($user) {
                     $query->where('user_id', $user->id);
@@ -257,56 +257,97 @@ class OrganizationController extends Controller
         
         // === ЛИМИТЫ ВЛАДЕЛЬЦА ОРГАНИЗАЦИИ ===
         $ownerLimits = [];
+        $delegatedLimits = collect(); // Для делегированных лимитов
+        $availableEmployees = collect(); // Для доступных сотрудников
         
         if ($organization->owner && $organization->owner->user) {
             $owner = $organization->owner->user;
+            $today = now()->format('Y-m-d');
             
-            // Проверяем, существует ли модель ReportType
-            if (class_exists('App\Models\ReportType')) {
-                // Получаем ВСЕ типы отчетов
-                $reportTypes = \App\Models\ReportType::all();
+            // Получаем обычные лимиты владельца
+           $limits = Limit::where('user_id', $owner->id)
+                ->with(['reportType', 'delegatedVersions.user'])
+                ->orderBy('date_created', 'desc') // можно отсортировать по дате
+                ->get();
+            
+            // Получаем делегированные лимиты владельца
+            $delegatedLimits = DelegatedLimit::whereHas('limit', function($q) use ($owner) {
+                    $q->where('user_id', $owner->id);
+                })
+                ->with(['user', 'limit.reportType'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+            
+            // Формируем данные для отображения
+            foreach ($limits as $limit) {
+                if ($limit->reportType && (!$limit->reportType->only_api || ($limit->reportType->only_api && $limit->quantity > 0))) {
+                    
+                    // Сумма делегированных лимитов для этого лимита
+                    $delegatedAmount = $delegatedLimits->where('limit_id', $limit->id)->sum('quantity');
+                    
+                    // Общее выделенное = текущий остаток + использовано + делегировано
+                    $totalAllocated = $limit->quantity + ($limit->used_quantity ?? 0) + $delegatedAmount;
+                    
+                    $ownerLimits[] = [
+                        'id' => $limit->id,
+                        'report_type_id' => $limit->report_type_id,
+                        'report_type_name' => $limit->reportType->name ?? 'Не указан',
+                        'description' => $limit->reportType->description ?? null,
+                        'only_api' => $limit->reportType->only_api ?? false,
+                        'quantity' => $limit->quantity, // Текущий остаток
+                        'used_quantity' => $limit->used_quantity ?? 0,
+                        'total_allocated' => $totalAllocated, // Общее выделенное
+                        'delegated_amount' => $delegatedAmount,
+                        'available_amount' => $limit->quantity, // Доступно = текущий остаток
+                        'is_exhausted' => $limit->quantity <= 0,
+                        'has_limit' => true,
+                        'date_created' => $limit->date_created,
+                    ];
+                }
+            }
+            
+            // Если нет лимитов на сегодня, показываем из доступных типов отчетов
+            if (empty($ownerLimits) && class_exists('App\Models\ReportType')) {
+                $reportTypes = ReportType::all();
                 
                 foreach ($reportTypes as $reportType) {
-                    // Получаем лимит владельца для этого типа отчета на сегодня
-                    $today = now()->format('Y-m-d');
-                    $limit = \App\Models\Limit::where('user_id', $owner->id)
-                        ->where('report_type_id', $reportType->id)
-                        ->where('date_created', $today)
-                        ->first();
-                    
-                    // Логика отображения:
-                    // 1. Если only_api = false, ВСЕГДА показываем (даже если лимит = 0)
-                    // 2. Если only_api = true, показываем ТОЛЬКО если есть лимит
-                    if (!$reportType->only_api || ($reportType->only_api && $limit !== null)) {
-                        $quantity = $limit ? $limit->quantity : 0;
-                        
+                    if (!$reportType->only_api) {
                         $ownerLimits[] = [
+                            'id' => null,
                             'report_type_id' => $reportType->id,
                             'report_type_name' => $reportType->name,
                             'description' => $reportType->description,
                             'only_api' => $reportType->only_api,
-                            'quantity' => $quantity,
-                            'is_exhausted' => $quantity <= 0,
-                            'has_limit' => $limit !== null,
+                            'quantity' => 0,
+                            'used_quantity' => 0,
+                            'total_allocated' => 0,
+                            'delegated_amount' => 0,
+                            'available_amount' => 0,
+                            'is_exhausted' => true,
+                            'has_limit' => false,
+                            'date_created' => $today,
                         ];
                     }
                 }
-                
-                // Сортируем лимиты
-                usort($ownerLimits, function($a, $b) {
-                    if ($a['only_api'] !== $b['only_api']) {
-                        return $a['only_api'] ? 1 : -1;
-                    }
-                    return strcmp($a['report_type_name'], $b['report_type_name']);
-                });
             }
+            
+            // Получаем доступных для делегирования сотрудников
+            $availableEmployees = User::whereHas('orgMemberProfile', function($q) use ($organization, $owner) {
+                    $q->where('organization_id', $organization->id)
+                        ->where('boss_id', $owner->id)
+                        ->where('is_active', true);
+                })
+                ->where('is_active', true)
+                ->get();
         }
         
         return view('organizations.show', compact(
             'user', 
             'organization', 
             'routePrefix',
-            'ownerLimits'
+            'ownerLimits',
+            'delegatedLimits',
+            'availableEmployees'
         ));
     }
     
@@ -695,31 +736,76 @@ class OrganizationController extends Controller
      * Просмотр организаций владельцем (для самого владельца)
      */
     public function ownerDashboard()
-    {
-        $owner = Auth::user();
-        
-        if (!$owner->isOrgOwner()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
-        // Получаем организацию владельца
-        $organization = $owner->orgOwnerProfile->organization;
-        
-        // Получаем сотрудников организации
-        $members = $organization->members()->with('user')->orderBy('created_at', 'desc')->take(5)->get();
-        
-        // Статистика
-        $data = [
-            'organization' => $organization,
-            'members' => $members,
-            'membersCount' => $organization->members()->count(),
-            'activeMembersCount' => $organization->members()->where('is_active', true)->count(),
-            'reportsCount' => 0,
-            'licensesCount' => 0,
-        ];
-        
-        return view('org-owner.dashboard', $data);
+{
+    $user = Auth::user();
+    
+    // Проверяем, что пользователь - владелец организации
+    if (!$user->isOrgOwner()) {
+        abort(403, 'Только владельцы организаций могут просматривать эту страницу');
     }
+    
+    // Получаем профиль владельца и его организацию
+    $ownerProfile = $user->orgOwnerProfile;
+    
+    if (!$ownerProfile) {
+        abort(404, 'Профиль владельца не найден');
+    }
+    
+    $organization = $ownerProfile->organization;
+    
+    if (!$organization) {
+        abort(404, 'Организация не найдена');
+    }
+    
+    // Получаем сотрудников организации
+    $members = $organization->members()
+        ->with('user')
+        ->where('boss_id', $user->id) 
+        ->paginate(10);
+    
+    $membersCount = $organization->members()
+        ->where('boss_id', $user->id)
+        ->count();
+    
+    $activeMembersCount = $organization->members()
+        ->where('boss_id', $user->id)
+        ->where('is_active', true)
+        ->count();
+    
+    // Получаем лимиты владельца
+    $ownerLimits = Limit::where('user_id', $user->id)
+        ->with('reportType')
+        ->orderBy('date_created', 'desc')
+        ->get();
+    
+    // Получаем делегированные лимиты владельца
+    $delegatedLimits = DelegatedLimit::whereHas('limit', function($q) use ($user) {
+            $q->where('user_id', $user->id);
+        })
+        ->with(['user', 'limit.reportType'])
+        ->orderBy('created_at', 'desc')
+        ->get();
+    
+    // Получаем доступных для делегирования сотрудников
+    $availableEmployees = User::whereHas('orgMemberProfile', function($q) use ($organization, $user) {
+            $q->where('organization_id', $organization->id)
+                ->where('boss_id', $user->id)
+                ->where('is_active', true);
+        })
+        ->where('is_active', true)
+        ->get();
+    
+    return view('org-owner.dashboard', compact(
+        'user', 
+        'organization', 
+        'members', 
+        'membersCount', 
+        'activeMembersCount',
+        'ownerLimits',
+        'delegatedLimits',
+        'availableEmployees'
+    ));
+}
     
     /**
      * Просмотр организаций менеджером (для самого менеджера)
@@ -736,4 +822,5 @@ class OrganizationController extends Controller
     {
         return $this->update($request, $id); // Используем общий метод
     }
+
 }

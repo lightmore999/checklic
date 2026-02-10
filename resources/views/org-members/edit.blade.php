@@ -5,8 +5,11 @@
 @section('content')
 <div class="container-fluid">
     @php
-        $isAdmin = Auth::user()->isAdmin();
-        $isManager = Auth::user()->isManager();
+        $user = Auth::user();
+        $isAdmin = $user->isAdmin();
+        $isManager = $user->isManager();
+        $isOwner = $user->isOrgOwner();
+        
         // Определяем префикс маршрута
         if ($isAdmin) {
             $routePrefix = 'admin.';
@@ -51,6 +54,7 @@
 
     <form action="{{ route($routePrefix . 'org-members.update', [$organization->id, $member->id]) }}" 
           method="POST"
+          id="editForm"
           data-turbo="false">
         @csrf
         @method('POST')
@@ -97,40 +101,45 @@
                                 <input class="form-check-input" type="checkbox" id="is_active" 
                                        name="is_active" value="1" 
                                        {{ old('is_active', $member->is_active) ? 'checked' : '' }}>
+                                <input type="hidden" name="is_active" value="0">
                                 <label class="form-check-label" for="is_active">
                                     Активен (может войти в систему)
                                 </label>
                             </div>
+                            <small class="text-muted">Включите, чтобы сотрудник мог войти в систему</small>
                         </div>
                     </div>
                 </div>
 
                 <!-- Дополнительные действия -->
-                @if($isAdmin || $isManager)
+                @if($isAdmin || $isManager || $isOwner)
                     <div class="card">
                         <div class="card-header bg-danger text-white">
                             <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Опасные действия</h5>
                         </div>
                         <div class="card-body">
                             <div class="d-grid gap-2">
+                                @if($isAdmin || $isManager)
                                 <a href="#" class="btn btn-outline-warning" 
                                    data-bs-toggle="modal" data-bs-target="#changePasswordModal">
                                     <i class="bi bi-key"></i> Сменить пароль
                                 </a>
+                                @endif
 
                                 <form action="{{ route($routePrefix . 'org-members.toggle-status', [$organization->id, $member->id]) }}" 
                                       method="POST"
+                                      class="d-grid"
                                       data-turbo="false">
                                     @csrf
                                     <button type="submit" 
-                                            class="btn btn-outline-{{ $member->is_active ? 'warning' : 'success' }} w-100">
+                                            class="btn btn-outline-{{ $member->is_active ? 'warning' : 'success' }}">
                                         <i class="bi bi-toggle-{{ $member->is_active ? 'off' : 'on' }}"></i>
                                         {{ $member->is_active ? 'Деактивировать' : 'Активировать' }}
                                     </button>
                                 </form>
 
                                 <button type="button" class="btn btn-outline-danger" 
-                                        onclick="confirmDelete({{ $organization->id }}, {{ $member->id }}, '{{ $member->user->name }}')">
+                                        onclick="confirmDelete()">
                                     <i class="bi bi-trash"></i> Удалить сотрудника
                                 </button>
                             </div>
@@ -145,9 +154,9 @@
                     <div class="card-header bg-success text-white">
                         <h5 class="mb-0"><i class="bi bi-briefcase"></i> Рабочая информация</h5>
                     </div>
-
+                    <div class="card-body">
                         <!-- Информация об организации -->
-                        <div class="card border-success mt-3">
+                        <div class="card border-success">
                             <div class="card-header bg-transparent border-success">
                                 <h6 class="mb-0"><i class="bi bi-building me-2"></i> Организация</h6>
                             </div>
@@ -167,6 +176,16 @@
                                         Менеджер: 
                                         @if($member->manager && $member->manager->user)
                                             {{ $member->manager->user->name }}
+                                        @else
+                                            <span class="text-muted">Не назначен</span>
+                                        @endif
+                                    </small>
+                                </p>
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        Начальник: 
+                                        @if($member->boss && $member->boss->user)
+                                            {{ $member->boss->user->name }}
                                         @else
                                             <span class="text-muted">Не назначен</span>
                                         @endif
@@ -304,22 +323,33 @@
         </div>
     </div>
 </div>
+@endif
 
 <!-- Форма для удаления -->
-<form id="delete-form" method="POST" style="display: none;" data-turbo="false">
+<form id="delete-form" method="POST" action="{{ route($routePrefix . 'org-members.delete', [$organization->id, $member->id]) }}" style="display: none;" data-turbo="false">
     @csrf
     @method('DELETE')
 </form>
 
 <script>
-function confirmDelete(organizationId, memberId, name) {
-    if (confirm(`Вы уверены, что хотите удалить сотрудника "${name}"? Это действие удалит его учетную запись и все связанные данные.`)) {
-        const form = document.getElementById('delete-form');
-        const prefix = '{{ $isAdmin ? "admin" : "manager" }}';
-        form.action = `/${prefix}/organization/${organizationId}/member/${memberId}/delete`;
-        form.submit();
+function confirmDelete() {
+    const memberName = "{{ $member->user->name }}";
+    if (confirm(`Вы уверены, что хотите удалить сотрудника "${memberName}"? Это действие удалит его учетную запись и все связанные данные.`)) {
+        document.getElementById('delete-form').submit();
     }
 }
+
+// Исправление работы чекбокса
+document.addEventListener('DOMContentLoaded', function() {
+    const checkbox = document.getElementById('is_active');
+    const hiddenInput = checkbox.previousElementSibling;
+    
+    checkbox.addEventListener('change', function() {
+        hiddenInput.value = this.checked ? '1' : '0';
+    });
+    
+    // Установим начальное значение
+    hiddenInput.value = checkbox.checked ? '1' : '0';
+});
 </script>
-@endif
 @endsection

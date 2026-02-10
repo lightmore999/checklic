@@ -291,4 +291,27 @@ class User extends Authenticatable implements MustVerifyEmail
         
         return $colors[$this->role] ?? 'secondary';
     }
+
+    /**
+     * Делегированные лимиты, полученные пользователем
+     */
+    public function delegatedLimits()
+    {
+        return $this->hasMany(DelegatedLimit::class, 'user_id');
+    }
+
+    /**
+     * Лимиты, которые пользователь делегировал другим
+     */
+    public function delegatedToOthers()
+    {
+        return $this->hasManyThrough(
+            DelegatedLimit::class,
+            Limit::class,
+            'user_id', // Foreign key on limits table
+            'limit_id', // Foreign key on delegated_limits table
+            'id', // Local key on users table
+            'id' // Local key on limits table
+        );
+    }
 }

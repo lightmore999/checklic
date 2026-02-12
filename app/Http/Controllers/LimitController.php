@@ -20,7 +20,16 @@ class LimitController extends Controller
         $user = Auth::user();
         
         // Начинаем запрос с подгрузкой связей
-        $query = Limit::with(['user', 'reportType'])
+        $query = Limit::with([
+            'user.orgOwnerProfile', 
+            'user.orgMemberProfile',
+            'creator', // <-- ДОБАВЬТЕ ЭТО
+            'creator.orgOwnerProfile',
+            'creator.orgMemberProfile',
+            'reportType',
+            'delegatedVersions.user.orgOwnerProfile',
+            'delegatedVersions.user.orgMemberProfile'
+        ])
             ->orderBy('date_created', 'desc')
             ->orderBy('created_at', 'desc');
         
@@ -43,7 +52,19 @@ class LimitController extends Controller
                 $query->whereIn('user_id', $userIds);
             }
         }
-        // Админ видит все лимиты (без фильтрации) - убираем проверку для админа
+        
+        // Фильтрация по организации
+        if ($request->filled('organization_id')) {
+            $orgUserIds = User::whereHas('orgOwnerProfile', function($q) use ($request) {
+                    $q->where('organization_id', $request->organization_id);
+                })
+                ->orWhereHas('orgMemberProfile', function($q) use ($request) {
+                    $q->where('organization_id', $request->organization_id);
+                })
+                ->pluck('id');
+                
+            $query->whereIn('user_id', $orgUserIds);
+        }
         
         // Фильтрация по пользователю
         if ($request->filled('user_id')) {
@@ -63,9 +84,9 @@ class LimitController extends Controller
         // Фильтрация по статусу
         if ($request->filled('status')) {
             if ($request->status == 'active') {
-                $query->where('quantity', '>', 0);
+                $query->whereRaw('quantity > used_quantity');
             } elseif ($request->status == 'exhausted') {
-                $query->where('quantity', '<=', 0);
+                $query->whereRaw('quantity <= used_quantity');
             }
         }
         
@@ -75,8 +96,20 @@ class LimitController extends Controller
         $users = $this->getAvailableUsers($user);
         $reportTypes = ReportType::all();
         
-        return view('limits.index', compact('limits', 'users', 'reportTypes'));
+        // Получаем организации для фильтра
+        if ($user->isAdmin()) {
+            $organizations = Organization::orderBy('name')->get();
+        } elseif ($user->isManager()) {
+            $organizations = Organization::whereHas('manager', function($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })->orderBy('name')->get();
+        } else {
+            $organizations = collect();
+        }
+        
+        return view('limits.index', compact('limits', 'users', 'reportTypes', 'organizations'));
     }
+
     
     /**
      * Форма создания лимита
@@ -126,6 +159,10 @@ class LimitController extends Controller
                 $request->quantity,
                 $request->date_created
             );
+            
+            // Явно сохраняем создателя
+            $limit->created_by = auth()->id();
+            $limit->save();
             
             return redirect()->route('limits.index')
                 ->with('success', 'Лимит успешно создан');
@@ -268,12 +305,16 @@ class LimitController extends Controller
         
         foreach ($request->user_ids as $userId) {
             try {
-                Limit::createOrUpdateLimit(
+                $limit = Limit::createOrUpdateLimit(
                     $userId,
                     $request->report_type_id,
                     $request->quantity,
                     $request->date_created
                 );
+                
+                $limit->created_by = auth()->id();
+                $limit->save();
+                
                 $successCount++;
             } catch (\Exception $e) {
                 $errorCount++;
@@ -544,5 +585,35 @@ class LimitController extends Controller
         }
         
         return false;
+    }
+
+    public function delegate(Request $request, Limit $limit)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'quantity' => 'required|integer|min:1|max:' . $limit->getAvailableQuantity(),
+        ]);
+
+        // Проверяем доступность лимита
+        if ($limit->getAvailableQuantity() < $request->quantity) {
+            return back()->with('error', 'Недостаточно доступного лимита для делегирования');
+        }
+
+        // Проверяем, не делегируем ли самому себе
+        if ($limit->user_id == $request->user_id) {
+            return back()->with('error', 'Нельзя делегировать лимит самому себе');
+        }
+
+        // Используем лимит из основного пула
+        $limit->useQuantity($request->quantity);
+
+        // Создаем или обновляем делегированный лимит
+        DelegatedLimit::createOrUpdateDelegatedLimit(
+            $request->user_id,
+            $limit->id,
+            $request->quantity
+        );
+
+        return back()->with('success', 'Лимит успешно делегирован');
     }
 }

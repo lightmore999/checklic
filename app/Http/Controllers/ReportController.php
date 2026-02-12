@@ -7,9 +7,12 @@ use App\Models\ReportType;
 use App\Models\DelegatedLimit;
 use App\Models\Limit;
 use App\Models\User;
+use App\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 class ReportController extends Controller
 {
@@ -21,19 +24,134 @@ class ReportController extends Controller
         $user = Auth::user();
         
         // Начинаем запрос с подгрузкой связей
-        $query = Report::with(['reportType', 'user'])
+        $query = Report::with(['reportType', 'user', 'user.orgOwnerProfile', 'user.orgMemberProfile'])
             ->orderBy('created_at', 'desc');
         
-        // Фильтрация по пользователю (если указан в запросе)
-        if ($request->filled('user_id')) {
-            // Админ, менеджер или владелец могут смотреть чужие отчеты
-            if ($user->isAdmin() || $user->isManager() || $user->isOrgOwner()) {
-                $query->where('user_id', $request->user_id);
-            }
-        } else {
-            // Если пользователь не указан, показываем отчеты текущего пользователя
+        // === БАЗОВАЯ ФИЛЬТРАЦИЯ ПО ПРАВАМ ДОСТУПА ===
+        
+        // 1. АДМИНИСТРАТОР - видит всё
+        if ($user->isAdmin()) {
+            // Без ограничений
+        }
+        // 2. МЕНЕДЖЕР - только организации, которые он ведет, и их сотрудников
+        elseif ($user->isManager()) {
+            $query->whereHas('user', function($q) use ($user) {
+                // Пользователь является владельцем организации, которую ведет менеджер
+                $q->whereHas('orgOwnerProfile', function($q2) use ($user) {
+                    $q2->whereHas('organization', function($q3) use ($user) {
+                        $q3->whereHas('manager', function($q4) use ($user) {
+                            $q4->where('user_id', $user->id);
+                        });
+                    });
+                })
+                // ИЛИ пользователь является сотрудником организации, которую ведет менеджер
+                ->orWhereHas('orgMemberProfile', function($q2) use ($user) {
+                    $q2->whereHas('organization', function($q3) use ($user) {
+                        $q3->whereHas('manager', function($q4) use ($user) {
+                            $q4->where('user_id', $user->id);
+                        });
+                    });
+                })
+                // ИЛИ это сам менеджер
+                ->orWhere('id', $user->id);
+            });
+        }
+        // 3. ВЛАДЕЛЕЦ ОРГАНИЗАЦИИ - только свои отчеты и отчеты подчиненных
+        elseif ($user->isOrgOwner()) {
+            $organizationId = $user->orgOwnerProfile->organization_id ?? null;
+            
+            $query->whereHas('user', function($q) use ($user, $organizationId) {
+                // Сам владелец
+                $q->where('id', $user->id)
+                // ИЛИ его подчиненные
+                ->orWhereHas('orgMemberProfile', function($q2) use ($organizationId, $user) {
+                    $q2->where('organization_id', $organizationId)
+                        ->where('boss_id', $user->id);
+                });
+            });
+        }
+        // 4. ОБЫЧНЫЙ ПОЛЬЗОВАТЕЛЬ - только свои отчеты
+        else {
             $query->where('user_id', $user->id);
         }
+        
+        // === ФИЛЬТРАЦИЯ ПО ОРГАНИЗАЦИИ ===
+        if ($request->filled('organization_id')) {
+            $organizationId = $request->organization_id;
+            
+            // Проверяем доступ к организации
+            $hasAccess = false;
+            
+            if ($user->isAdmin()) {
+                $hasAccess = true;
+            } elseif ($user->isManager()) {
+                // Менеджер имеет доступ только к своим организациям
+                $hasAccess = Organization::where('id', $organizationId)
+                    ->whereHas('manager', function($q) use ($user) {
+                        $q->where('user_id', $user->id);
+                    })->exists();
+            } elseif ($user->isOrgOwner()) {
+                // Владелец имеет доступ только к своей организации
+                $ownerOrgId = $user->orgOwnerProfile->organization_id ?? null;
+                $hasAccess = ($ownerOrgId == $organizationId);
+            }
+            
+            if ($hasAccess) {
+                $query->whereHas('user', function($q) use ($organizationId) {
+                    // Пользователь является владельцем этой организации
+                    $q->whereHas('orgOwnerProfile', function($q2) use ($organizationId) {
+                        $q2->where('organization_id', $organizationId);
+                    })
+                    // ИЛИ пользователь является сотрудником этой организации
+                    ->orWhereHas('orgMemberProfile', function($q2) use ($organizationId) {
+                        $q2->where('organization_id', $organizationId);
+                    });
+                });
+            }
+        }
+        
+        // === ФИЛЬТРАЦИЯ ПО ПОЛЬЗОВАТЕЛЮ ===
+        if ($request->filled('user_id')) {
+            $targetUserId = $request->user_id;
+            
+            // Проверяем, имеет ли текущий пользователь доступ к отчетам этого пользователя
+            $hasAccess = false;
+            
+            if ($user->isAdmin()) {
+                $hasAccess = true;
+            }
+            elseif ($user->isManager()) {
+                // Проверяем, относится ли пользователь к организациям менеджера
+                $hasAccess = User::where('id', $targetUserId)
+                    ->where(function($q) use ($user) {
+                        $q->whereHas('orgOwnerProfile.organization.manager', function($q2) use ($user) {
+                            $q2->where('user_id', $user->id);
+                        })->orWhereHas('orgMemberProfile.organization.manager', function($q2) use ($user) {
+                            $q2->where('user_id', $user->id);
+                        })->orWhere('id', $user->id);
+                    })->exists();
+            }
+            elseif ($user->isOrgOwner()) {
+                $organizationId = $user->orgOwnerProfile->organization_id ?? null;
+                $hasAccess = User::where('id', $targetUserId)
+                    ->where(function($q) use ($user, $organizationId) {
+                        $q->where('id', $user->id)
+                        ->orWhereHas('orgMemberProfile', function($q2) use ($organizationId, $user) {
+                            $q2->where('organization_id', $organizationId)
+                                ->where('boss_id', $user->id);
+                        });
+                    })->exists();
+            }
+            
+            if ($hasAccess) {
+                $query->where('user_id', $targetUserId);
+            } elseif (!$request->filled('organization_id')) {
+                // Если нет доступа и не выбран фильтр организации - показываем только свои
+                $query->where('user_id', $user->id);
+            }
+        }
+        
+        // === ОСТАЛЬНЫЕ ФИЛЬТРЫ ===
         
         // Фильтрация по типу отчета
         if ($request->filled('report_type_id')) {
@@ -69,15 +187,15 @@ class ReportController extends Controller
             $passport = preg_replace('/[^0-9]/', '', $request->passport);
             if (strlen($passport) >= 4) {
                 if (strlen($passport) === 10) {
-                    // Если введен полный номер (4500123456)
                     $series = substr($passport, 0, 4);
                     $number = substr($passport, 4, 6);
                     $query->where('passport_series', $series)
                         ->where('passport_number', $number);
                 } else {
-                    // Поиск по части номера
-                    $query->where('passport_series', 'like', "%{$passport}%")
+                    $query->where(function($q) use ($passport) {
+                        $q->where('passport_series', 'like', "%{$passport}%")
                         ->orWhere('passport_number', 'like', "%{$passport}%");
+                    });
                 }
             }
         }
@@ -94,27 +212,95 @@ class ReportController extends Controller
         
         $reports = $query->paginate(20)->withQueryString();
         
-        // Данные для фильтров
-        $reportTypes = ReportType::all();
-        $users = [];
+        // === ДАННЫЕ ДЛЯ ФИЛЬТРОВ ===
         
-        // Получаем пользователей для фильтра (для админов, менеджеров, владельцев)
-        if ($user->isAdmin() || $user->isManager()) {
-            $users = User::where('is_active', true)->orderBy('name')->get();
+        // Организации для фильтра
+        $organizations = collect();
+        
+        if ($user->isAdmin()) {
+            // Админ видит все организации
+            $organizations = Organization::orderBy('name')->get();
+        } elseif ($user->isManager()) {
+            // Менеджер видит только свои организации
+            $organizations = Organization::whereHas('manager', function($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })->orderBy('name')->get();
         } elseif ($user->isOrgOwner()) {
-            // Владелец видит своих сотрудников
+            // Владелец видит только свою организацию
             $organizationId = $user->orgOwnerProfile->organization_id ?? null;
             if ($organizationId) {
-                $users = User::whereHas('orgMemberProfile', function($q) use ($organizationId, $user) {
-                        $q->where('organization_id', $organizationId)
-                        ->where('boss_id', $user->id);
+                $organizations = Organization::where('id', $organizationId)->get();
+            }
+        }
+        
+        // Пользователи для фильтра
+        $users = collect();
+        
+        if ($request->filled('organization_id')) {
+            // Если выбрана организация - показываем только пользователей этой организации
+            $organizationId = $request->organization_id;
+            
+            // Проверяем доступ к организации
+            $hasAccess = false;
+            
+            if ($user->isAdmin()) {
+                $hasAccess = true;
+            } elseif ($user->isManager()) {
+                $hasAccess = Organization::where('id', $organizationId)
+                    ->whereHas('manager', function($q) use ($user) {
+                        $q->where('user_id', $user->id);
+                    })->exists();
+            } elseif ($user->isOrgOwner()) {
+                $ownerOrgId = $user->orgOwnerProfile->organization_id ?? null;
+                $hasAccess = ($ownerOrgId == $organizationId);
+            }
+            
+            if ($hasAccess) {
+                $users = User::where('is_active', true)
+                    ->where(function($q) use ($organizationId) {
+                        // Владельцы организации
+                        $q->whereHas('orgOwnerProfile', function($q2) use ($organizationId) {
+                            $q2->where('organization_id', $organizationId);
+                        })
+                        // Сотрудники организации
+                        ->orWhereHas('orgMemberProfile', function($q2) use ($organizationId) {
+                            $q2->where('organization_id', $organizationId);
+                        });
+                    })
+                    ->orderBy('name')
+                    ->get();
+            }
+        } else {
+            // Если организация не выбрана - показываем пользователей на основе роли
+            if ($user->isAdmin()) {
+                $users = User::where('is_active', true)->orderBy('name')->get();
+            } elseif ($user->isManager()) {
+                $organizationIds = Organization::whereHas('manager', function($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                })->pluck('id');
+                
+                $users = User::where('id', $user->id)
+                    ->orWhereHas('orgOwnerProfile', function($q) use ($organizationIds) {
+                        $q->whereIn('organization_id', $organizationIds);
+                    })
+                    ->orWhereHas('orgMemberProfile', function($q) use ($organizationIds) {
+                        $q->whereIn('organization_id', $organizationIds);
                     })
                     ->where('is_active', true)
                     ->orderBy('name')
                     ->get();
-                
-                // Добавляем самого владельца
-                $users->prepend($user);
+            } elseif ($user->isOrgOwner()) {
+                $organizationId = $user->orgOwnerProfile->organization_id ?? null;
+                if ($organizationId) {
+                    $users = User::where('id', $user->id)
+                        ->orWhereHas('orgMemberProfile', function($q) use ($organizationId, $user) {
+                            $q->where('organization_id', $organizationId)
+                            ->where('boss_id', $user->id);
+                        })
+                        ->where('is_active', true)
+                        ->orderBy('name')
+                        ->get();
+                }
             }
         }
         
@@ -127,7 +313,15 @@ class ReportController extends Controller
             Report::STATUS_CANCELLED => 'Отменен',
         ];
         
-        return view('reports.index', compact('reports', 'reportTypes', 'users', 'statuses'));
+        $reportTypes = ReportType::all();
+        
+        return view('reports.index', compact(
+            'reports', 
+            'reportTypes', 
+            'users', 
+            'statuses',
+            'organizations'
+        ));
     }
 
     /**
@@ -265,6 +459,7 @@ class ReportController extends Controller
                 }
                 
                 $report = Report::create($reportData);
+
                 
                 // Списываем лимит
                 if ($availableLimit instanceof DelegatedLimit) {
@@ -427,30 +622,33 @@ class ReportController extends Controller
      */
     private function getUserLimitForReportType($user, $reportTypeId)
     {
-        // Сначала ищем делегированный лимит
-        $delegatedLimit = DelegatedLimit::where('user_id', $user->id)
-            ->where('is_active', true)
-            ->whereHas('limit', function($q) use ($reportTypeId) {
-                $q->where('report_type_id', $reportTypeId);
-            })
+        // 1. ДЛЯ ВСЕХ: Проверяем собственные лимиты пользователя
+        $limit = Limit::where('user_id', $user->id)
+            ->where('report_type_id', $reportTypeId)
+            ->orderBy('date_created', 'desc')
+            ->orderBy('created_at', 'desc')
             ->first();
         
-        if ($delegatedLimit && $delegatedLimit->getAvailableQuantity() > 0) {
-            return $delegatedLimit;
+        if ($limit && $limit->getAvailableQuantity() > 0) {
+            return $limit;
         }
         
-        // Если нет делегированного, ищем собственный (только для владельцев)
-        if ($user->isOrgOwner()) {
-            $limit = Limit::where('user_id', $user->id)
-                ->where('report_type_id', $reportTypeId)
+        // 2. ТОЛЬКО ДЛЯ СОТРУДНИКОВ: Проверяем делегированные лимиты
+        if ($user->isOrgMember()) {  // или любая проверка на роль сотрудника
+            $delegatedLimit = DelegatedLimit::where('user_id', $user->id)
+                ->where('is_active', true)
+                ->whereHas('limit', function($q) use ($reportTypeId) {
+                    $q->where('report_type_id', $reportTypeId);
+                })
+                ->orderBy('created_at', 'desc')
                 ->first();
             
-            if ($limit && $limit->getAvailableQuantity() > 0) {
-                return $limit;
+            if ($delegatedLimit && $delegatedLimit->getAvailableQuantity() > 0) {
+                return $delegatedLimit;
             }
         }
         
-        return null; // Разрешаем отсутствие лимита
+        return null;
     }
 
     /**
@@ -544,6 +742,329 @@ class ReportController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Ошибка при отмене отчета: ' . $e->getMessage());
+        }
+    }
+
+        // ========== НОВЫЕ МЕТОДЫ ДЛЯ МАССОВОЙ ЗАГРУЗКИ ==========
+
+    /**
+     * Массовое создание отчетов из Excel/CSV
+     */
+    public function bulkStore(Request $request)
+    {
+        $user = Auth::user();
+        
+        $validator = Validator::make($request->all(), [
+            'bulk_report_types' => 'required|array|min:1',
+            'bulk_report_types.*' => 'exists:report_types,id',
+            'excel_file' => 'required|file|mimes:xlsx,xls,csv',
+            'header_row' => 'nullable|integer|min:1',
+        ]);
+        
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+        
+        $reportTypeIds = $request->input('bulk_report_types');
+        $headerRow = $request->input('header_row', 1);
+        
+        try {
+            $file = $request->file('excel_file');
+            $spreadsheet = IOFactory::load($file->getPathname());
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+            
+            if (empty($rows)) {
+                return redirect()->back()
+                    ->with('error', 'Файл не содержит данных')
+                    ->withInput();
+            }
+            
+            // Получаем заголовки
+            $headerRowIndex = $headerRow - 1;
+            if (!isset($rows[$headerRowIndex])) {
+                return redirect()->back()
+                    ->with('error', 'Указанная строка заголовков не найдена')
+                    ->withInput();
+            }
+            
+            $headers = array_map(function($header) {
+                return strtolower(trim($header));
+            }, $rows[$headerRowIndex]);
+            
+            // Удаляем строку заголовков
+            array_splice($rows, 0, $headerRow);
+            
+            // Проверяем лимиты ДО начала обработки
+            $limitsCache = [];
+            foreach ($reportTypeIds as $typeId) {
+                $limit = $this->getUserLimitForReportType($user, $typeId);
+                if (!$limit) {
+                    $reportType = ReportType::find($typeId);
+                    return redirect()->back()
+                        ->with('error', "Нет доступного лимита для типа отчета: {$reportType->name}")
+                        ->withInput();
+                }
+                
+                // Проверяем, хватит ли лимита на все строки
+                $rowCount = 0;
+                foreach ($rows as $row) {
+                    if (!empty(array_filter($row))) $rowCount++;
+                }
+                
+                if ($limit->getAvailableQuantity() < $rowCount) {
+                    $reportType = ReportType::find($typeId);
+                    return redirect()->back()
+                        ->with('error', "Недостаточно лимита для типа {$reportType->name}. Нужно: {$rowCount}, доступно: {$limit->getAvailableQuantity()}")
+                        ->withInput();
+                }
+                
+                $limitsCache[$typeId] = $limit;
+            }
+            
+            $createdCount = 0;
+            $errors = [];
+            $rowNumber = $headerRow + 1;
+            
+            // Обрабатываем каждую строку
+            foreach ($rows as $rowIndex => $row) {
+                $currentRowNumber = $rowNumber + $rowIndex;
+                
+                if (empty(array_filter($row))) {
+                    continue;
+                }
+                
+                // Преобразуем строку в ассоциативный массив
+                $rowData = [];
+                foreach ($headers as $colIndex => $headerName) {
+                    if (!empty($headerName) && isset($row[$colIndex])) {
+                        $rowData[$headerName] = $row[$colIndex];
+                    }
+                }
+                
+                // Для каждого типа отчета создаем запись
+                foreach ($reportTypeIds as $typeId) {
+                    try {
+                        $reportType = ReportType::find($typeId);
+                        
+                        // Валидация минимальных требований
+                        if (!$this->validateBulkRowRequirements($typeId, $rowData, $currentRowNumber, $errors)) {
+                            continue;
+                        }
+                        
+                        // Подготавливаем данные
+                        $reportData = $this->prepareBulkReportData($rowData, $typeId);
+                        $reportData['user_id'] = $user->id;
+                        $reportData['report_type_id'] = $typeId;
+                        $reportData['status'] = Report::STATUS_PENDING;
+                        $reportData['quantity_used'] = 1;
+                        
+                        // Привязываем лимит
+                        $limit = $limitsCache[$typeId];
+                        if ($limit instanceof DelegatedLimit) {
+                            $reportData['delegated_limit_id'] = $limit->id;
+                        } else {
+                            $reportData['limit_id'] = $limit->id;
+                        }
+                        
+                        // Создаем отчет
+                        Report::create($reportData);
+                        $limit->useQuantity(1);
+                        
+                        $createdCount++;
+                        
+                    } catch (\Exception $e) {
+                        $errors[] = "Строка {$currentRowNumber}, тип {$reportType->name}: " . $e->getMessage();
+                    }
+                }
+            }
+            
+            // Формируем результат
+            if ($createdCount === 0) {
+                return redirect()->back()
+                    ->with('error', 'Не удалось создать ни одного отчета. ' . implode(' ', $errors))
+                    ->withInput();
+            }
+            
+            $message = "✅ Успешно создано отчетов: {$createdCount}";
+            if (!empty($errors)) {
+                $message .= "<br><br>⚠️ Ошибки в строках:<br>" . implode('<br>', array_slice($errors, 0, 20));
+                if (count($errors) > 20) {
+                    $message .= "<br>... и еще " . (count($errors) - 20) . " ошибок";
+                }
+            }
+            
+            return redirect()->route('reports.index')
+                ->with('success', $message);
+            
+        } catch (\Exception $e) {
+            \Log::error('Bulk upload error: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Ошибка при обработке файла: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+
+    /**
+     * Предпросмотр Excel файла
+     */
+    public function previewExcel(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'excel_file' => 'required|file|mimes:xlsx,xls,csv',
+                'header_row' => 'nullable|integer|min:1',
+            ]);
+            
+            if ($validator->fails()) {
+                return response()->json(['success' => false, 'error' => $validator->errors()->first()]);
+            }
+            
+            $headerRow = $request->input('header_row', 1);
+            $file = $request->file('excel_file');
+            
+            $spreadsheet = IOFactory::load($file->getPathname());
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+            
+            if (empty($rows)) {
+                return response()->json(['success' => false, 'error' => 'Файл не содержит данных']);
+            }
+            
+            $headerRowIndex = $headerRow - 1;
+            $headers = isset($rows[$headerRowIndex]) ? $rows[$headerRowIndex] : [];
+            
+            // Первые 5 строк для предпросмотра
+            $previewRows = [];
+            $rowCount = 0;
+            
+            for ($i = $headerRowIndex + 1; $i < count($rows) && $rowCount < 5; $i++) {
+                if (!empty(array_filter($rows[$i]))) {
+                    $previewRows[] = array_slice($rows[$i], 0, 8);
+                    $rowCount++;
+                }
+            }
+            
+            // Общее количество записей
+            $totalRows = 0;
+            for ($i = $headerRowIndex + 1; $i < count($rows); $i++) {
+                if (!empty(array_filter($rows[$i]))) {
+                    $totalRows++;
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'headers' => array_slice($headers, 0, 8),
+                'previewRows' => $previewRows,
+                'rowCount' => $totalRows,
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Preview error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'error' => 'Ошибка чтения файла']);
+        }
+    }
+
+    /**
+     * Валидация строки из Excel
+     */
+    private function validateBulkRowRequirements($reportTypeId, $rowData, $rowNumber, &$errors)
+    {
+        $reportType = ReportType::find($reportTypeId);
+        $typeName = $reportType ? $reportType->name : "Тип {$reportTypeId}";
+        
+        switch ($reportTypeId) {
+            case 1:
+                if (empty($rowData['last_name']) || empty($rowData['first_name'])) {
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: нужны Фамилия и Имя";
+                    return false;
+                }
+                break;
+                
+            case 2:
+                if (empty($rowData['passport_series']) || empty($rowData['passport_number'])) {
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: нужны серия и номер паспорта";
+                    return false;
+                }
+                break;
+                
+            case 3:
+                if (empty($rowData['vehicle_number'])) {
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: нужен номер ТС";
+                    return false;
+                }
+                break;
+                
+            case 4:
+                if (empty($rowData['cadastral_number']) || empty($rowData['property_type'])) {
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: нужны кадастровый номер и тип";
+                    return false;
+                }
+                break;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Подготовка данных из Excel
+     */
+    private function prepareBulkReportData($rowData, $reportTypeId)
+    {
+        $data = [
+            'last_name' => $rowData['last_name'] ?? null,
+            'first_name' => $rowData['first_name'] ?? null,
+            'patronymic' => $rowData['patronymic'] ?? null,
+            'birth_date' => $this->formatExcelDate($rowData['birth_date'] ?? null),
+            'region' => $rowData['region'] ?? null,
+        ];
+        
+        if (in_array($reportTypeId, [2])) {
+            $data['passport_series'] = preg_replace('/[^0-9]/', '', $rowData['passport_series'] ?? '');
+            $data['passport_number'] = preg_replace('/[^0-9]/', '', $rowData['passport_number'] ?? '');
+            $data['passport_date'] = $this->formatExcelDate($rowData['passport_date'] ?? null);
+        }
+        
+        if (in_array($reportTypeId, [3])) {
+            $data['vehicle_number'] = strtoupper(trim($rowData['vehicle_number'] ?? ''));
+        }
+        
+        if (in_array($reportTypeId, [4])) {
+            $data['cadastral_number'] = $rowData['cadastral_number'] ?? null;
+            $data['property_type'] = $rowData['property_type'] ?? null;
+        }
+        
+        return $data;
+    }
+
+    /**
+     * Форматирование даты из Excel
+     */
+    private function formatExcelDate($date)
+    {
+        if (empty($date)) {
+            return null;
+        }
+        
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return $date;
+        }
+        
+        if (is_numeric($date)) {
+            try {
+                return Date::excelToDateTimeObject($date)->format('Y-m-d');
+            } catch (\Exception $e) {
+                return null;
+            }
+        }
+        
+        try {
+            return date('Y-m-d', strtotime($date));
+        } catch (\Exception $e) {
+            return null;
         }
     }
 }

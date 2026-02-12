@@ -117,6 +117,7 @@ class DelegatedLimitController extends Controller
             'limit_id' => 'required|exists:limits,id',
             'user_id' => 'required|exists:users,id',
             'quantity' => 'required|integer|min:1',
+            'owner_id' => 'nullable|exists:users,id', // Добавлено для делегирования от имени владельца
         ]);
         
         if ($validator->fails()) {
@@ -125,22 +126,67 @@ class DelegatedLimitController extends Controller
                 ->withInput();
         }
         
-        // Проверяем доступ к лимиту
-        if (!$this->canDelegateLimit($user->id, $request->limit_id)) {
+        // Получаем лимит
+        $limit = Limit::findOrFail($request->limit_id);
+        
+        // Определяем ID владельца лимита (того, чей лимит используется)
+        $ownerId = $limit->user_id;
+        
+        // Проверяем права на делегирование
+        $canDelegate = false;
+        
+        if ($user->id == $ownerId) {
+            // Сам владелец может делегировать
+            $canDelegate = true;
+        } elseif ($user->isAdmin()) {
+            // Админ может делегировать любой лимит
+            $canDelegate = true;
+        } elseif ($user->isManager()) {
+            // Менеджер может делегировать, если он является менеджером организации владельца
+            $owner = User::find($ownerId);
+            if ($owner && $owner->orgOwnerProfile) {
+                $organizationId = $owner->orgOwnerProfile->organization_id;
+                $canDelegate = Organization::where('id', $organizationId)
+                    ->whereHas('manager', function($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    })
+                    ->exists();
+            }
+        }
+        
+        if (!$canDelegate) {
             return redirect()->back()
                 ->with('error', 'У вас нет прав для делегирования этого лимита')
                 ->withInput();
         }
         
-        // Проверяем доступ к пользователю
-        if (!$this->canDelegateToUser($user->id, $request->user_id)) {
+        // Проверяем, что сотрудник доступен для делегирования
+        $targetUser = User::find($request->user_id);
+        if (!$targetUser || !$targetUser->isOrgMember() || !$targetUser->is_active) {
             return redirect()->back()
-                ->with('error', 'Вы не можете делегировать лимит этому пользователю')
+                ->with('error', 'Некорректный сотрудник для делегирования')
                 ->withInput();
         }
         
+        // Проверяем, что сотрудник относится к той же организации, что и владелец лимита
+        $owner = User::find($ownerId);
+        if ($owner && $owner->orgOwnerProfile) {
+            $organizationId = $owner->orgOwnerProfile->organization_id;
+            
+            $isValidEmployee = OrgMemberProfile::where('user_id', $targetUser->id)
+                ->where('organization_id', $organizationId)
+                ->where('boss_id', $ownerId)
+                ->where('is_active', true)
+                ->exists();
+            
+            if (!$isValidEmployee) {
+                return redirect()->back()
+                    ->with('error', 'Этот сотрудник не относится к организации владельца лимита')
+                    ->withInput();
+            }
+        }
+        
         // Проверяем, что у владельца достаточно лимита
-        $limit = Limit::findOrFail($request->limit_id);
         if ($limit->quantity < $request->quantity) {
             return redirect()->back()
                 ->with('error', 'Недостаточно лимита для делегирования. Доступно: ' . $limit->quantity)
@@ -158,33 +204,33 @@ class DelegatedLimitController extends Controller
             // Уменьшаем оригинальный лимит
             $limit->decrementLimit($request->quantity);
             
-            // Редирект в зависимости от роли пользователя
-            if ($user->isOrgOwner()) {
-                return redirect()->route('owner.dashboard')
-                    ->with('success', 'Лимит успешно делегирован');
-            } elseif ($user->isAdmin() || $user->isManager()) {
-                // Получаем организацию владельца лимита
-                $limitOwner = User::find($limit->user_id);
-                if ($limitOwner && $limitOwner->orgOwnerProfile) {
-                    $organizationId = $limitOwner->orgOwnerProfile->organization_id;
-                    return redirect()->route($user->isAdmin() ? 'admin.organization.show' : 'manager.organization.show', ['id' => $organizationId])
-                        ->with('success', 'Лимит успешно делегирован');
-                }
+            // Редирект в зависимости от переданного параметра
+            if ($request->has('redirect_to_organization')) {
+                $organizationId = $request->redirect_to_organization;
                 
-                // Если не удалось найти организацию, редиректим на соответствующий дашборд
                 if ($user->isAdmin()) {
-                    return redirect()->route('admin.dashboard')
+                    return redirect()->route('admin.organization.show', $organizationId)
                         ->with('success', 'Лимит успешно делегирован');
-                } else {
-                    return redirect()->route('manager.dashboard')
+                } elseif ($user->isManager()) {
+                    return redirect()->route('manager.organization.show', $organizationId)
                         ->with('success', 'Лимит успешно делегирован');
                 }
             }
             
-            // Если роль не определена, редиректим назад
-            return redirect()->back()
-                ->with('success', 'Лимит успешно делегирован');
-                
+            // Редирект по умолчанию
+            if ($user->isOrgOwner()) {
+                return redirect()->route('owner.dashboard')
+                    ->with('success', 'Лимит успешно делегирован');
+            } elseif ($user->isAdmin()) {
+                return redirect()->route('admin.dashboard')
+                    ->with('success', 'Лимит успешно делегирован');
+            } elseif ($user->isManager()) {
+                return redirect()->route('manager.dashboard')
+                    ->with('success', 'Лимит успешно делегирован');
+            }
+            
+            return redirect()->back()->with('success', 'Лимит успешно делегирован');
+            
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Ошибка: ' . $e->getMessage())
@@ -270,7 +316,29 @@ class DelegatedLimitController extends Controller
         $user = Auth::user();
         
         // Проверка прав доступа
-        if (!$this->canDeleteDelegatedLimit($user->id, $delegatedLimit)) {
+        $ownerId = $delegatedLimit->limit->user_id;
+        $canDelete = false;
+        
+        if ($user->id == $ownerId) {
+            // Владелец может удалять свои делегированные лимиты
+            $canDelete = true;
+        } elseif ($user->isAdmin()) {
+            // Админ может удалять любые делегированные лимиты
+            $canDelete = true;
+        } elseif ($user->isManager()) {
+            // Менеджер может удалять делегированные лимиты в своих организациях
+            $owner = User::find($ownerId);
+            if ($owner && $owner->orgOwnerProfile) {
+                $organizationId = $owner->orgOwnerProfile->organization_id;
+                $canDelete = Organization::where('id', $organizationId)
+                    ->whereHas('manager', function($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    })
+                    ->exists();
+            }
+        }
+        
+        if (!$canDelete) {
             abort(403, 'Доступ запрещен');
         }
         
@@ -281,35 +349,35 @@ class DelegatedLimitController extends Controller
             // Удаляем делегированный лимит
             $delegatedLimit->delete();
             
-            // Редирект в зависимости от роли пользователя
-            if ($user->isOrgOwner()) {
-                return redirect()->route('owner.dashboard')
-                    ->with('success', 'Делегированный лимит удален. Лимит возвращен владельцу.');
-            } elseif ($user->isAdmin() || $user->isManager()) {
-                // Получаем организацию владельца лимита
-                $limitOwner = User::find($delegatedLimit->limit->user_id);
-                if ($limitOwner && $limitOwner->orgOwnerProfile) {
-                    $organizationId = $limitOwner->orgOwnerProfile->organization_id;
-                    return redirect()->route($user->isAdmin() ? 'admin.organization.show' : 'manager.organization.show', ['id' => $organizationId])
-                        ->with('success', 'Делегированный лимит удален. Лимит возвращен владельцу.');
-                }
+            // Редирект в зависимости от переданного параметра
+            if (request()->has('redirect_to_organization')) {
+                $organizationId = request()->redirect_to_organization;
                 
-                // Если не удалось найти организацию, редиректим на соответствующий дашборд
                 if ($user->isAdmin()) {
-                    return redirect()->route('admin.dashboard')
+                    return redirect()->route('admin.organization.show', $organizationId)
                         ->with('success', 'Делегированный лимит удален. Лимит возвращен владельцу.');
-                } else {
-                    return redirect()->route('manager.dashboard')
+                } elseif ($user->isManager()) {
+                    return redirect()->route('manager.organization.show', $organizationId)
                         ->with('success', 'Делегированный лимит удален. Лимит возвращен владельцу.');
                 }
             }
             
-            // Если роль не определена, редиректим назад
+            // Редирект по умолчанию
+            if ($user->isOrgOwner()) {
+                return redirect()->route('owner.dashboard')
+                    ->with('success', 'Делегированный лимит удален. Лимит возвращен владельцу.');
+            } elseif ($user->isAdmin()) {
+                return redirect()->route('admin.dashboard')
+                    ->with('success', 'Делегированный лимит удален. Лимит возвращен владельцу.');
+            } elseif ($user->isManager()) {
+                return redirect()->route('manager.dashboard')
+                    ->with('success', 'Делегированный лимит удален. Лимит возвращен владельцу.');
+            }
+            
             return redirect()->back()
                 ->with('success', 'Делегированный лимит удален. Лимит возвращен владельцу.');
-                
+            
         } catch (\Exception $e) {
-            // Также исправляем редирект при ошибке
             if ($user->isOrgOwner()) {
                 return redirect()->route('owner.dashboard')
                     ->with('error', 'Ошибка при удалении: ' . $e->getMessage());

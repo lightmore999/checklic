@@ -1,0 +1,202 @@
+<?php
+require 'vendor/autoload.php';
+
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+
+// Создаем новый Spreadsheet
+$spreadsheet = new Spreadsheet();
+$sheet = $spreadsheet->getActiveSheet();
+
+// Устанавливаем заголовки (строка 1)
+$headers = [
+    'A1' => 'last_name',
+    'B1' => 'first_name', 
+    'C1' => 'patronymic',
+    'D1' => 'birth_date',
+    'E1' => 'region',
+    'F1' => 'passport_series',
+    'G1' => 'passport_number',
+    'H1' => 'passport_date',
+    'I1' => 'vehicle_number',
+    'J1' => 'cadastral_number',
+    'K1' => 'property_type'
+];
+
+foreach ($headers as $cell => $value) {
+    $sheet->setCellValue($cell, $value);
+}
+
+// СТИЛИ для заголовков
+$sheet->getStyle('A1:K1')->applyFromArray([
+    'font' => [
+        'bold' => true,
+        'color' => ['rgb' => 'FFFFFF']
+    ],
+    'fill' => [
+        'fillType' => Fill::FILL_SOLID,
+        'startColor' => ['rgb' => '4472C4']
+    ],
+    'borders' => [
+        'allBorders' => [
+            'borderStyle' => Border::BORDER_THIN,
+            'color' => ['rgb' => '000000']
+        ]
+    ],
+    'alignment' => [
+        'horizontal' => Alignment::HORIZONTAL_CENTER,
+        'vertical' => Alignment::VERTICAL_CENTER
+    ]
+]);
+
+// ============= ДАННЫЕ ДЛЯ ТЕСТА =============
+
+// 1. ИВАНОВ - базовый отчет (CL:Базовый V1)
+$sheet->setCellValue('A2', 'Иванов');
+$sheet->setCellValue('B2', 'Иван');
+$sheet->setCellValue('C2', 'Иванович');
+$sheet->setCellValue('D2', '1985-05-15');
+$sheet->setCellValue('E2', 'Москва');
+
+// 2. ПЕТРОВ - паспортный отчет (CL:Паспорт V1)
+$sheet->setCellValue('A3', 'Петров');
+$sheet->setCellValue('B3', 'Петр');
+$sheet->setCellValue('C3', 'Петрович');
+$sheet->setCellValue('D3', '1990-10-20');
+$sheet->setCellValue('E3', 'Санкт-Петербург');
+$sheet->setCellValue('F3', '4500');
+$sheet->setCellValue('G3', '123456');
+$sheet->setCellValue('H3', '2015-03-10');
+
+// 3. СИДОРОВ - автоистория (AI:АвтоИстория V1)
+$sheet->setCellValue('A4', 'Сидоров');
+$sheet->setCellValue('B4', 'Сидор');
+$sheet->setCellValue('C4', 'Сидорович');
+$sheet->setCellValue('I4', 'А123ВС77');
+
+// 4. СМИРНОВА - недвижимость (CL:Недвижимость)
+$sheet->setCellValue('A5', 'Смирнова');
+$sheet->setCellValue('B5', 'Анна');
+$sheet->setCellValue('C5', 'Сергеевна');
+$sheet->setCellValue('J5', '77:01:0001001:1234');
+$sheet->setCellValue('K5', 'land');
+
+// 5. КУЗНЕЦОВ - все типы сразу (полные данные)
+$sheet->setCellValue('A6', 'Кузнецов');
+$sheet->setCellValue('B6', 'Дмитрий');
+$sheet->setCellValue('C6', 'Алексеевич');
+$sheet->setCellValue('D6', '1988-12-01');
+$sheet->setCellValue('E6', 'Екатеринбург');
+$sheet->setCellValue('F6', '4501');
+$sheet->setCellValue('G6', '654321');
+$sheet->setCellValue('H6', '2016-06-15');
+$sheet->setCellValue('I6', 'В123МН96');
+$sheet->setCellValue('J6', '66:01:0002002:5678');
+$sheet->setCellValue('K6', 'building');
+
+// 6. ПОПОВ - базовый + паспорт
+$sheet->setCellValue('A7', 'Попов');
+$sheet->setCellValue('B7', 'Андрей');
+$sheet->setCellValue('C7', 'Викторович');
+$sheet->setCellValue('D7', '1979-03-22');
+$sheet->setCellValue('E7', 'Новосибирск');
+$sheet->setCellValue('F7', '4502');
+$sheet->setCellValue('G7', '789012');
+$sheet->setCellValue('H7', '2010-09-05');
+
+// 7. СОКОЛОВА - авто + недвижимость
+$sheet->setCellValue('A8', 'Соколова');
+$sheet->setCellValue('B8', 'Елена');
+$sheet->setCellValue('C8', 'Игоревна');
+$sheet->setCellValue('I8', 'К456ХХ178');
+$sheet->setCellValue('J8', '78:02:0003003:9012');
+$sheet->setCellValue('K8', 'premises');
+
+// 8. ЛЕБЕДЕВ - только паспорт (минимум)
+$sheet->setCellValue('A9', 'Лебедев');
+$sheet->setCellValue('B9', 'Максим');
+$sheet->setCellValue('F9', '4503');
+$sheet->setCellValue('G9', '345678');
+
+// 9. НИКОЛАЕВА - только недвижимость
+$sheet->setCellValue('A10', 'Николаева');
+$sheet->setCellValue('B10', 'Ольга');
+$sheet->setCellValue('J10', '50:03:0004004:1122');
+$sheet->setCellValue('K10', 'land');
+
+// 10. ТЕСТОВ - для проверки границ (пустые поля)
+$sheet->setCellValue('A11', 'Тестов');
+$sheet->setCellValue('B11', 'Тест');
+$sheet->setCellValue('I11', ''); // пустой номер ТС - должна быть ошибка
+$sheet->setCellValue('J11', ''); // пустой кадастр - ошибка
+
+// ============= ФОРМАТИРОВАНИЕ =============
+
+// Автоширина колонок
+foreach (range('A', 'K') as $col) {
+    $sheet->getColumnDimension($col)->setAutoSize(true);
+}
+
+// Стили для данных
+$sheet->getStyle('A2:K11')->applyFromArray([
+    'borders' => [
+        'allBorders' => [
+            'borderStyle' => Border::BORDER_THIN,
+            'color' => ['rgb' => 'CCCCCC']
+        ]
+    ],
+    'alignment' => [
+        'vertical' => Alignment::VERTICAL_CENTER
+    ]
+]);
+
+// Формат даты для колонок D и H
+$sheet->getStyle('D2:D11')->getNumberFormat()->setFormatCode('yyyy-mm-dd');
+$sheet->getStyle('H2:H11')->getNumberFormat()->setFormatCode('yyyy-mm-dd');
+
+// Подсветка пустых обязательных полей (для демонстрации)
+$sheet->getStyle('I11')->getFill()
+    ->setFillType(Fill::FILL_SOLID)
+    ->getStartColor()->setRGB('FFC7CE');
+$sheet->getStyle('J11')->getFill()
+    ->setFillType(Fill::FILL_SOLID)
+    ->getStartColor()->setRGB('FFC7CE');
+
+// Добавляем лист с инструкцией
+$spreadsheet->createSheet();
+$spreadsheet->setActiveSheetIndex(1);
+$instructionSheet = $spreadsheet->getActiveSheet();
+$instructionSheet->setTitle('Инструкция');
+
+$instructionSheet->setCellValue('A1', 'ИНСТРУКЦИЯ ПО ТЕСТИРОВАНИЮ МАССОВОЙ ЗАГРУЗКИ');
+$instructionSheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+
+$instructionSheet->setCellValue('A3', '1. Выберите типы отчетов:');
+$instructionSheet->setCellValue('A4', '   - Для строк 2-3: выберите "CL:Базовый V1"');
+$instructionSheet->setCellValue('A5', '   - Для строк 3,6,7: выберите "CL:Паспорт V1"');
+$instructionSheet->setCellValue('A6', '   - Для строк 4,6,8: выберите "AI:АвтоИстория V1"');
+$instructionSheet->setCellValue('A7', '   - Для строк 5,6,8,10: выберите "CL:Недвижимость"');
+
+$instructionSheet->setCellValue('A9', '2. Загрузите файл и проверьте предпросмотр');
+
+$instructionSheet->setCellValue('A11', '3. Нажмите "Загрузить и обработать"');
+
+$instructionSheet->setCellValue('A13', 'ОЖИДАЕМЫЙ РЕЗУЛЬТАТ:');
+$instructionSheet->setCellValue('A14', '✓ Строки 1-10: успешное создание отчетов (кроме пустых полей)');
+$instructionSheet->setCellValue('A15', '✗ Строка 11: ошибка - пустые обязательные поля');
+
+$instructionSheet->getColumnDimension('A')->setAutoSize(true);
+
+// Возвращаемся на первый лист
+$spreadsheet->setActiveSheetIndex(0);
+$sheet->setTitle('Тестовые данные');
+
+// Сохраняем файл
+$writer = new Xlsx($spreadsheet);
+$writer->save('test_reports.xlsx');
+
+echo "✅ Файл test_reports.xlsx успешно создан!\n";
+echo "📁 Путь: " . realpath('test_reports.xlsx') . "\n";

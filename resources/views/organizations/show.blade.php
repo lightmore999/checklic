@@ -7,7 +7,26 @@
     @php
         $isAdmin = Auth::user()->isAdmin();
         $isManager = Auth::user()->isManager();
+        $isOwner = Auth::user()->isOrgOwner();
         $routePrefix = $isAdmin ? 'admin.' : 'manager.';
+        
+        // Проверяем права на делегирование
+        $canDelegateAny = false;
+        $currentUserId = Auth::id();
+        $ownerId = $organization->owner->user_id ?? null;
+        
+        if ($ownerId) {
+            if ($currentUserId == $ownerId) {
+                // Сам владелец может делегировать
+                $canDelegateAny = true;
+            } elseif ($isAdmin) {
+                // Админ может делегировать
+                $canDelegateAny = true;
+            } elseif ($isManager) {
+                // Менеджер может делегировать, если он является менеджером этой организации
+                $canDelegateAny = $organization->manager && $organization->manager->user_id == $currentUserId;
+            }
+        }
     @endphp
 
     <!-- Заголовок -->
@@ -262,7 +281,7 @@
                             <small class="text-muted ms-2">({{ now()->format('d.m.Y') }})</small>
                         </h5>
                         <div class="d-flex gap-2">
-                            @if(isset($availableEmployees) && $availableEmployees->count() > 0 && count(array_filter($ownerLimits, fn($l) => $l['available_amount'] > 0)) > 0)
+                            @if($canDelegateAny && isset($availableEmployees) && $availableEmployees->count() > 0 && count(array_filter($ownerLimits, fn($l) => $l['available_amount'] > 0)) > 0)
                                 <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#delegateModal">
                                     <i class="bi bi-share"></i> Делегировать
                                 </button>
@@ -459,6 +478,9 @@
                             <th>Делегировано/Использовано</th>
                             <th>Дата делегирования</th>
                             <th>Статус</th>
+                            @if($canDelegateAny)
+                            <th>Действия</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
@@ -504,6 +526,20 @@
                                     <span class="badge bg-secondary">Неактивен</span>
                                 @endif
                             </td>
+                            @if($canDelegateAny)
+                            <td>
+                                <form action="{{ route('delegated-limits.destroy', $delegated) }}" method="POST" class="d-inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                            onclick="return confirm('Возвратить лимит? Лимит вернется владельцу.')"
+                                            title="Возвратить лимит">
+                                        <i class="bi bi-arrow-return-left"></i>
+                                    </button>
+                                </form>
+                            </td>
+                            @endif
                         </tr>
                         @endforeach
                     </tbody>
@@ -643,10 +679,11 @@
                                                 </a>
                                             @endif
                                         </div>
-                                        @if(isset($organization->owner) && $organization->owner->user_id == Auth::id())
+                                        @if($canDelegateAny && isset($ownerLimits) && count($ownerLimits) > 0)
                                             <button type="button" class="btn btn-sm btn-outline-warning delegate-btn"
                                                     data-employee-id="{{ $member->user->id }}"
                                                     data-employee-name="{{ $member->user->name }}"
+                                                    data-owner-id="{{ $organization->owner->user_id ?? '' }}"
                                                     title="Делегировать лимит">
                                                 <i class="bi bi-share"></i>
                                             </button>
@@ -677,13 +714,16 @@
 </div>
 
 <!-- Модальное окно делегирования -->
-@if(isset($ownerLimits) && count($ownerLimits) > 0 && isset($availableEmployees) && $availableEmployees->count() > 0)
+@if($canDelegateAny && isset($ownerLimits) && count($ownerLimits) > 0 && isset($availableEmployees) && $availableEmployees->count() > 0)
 <div class="modal fade" id="delegateModal" tabindex="-1" aria-labelledby="delegateModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form action="{{ route('delegated-limits.store') }}" method="POST" id="delegateForm">
                 @csrf
                 <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
+                @if($ownerId && $ownerId != Auth::id())
+                    <input type="hidden" name="owner_id" value="{{ $ownerId }}">
+                @endif
                 <div class="modal-header bg-warning text-white">
                     <h5 class="modal-title" id="delegateModalLabel">
                         <i class="bi bi-share"></i> Делегирование лимита
@@ -700,7 +740,7 @@
                                 <select name="limit_id" id="limit_id" class="form-select" required>
                                     <option value="">Выберите лимит</option>
                                     @foreach($ownerLimits as $limit)
-                                        @if($limit['available_amount'] > 0)
+                                        @if($limit['available_amount'] > 0 && $limit['id'])
                                             <option value="{{ $limit['id'] }}" 
                                                     data-available="{{ $limit['available_amount'] }}"
                                                     data-name="{{ $limit['report_type_name'] }}"
@@ -823,7 +863,7 @@ function confirmDelete(id, name) {
                 @if($limit['id'] && $limit['available_amount'] > 0)
                     {{ $limit['id'] }}: {
                         available: {{ $limit['available_amount'] }},
-                        name: '{{ $limit['report_type_name'] }}',
+                        name: '{{ addslashes($limit['report_type_name']) }}',
                         date: '{{ date('d.m.Y', strtotime($limit['date_created'])) }}'
                     },
                 @endif
@@ -833,7 +873,7 @@ function confirmDelete(id, name) {
         let employees = {
             @foreach($availableEmployees as $employee)
                 {{ $employee->id }}: {
-                    name: '{{ $employee->name }}',
+                    name: '{{ addslashes($employee->name) }}',
                     delegated: {{ isset($delegatedLimits) ? $delegatedLimits->where('user_id', $employee->id)->sum('quantity') : 0 }},
                     types: {{ isset($delegatedLimits) ? $delegatedLimits->where('user_id', $employee->id)->count() : 0 }}
                 },

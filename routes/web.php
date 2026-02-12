@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\LimitController;
 use App\Http\Controllers\DelegatedLimitController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\UserController;
 
 // Главная страница
 Route::get('/', function () {
@@ -176,6 +177,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/reports', [ReportController::class, 'store'])->name('reports.store');
     Route::get('/reports/{report}', [ReportController::class, 'show'])->name('reports.show');
     Route::patch('/reports/{report}/cancel', [ReportController::class, 'cancel'])->name('reports.cancel');
+    Route::post('/reports/bulk/store', [App\Http\Controllers\ReportController::class, 'bulkStore'])->name('reports.bulk.store');
+    Route::post('/reports/preview', [App\Http\Controllers\ReportController::class, 'previewExcel'])->name('reports.preview');
 });
 
 
@@ -199,10 +202,17 @@ Route::middleware(['auth'])->group(function () {
         Route::put('limits/{limit}', [LimitController::class, 'update'])->name('limits.update');
         Route::delete('limits/{limit}', [LimitController::class, 'destroy'])->name('limits.destroy');
     });
+    Route::get('/users/search', [UserController::class, 'search'])->name('users.search');
+
 });
 
 // Делегированные лимиты
 Route::middleware(['auth'])->group(function () {
     Route::post('delegated-limits', [DelegatedLimitController::class, 'store'])->name('delegated-limits.store');
     Route::delete('delegated-limits/{delegatedLimit}', [DelegatedLimitController::class, 'destroy'])->name('delegated-limits.destroy');
+    Route::post('limits/{limit}/delegate', [LimitController::class, 'delegate'])
+        ->name('limits.delegate')
+        ->middleware('auth');
 });
+
+

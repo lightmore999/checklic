@@ -272,18 +272,20 @@ class ManagerController extends Controller
         $reportTypes = \App\Models\ReportType::all();
         
         foreach ($reportTypes as $reportType) {
-            // Получаем лимит менеджера для этого типа отчета на сегодня
-            $today = now()->format('Y-m-d');
+            // ПОЛУЧАЕМ ПОСЛЕДНИЙ ЛИМИТ МЕНЕДЖЕРА (БЕЗ ПРИВЯЗКИ К ДАТЕ)
             $limit = \App\Models\Limit::where('user_id', $manager->id)
                 ->where('report_type_id', $reportType->id)
-                ->where('date_created', $today)
+                ->orderBy('date_created', 'desc')
+                ->orderBy('created_at', 'desc')
                 ->first();
             
             // Логика отображения:
-            // 1. Если only_api = false, ВСЕГДА показываем (даже если лимит = 0)
+            // 1. Если only_api = false, ВСЕГДА показываем (даже если лимит = 0 или не установлен)
             // 2. Если only_api = true, показываем ТОЛЬКО если есть лимит
             if (!$reportType->only_api || ($reportType->only_api && $limit !== null)) {
                 $quantity = $limit ? $limit->quantity : 0;
+                $used_quantity = $limit ? $limit->used_quantity : 0;
+                $available_quantity = $limit ? ($limit->quantity - $limit->used_quantity) : 0;
                 
                 $limits[] = [
                     'report_type_id' => $reportType->id,
@@ -291,22 +293,22 @@ class ManagerController extends Controller
                     'description' => $reportType->description,
                     'only_api' => $reportType->only_api,
                     'quantity' => $quantity,
-                    'is_exhausted' => $quantity <= 0,
-                    'has_limit' => $limit !== null, // Был ли установлен лимит
+                    'used_quantity' => $used_quantity,
+                    'available_quantity' => $available_quantity,
+                    'is_exhausted' => $limit ? ($limit->quantity - $limit->used_quantity <= 0) : true,
+                    'has_limit' => $limit !== null,
+                    'date_created' => $limit ? $limit->date_created->format('d.m.Y') : null,
                 ];
             }
         }
         
         // Сортируем лимиты: сначала интерфейсные, потом API, потом по имени
         usort($limits, function($a, $b) {
-            // Сначала сортируем по типу: интерфейсные (only_api=false) идут первыми
             if ($a['only_api'] !== $b['only_api']) {
                 return $a['only_api'] ? 1 : -1;
             }
-            // Потом по названию
             return strcmp($a['report_type_name'], $b['report_type_name']);
         });
-        
         
         // === ПОСЛЕДНИЕ ОРГАНИЗАЦИИ ===
         $organizations = Organization::whereHas('manager', function($query) use ($manager) {
@@ -325,7 +327,7 @@ class ManagerController extends Controller
             'stats',
             'organizations',
             'admin',
-            'limits' // Добавили переменную limits
+            'limits'
         ));
     }
     

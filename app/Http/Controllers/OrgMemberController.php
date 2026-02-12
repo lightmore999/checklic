@@ -37,17 +37,34 @@ class OrgMemberController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
         
-        // Общая статистика по лимитам
-        $totalDelegated = $delegatedLimits->sum('quantity');
-        $totalUsed = $delegatedLimits->sum('used_quantity');
-        $totalAvailable = $totalDelegated - $totalUsed;
+        // Получаем собственные лимиты сотрудника (если у него есть роль с лимитами)
+        $personalLimits = Limit::where('user_id', $user->id)
+            ->with(['reportType'])
+            ->orderBy('date_created', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
         
-        // Статистика по типам отчетов
-        $limitsByType = [];
+        // Общая статистика по делегированным лимитам
+        $totalDelegated = $delegatedLimits->sum('quantity');
+        $totalDelegatedUsed = $delegatedLimits->sum('used_quantity');
+        $totalDelegatedAvailable = $totalDelegated - $totalDelegatedUsed;
+        
+        // Общая статистика по собственным лимитам
+        $totalPersonal = $personalLimits->sum('quantity');
+        $totalPersonalUsed = $personalLimits->sum('used_quantity');
+        $totalPersonalAvailable = $totalPersonal - $totalPersonalUsed;
+        
+        // Общая статистика по всем лимитам
+        $totalAll = $totalDelegated + $totalPersonal;
+        $totalAllUsed = $totalDelegatedUsed + $totalPersonalUsed;
+        $totalAllAvailable = $totalAll - $totalAllUsed;
+        
+        // Статистика по типам отчетов для делегированных лимитов
+        $delegatedLimitsByType = [];
         foreach ($delegatedLimits as $delegated) {
             $reportTypeName = $delegated->limit->reportType->name ?? 'Без типа';
-            if (!isset($limitsByType[$reportTypeName])) {
-                $limitsByType[$reportTypeName] = [
+            if (!isset($delegatedLimitsByType[$reportTypeName])) {
+                $delegatedLimitsByType[$reportTypeName] = [
                     'delegated' => 0,
                     'used' => 0,
                     'available' => 0,
@@ -55,10 +72,29 @@ class OrgMemberController extends Controller
                 ];
             }
             
-            $limitsByType[$reportTypeName]['delegated'] += $delegated->quantity;
-            $limitsByType[$reportTypeName]['used'] += $delegated->used_quantity;
-            $limitsByType[$reportTypeName]['available'] += ($delegated->quantity - $delegated->used_quantity);
-            $limitsByType[$reportTypeName]['count']++;
+            $delegatedLimitsByType[$reportTypeName]['delegated'] += $delegated->quantity;
+            $delegatedLimitsByType[$reportTypeName]['used'] += $delegated->used_quantity;
+            $delegatedLimitsByType[$reportTypeName]['available'] += ($delegated->quantity - $delegated->used_quantity);
+            $delegatedLimitsByType[$reportTypeName]['count']++;
+        }
+        
+        // Статистика по типам отчетов для собственных лимитов
+        $personalLimitsByType = [];
+        foreach ($personalLimits as $limit) {
+            $reportTypeName = $limit->reportType->name ?? 'Без типа';
+            if (!isset($personalLimitsByType[$reportTypeName])) {
+                $personalLimitsByType[$reportTypeName] = [
+                    'total' => 0,
+                    'used' => 0,
+                    'available' => 0,
+                    'count' => 0
+                ];
+            }
+            
+            $personalLimitsByType[$reportTypeName]['total'] += $limit->quantity;
+            $personalLimitsByType[$reportTypeName]['used'] += $limit->used_quantity;
+            $personalLimitsByType[$reportTypeName]['available'] += ($limit->quantity - $limit->used_quantity);
+            $personalLimitsByType[$reportTypeName]['count']++;
         }
         
         return view('org-members.profile', compact(
@@ -66,10 +102,18 @@ class OrgMemberController extends Controller
             'memberProfile',
             'organization',
             'delegatedLimits',
+            'personalLimits',
             'totalDelegated',
-            'totalUsed',
-            'totalAvailable',
-            'limitsByType'
+            'totalDelegatedUsed',
+            'totalDelegatedAvailable',
+            'totalPersonal',
+            'totalPersonalUsed',
+            'totalPersonalAvailable',
+            'totalAll',
+            'totalAllUsed',
+            'totalAllAvailable',
+            'delegatedLimitsByType',
+            'personalLimitsByType'
         ));
     }
     
@@ -207,21 +251,38 @@ class OrgMemberController extends Controller
         // Получаем делегированные лимиты сотрудника
         $delegatedLimits = DelegatedLimit::where('user_id', $member->user_id)
             ->where('is_active', true)
-            ->with(['limit.reportType'])
+            ->with(['limit.reportType', 'limit.user'])
             ->orderBy('created_at', 'desc')
             ->get();
         
-        // Статистика по лимитам
-        $totalDelegated = $delegatedLimits->sum('quantity');
-        $totalUsed = $delegatedLimits->sum('used_quantity');
-        $totalAvailable = $totalDelegated - $totalUsed;
+        // Получаем собственные лимиты сотрудника
+        $personalLimits = Limit::where('user_id', $member->user_id)
+            ->with(['reportType'])
+            ->orderBy('date_created', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
         
-        // Группировка по типам отчетов
-        $limitsByType = [];
+        // Статистика по делегированным лимитам
+        $totalDelegated = $delegatedLimits->sum('quantity');
+        $totalDelegatedUsed = $delegatedLimits->sum('used_quantity');
+        $totalDelegatedAvailable = $totalDelegated - $totalDelegatedUsed;
+        
+        // Статистика по собственным лимитам
+        $totalPersonal = $personalLimits->sum('quantity');
+        $totalPersonalUsed = $personalLimits->sum('used_quantity');
+        $totalPersonalAvailable = $totalPersonal - $totalPersonalUsed;
+        
+        // Общая статистика по всем лимитам
+        $totalAll = $totalDelegated + $totalPersonal;
+        $totalAllUsed = $totalDelegatedUsed + $totalPersonalUsed;
+        $totalAllAvailable = $totalAll - $totalAllUsed;
+        
+        // Группировка по типам отчетов для делегированных лимитов
+        $delegatedLimitsByType = [];
         foreach ($delegatedLimits as $delegated) {
             $reportTypeName = $delegated->limit->reportType->name ?? 'Без типа';
-            if (!isset($limitsByType[$reportTypeName])) {
-                $limitsByType[$reportTypeName] = [
+            if (!isset($delegatedLimitsByType[$reportTypeName])) {
+                $delegatedLimitsByType[$reportTypeName] = [
                     'delegated' => 0,
                     'used' => 0,
                     'available' => 0,
@@ -229,10 +290,29 @@ class OrgMemberController extends Controller
                 ];
             }
             
-            $limitsByType[$reportTypeName]['delegated'] += $delegated->quantity;
-            $limitsByType[$reportTypeName]['used'] += $delegated->used_quantity;
-            $limitsByType[$reportTypeName]['available'] += ($delegated->quantity - $delegated->used_quantity);
-            $limitsByType[$reportTypeName]['count']++;
+            $delegatedLimitsByType[$reportTypeName]['delegated'] += $delegated->quantity;
+            $delegatedLimitsByType[$reportTypeName]['used'] += $delegated->used_quantity;
+            $delegatedLimitsByType[$reportTypeName]['available'] += ($delegated->quantity - $delegated->used_quantity);
+            $delegatedLimitsByType[$reportTypeName]['count']++;
+        }
+        
+        // Группировка по типам отчетов для собственных лимитов
+        $personalLimitsByType = [];
+        foreach ($personalLimits as $limit) {
+            $reportTypeName = $limit->reportType->name ?? 'Без типа';
+            if (!isset($personalLimitsByType[$reportTypeName])) {
+                $personalLimitsByType[$reportTypeName] = [
+                    'total' => 0,
+                    'used' => 0,
+                    'available' => 0,
+                    'count' => 0
+                ];
+            }
+            
+            $personalLimitsByType[$reportTypeName]['total'] += $limit->quantity;
+            $personalLimitsByType[$reportTypeName]['used'] += $limit->used_quantity;
+            $personalLimitsByType[$reportTypeName]['available'] += ($limit->quantity - $limit->used_quantity);
+            $personalLimitsByType[$reportTypeName]['count']++;
         }
         
         // ДОБАВЛЯЕМ СТАТИСТИКУ ПО ОТЧЕТАМ
@@ -264,10 +344,18 @@ class OrgMemberController extends Controller
             'member', 
             'routePrefix',
             'delegatedLimits',
+            'personalLimits',
             'totalDelegated',
-            'totalUsed',
-            'totalAvailable',
-            'limitsByType',
+            'totalDelegatedUsed',
+            'totalDelegatedAvailable',
+            'totalPersonal',
+            'totalPersonalUsed',
+            'totalPersonalAvailable',
+            'totalAll',
+            'totalAllUsed',
+            'totalAllAvailable',
+            'delegatedLimitsByType',
+            'personalLimitsByType',
             'totalReports',
             'thisMonthReports',
             'inProgressReports',

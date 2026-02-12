@@ -43,20 +43,19 @@ class AdminController extends Controller
         // === ЛИМИТЫ АДМИНИСТРАТОРА ===
         $limits = [];
         
-
         // Получаем ВСЕ типы отчетов
         $reportTypes = \App\Models\ReportType::all();
         
         foreach ($reportTypes as $reportType) {
-            // Получаем лимит админа для этого типа отчета на сегодня
-            $today = now()->format('Y-m-d');
+            // Получаем ПОСЛЕДНИЙ лимит админа для этого типа отчета (без привязки к дате)
             $limit = \App\Models\Limit::where('user_id', $admin->id)
                 ->where('report_type_id', $reportType->id)
-                ->where('date_created', $today)
+                ->orderBy('date_created', 'desc')
+                ->orderBy('created_at', 'desc')
                 ->first();
             
             // Логика отображения:
-            // 1. Если only_api = false, ВСЕГДА показываем (даже если лимит = 0)
+            // 1. Если only_api = false, ВСЕГДА показываем (даже если лимит = 0 или не установлен)
             // 2. Если only_api = true, показываем ТОЛЬКО если есть лимит
             if (!$reportType->only_api || ($reportType->only_api && $limit !== null)) {
                 $quantity = $limit ? $limit->quantity : 0;
@@ -67,8 +66,11 @@ class AdminController extends Controller
                     'description' => $reportType->description,
                     'only_api' => $reportType->only_api,
                     'quantity' => $quantity,
-                    'is_exhausted' => $quantity <= 0,
+                    'used_quantity' => $limit ? $limit->used_quantity : 0, // Добавляем использованное количество
+                    'available_quantity' => $limit ? ($limit->quantity - $limit->used_quantity) : 0, // Доступное количество
+                    'is_exhausted' => $limit ? ($limit->quantity - $limit->used_quantity <= 0) : true,
                     'has_limit' => $limit !== null, // Был ли установлен лимит
+                    'date_created' => $limit ? $limit->date_created->format('d.m.Y') : null, // Дата создания лимита
                 ];
             }
         }
@@ -82,7 +84,6 @@ class AdminController extends Controller
             // Потом по названию
             return strcmp($a['report_type_name'], $b['report_type_name']);
         });
-        
         
         // === ВСЕ МЕНЕДЖЕРЫ ===
         $managers = User::where('role', 'manager')

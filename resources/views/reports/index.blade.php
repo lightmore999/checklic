@@ -10,6 +10,8 @@
             <i class="bi bi-file-earmark-text text-primary"></i> 
             @if(request('user_id') && request('user_id') != Auth::id())
                 Отчеты пользователя
+            @elseif(request('organization_id'))
+                Отчеты организации
             @else
                 Мои отчеты
             @endif
@@ -29,11 +31,27 @@
         <div class="card-body">
             <form method="GET" action="{{ route('reports.index') }}" id="filterForm">
                 <div class="row g-3">
-                    <!-- Пользователь (для админов/менеджеров/владельцев) -->
-                    @if(count($users) > 1)
+                    
+                    <!-- НОВЫЙ ФИЛЬТР: Организация (только для админов/менеджеров/владельцев) -->
+                    @if(isset($organizations) && $organizations->isNotEmpty())
+                    <div class="col-md-3">
+                        <label class="form-label">Организация</label>
+                        <select name="organization_id" class="form-select" id="organizationFilter">
+                            <option value="">Все организации</option>
+                            @foreach($organizations as $org)
+                                <option value="{{ $org->id }}" {{ request('organization_id') == $org->id ? 'selected' : '' }}>
+                                    {{ $org->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @endif
+                    
+                    <!-- Пользователь (зависит от выбранной организации) -->
+                    @if(isset($users) && $users->isNotEmpty())
                     <div class="col-md-3">
                         <label class="form-label">Пользователь</label>
-                        <select name="user_id" class="form-select">
+                        <select name="user_id" class="form-select" id="userFilter">
                             <option value="">Все пользователи</option>
                             @foreach($users as $u)
                                 <option value="{{ $u->id }}" {{ request('user_id') == $u->id ? 'selected' : '' }}>
@@ -125,7 +143,7 @@
                                 </a>
                             </div>
                             
-                            @if(request()->hasAny(['user_id', 'report_type_id', 'status', 'search_name', 'passport', 'vehicle_number', 'cadastral_number', 'date_from', 'date_to']))
+                            @if(request()->hasAny(['user_id', 'organization_id', 'report_type_id', 'status', 'search_name', 'passport', 'vehicle_number', 'cadastral_number', 'date_from', 'date_to']))
                                 <div class="text-muted">
                                     Найдено: {{ $reports->total() }} отчетов
                                 </div>
@@ -313,7 +331,7 @@
                     </div>
                     <h4 class="text-muted mb-3">Отчеты не найдены</h4>
                     <p class="text-muted mb-4">
-                        @if(request()->hasAny(['user_id', 'report_type_id', 'status', 'search_name', 'passport', 'vehicle_number', 'cadastral_number', 'date_from', 'date_to']))
+                        @if(request()->hasAny(['user_id', 'organization_id', 'report_type_id', 'status', 'search_name', 'passport', 'vehicle_number', 'cadastral_number', 'date_from', 'date_to']))
                             Попробуйте изменить параметры фильтрации
                         @else
                             У вас еще нет созданных отчетов
@@ -336,7 +354,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(function() {
             window.location.reload();
-        }, 30000); // 30 секунд
+        }, 30000);
     });
     @endif
     
@@ -348,11 +366,31 @@
         });
     });
     
-    // Авто-сабмит формы при изменении некоторых фильтров
-    document.querySelectorAll('select[name="user_id"], select[name="status"]').forEach(select => {
-        select.addEventListener('change', function() {
-            document.getElementById('filterForm').submit();
-        });
+    // Авто-сабмит формы при изменении фильтров
+    document.addEventListener('DOMContentLoaded', function() {
+        // Фильтр организации
+        const orgFilter = document.getElementById('organizationFilter');
+        if (orgFilter) {
+            orgFilter.addEventListener('change', function() {
+                document.getElementById('filterForm').submit();
+            });
+        }
+        
+        // Фильтр статуса
+        const statusFilter = document.querySelector('select[name="status"]');
+        if (statusFilter) {
+            statusFilter.addEventListener('change', function() {
+                document.getElementById('filterForm').submit();
+            });
+        }
+        
+        // Фильтр пользователя
+        const userFilter = document.getElementById('userFilter');
+        if (userFilter) {
+            userFilter.addEventListener('change', function() {
+                document.getElementById('filterForm').submit();
+            });
+        }
     });
 </script>
 @endpush

@@ -16,64 +16,28 @@
                 <div class="card-body">
                     <form method="POST" action="{{ route('limits.store') }}" id="limitForm">
                         @csrf
-                        
-                        @if(session('success'))
-                            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                                <i class="fas fa-check-circle"></i> {{ session('success') }}
-                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                        @endif
-                        
-                        @if($errors->any())
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                <i class="fas fa-exclamation-triangle"></i> Пожалуйста, исправьте ошибки ниже:
-                                <ul class="mb-0 mt-2">
-                                    @foreach($errors->all() as $error)
-                                        <li>{{ $error }}</li>
-                                    @endforeach
-                                </ul>
-                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                        @endif
 
                         <div class="row">
                             <div class="col-md-6">
-                                <!-- Выбор пользователя -->
-                                <div class="form-group">
-                                    <label for="user_id" class="font-weight-bold">
+                                <!-- Выбор пользователя с AJAX поиском -->
+                                <div class="form-group mb-3">
+                                    <label for="user_id" class="form-label fw-bold">
                                         <i class="fas fa-user"></i> Пользователь *
                                     </label>
                                     <select name="user_id" id="user_id" 
-                                            class="form-control select2 @error('user_id') is-invalid @enderror" 
+                                            class="form-control" 
                                             required
-                                            data-placeholder="Выберите пользователя...">
+                                            style="width: 100%;">
                                         <option value=""></option>
-                                        @foreach($users as $user)
-                                            <option value="{{ $user->id }}" 
-                                                {{ old('user_id') == $user->id ? 'selected' : '' }}
-                                                data-role="{{ $user->role }}"
-                                                data-organization="{{ $user->getOrganization()?->name ?? 'Не указана' }}">
-                                                {{ $user->name }} 
-                                                <small class="text-muted">({{ $user->email }})</small>
-                                                - {{ $user->getRoleDisplayName() }}
-                                            </option>
-                                        @endforeach
                                     </select>
                                     @error('user_id')
-                                        <span class="invalid-feedback">{{ $message }}</span>
+                                        <span class="text-danger">{{ $message }}</span>
                                     @enderror
-                                    <small class="form-text text-muted">
-                                        Пользователь должен быть активен и иметь роль "Владелец организации" или "Сотрудник организации"
-                                    </small>
                                 </div>
 
                                 <!-- Количество -->
-                                <div class="form-group">
-                                    <label for="quantity" class="font-weight-bold">
+                                <div class="form-group mb-3">
+                                    <label for="quantity" class="form-label fw-bold">
                                         <i class="fas fa-sort-amount-up"></i> Количество лимитов *
                                     </label>
                                     <div class="input-group">
@@ -83,48 +47,40 @@
                                                min="0" 
                                                max="9999"
                                                required>
-                                        <div class="input-group-append">
-                                            <span class="input-group-text">шт.</span>
-                                        </div>
+                                        <span class="input-group-text">шт.</span>
                                     </div>
                                     @error('quantity')
-                                        <span class="invalid-feedback">{{ $message }}</span>
+                                        <span class="text-danger">{{ $message }}</span>
                                     @enderror
-                                    <small class="form-text text-muted">
-                                        Сколько отчетов может сгенерировать пользователь
-                                    </small>
                                 </div>
                             </div>
                             
                             <div class="col-md-6">
                                 <!-- Тип отчета -->
-                                <div class="form-group">
-                                    <label for="report_type_id" class="font-weight-bold">
+                                <div class="form-group mb-3">
+                                    <label for="report_type_id" class="form-label fw-bold">
                                         <i class="fas fa-file-alt"></i> Тип отчета *
                                     </label>
                                     <select name="report_type_id" id="report_type_id" 
-                                            class="form-control select2 @error('report_type_id') is-invalid @enderror" 
+                                            class="form-control" 
                                             required
-                                            data-placeholder="Выберите тип отчета...">
+                                            style="width: 100%;">
                                         <option value=""></option>
                                         @foreach($reportTypes as $type)
                                             <option value="{{ $type->id }}" 
                                                 {{ old('report_type_id') == $type->id ? 'selected' : '' }}>
                                                 {{ $type->name }}
-                                                @if($type->description)
-                                                    <small class="text-muted">- {{ $type->description }}</small>
-                                                @endif
                                             </option>
                                         @endforeach
                                     </select>
                                     @error('report_type_id')
-                                        <span class="invalid-feedback">{{ $message }}</span>
+                                        <span class="text-danger">{{ $message }}</span>
                                     @enderror
                                 </div>
 
                                 <!-- Дата действия -->
-                                <div class="form-group">
-                                    <label for="date_created" class="font-weight-bold">
+                                <div class="form-group mb-3">
+                                    <label for="date_created" class="form-label fw-bold">
                                         <i class="fas fa-calendar-alt"></i> Дата действия лимита *
                                     </label>
                                     <input type="date" name="date_created" id="date_created" 
@@ -133,11 +89,8 @@
                                            min="{{ now()->format('Y-m-d') }}"
                                            required>
                                     @error('date_created')
-                                        <span class="invalid-feedback">{{ $message }}</span>
+                                        <span class="text-danger">{{ $message }}</span>
                                     @enderror
-                                    <small class="form-text text-muted">
-                                        На какую дату действует лимит. Не может быть меньше текущей даты.
-                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -159,7 +112,7 @@
                                             </div>
                                             <div class="col-md-4">
                                                 <strong>Статус:</strong> 
-                                                <span class="badge bg-success" id="userStatus">Активен</span>
+                                                <span class="badge bg-success">Активен</span>
                                             </div>
                                         </div>
                                     </div>
@@ -192,14 +145,6 @@
                         </div>
                     </form>
                 </div>
-                
-                <div class="card-footer text-muted">
-                    <small>
-                        <i class="fas fa-info-circle"></i> 
-                        <strong>Администратор</strong> может создавать лимиты для всех пользователей. 
-                        <strong>Менеджер</strong> - только для пользователей своих организаций.
-                    </small>
-                </div>
             </div>
         </div>
     </div>
@@ -207,82 +152,99 @@
 @endsection
 
 @push('styles')
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<!-- Select2 CSS -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
 <style>
-    .select2-container--default .select2-selection--single {
-        height: calc(2.25rem + 2px);
-        padding: .375rem .75rem;
-        border: 1px solid #ced4da;
+    /* Минимальные стили для Select2 */
+    .select2-container {
+        width: 100% !important;
     }
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 1.5;
-        color: #495057;
+    .select2-selection {
+        height: 38px !important;
+        border: 1px solid #ced4da !important;
+        border-radius: 4px !important;
+    }
+    .select2-selection__rendered {
+        line-height: 38px !important;
+        padding-left: 12px !important;
+    }
+    .select2-selection__arrow {
+        height: 38px !important;
+    }
+    .select2-dropdown {
+        border-color: #ced4da !important;
     }
 </style>
 @endpush
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Select2 JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/i18n/ru.js"></script>
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script>
-    $(document).ready(function() {
-        // Инициализация Select2
-        $('.select2').select2({
-            theme: 'bootstrap4',
-            width: '100%'
-        });
-        
-        // Показ информации о пользователе при выборе
-        $('#user_id').on('change', function() {
-            var selectedOption = $(this).find('option:selected');
-            if (selectedOption.val()) {
-                $('#userRole').text(selectedOption.data('role-display') || selectedOption.data('role'));
-                $('#userOrganization').text(selectedOption.data('organization') || 'Не указана');
-                $('#userInfo').show();
-            } else {
-                $('#userInfo').hide();
+$(document).ready(function() {
+    console.log('Инициализация...');
+    
+    // Инициализация Select2 для пользователей
+    $('#user_id').select2({
+        placeholder: 'Введите имя или email для поиска...',
+        allowClear: true,
+        minimumInputLength: 0,
+        language: 'ru',
+        ajax: {
+            url: '{{ route("users.search") }}',
+            dataType: 'json',
+            delay: 300,
+            data: function(params) {
+                return {
+                    search: params.term || ''
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.map(function(user) {
+                        return {
+                            id: user.id,
+                            text: user.name + ' (' + user.email + ')',
+                            role_display: user.role_display,
+                            organization: user.organization
+                        };
+                    })
+                };
             }
-        });
-        
-        // Установка быстрых значений
-        window.setDefaultValues = function() {
-            $('#quantity').val(10);
-            $('#date_created').val('{{ now()->addDays(7)->format("Y-m-d") }}');
-            Swal.fire({
-                icon: 'success',
-                title: 'Установлены значения по умолчанию',
-                text: 'Количество: 10, Дата: через 7 дней',
-                timer: 2000
-            });
-        };
-        
-        // Предотвращение отправки формы при нажатии Enter
-        $('#limitForm').on('keypress', function(e) {
-            if (e.which === 13 && !$(e.target).is('textarea, select')) {
-                e.preventDefault();
-                return false;
-            }
-        });
-        
-        // Валидация даты
-        $('#date_created').on('change', function() {
-            var selectedDate = new Date(this.value);
-            var today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            if (selectedDate < today) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Некорректная дата',
-                    text: 'Дата не может быть меньше текущей',
-                });
-                $(this).val('{{ now()->format("Y-m-d") }}');
-            }
-        });
-        
-        // Если есть ошибки, показываем информацию о выбранном пользователе
-        @if(old('user_id'))
-            $('#user_id').trigger('change');
-        @endif
+        }
     });
+
+    // Инициализация Select2 для типов отчетов
+    $('#report_type_id').select2({
+        placeholder: 'Выберите тип отчета...',
+        allowClear: true,
+        language: 'ru'
+    });
+
+    // Обработка выбора пользователя
+    $('#user_id').on('select2:select', function(e) {
+        var data = e.params.data;
+        $('#userRole').text(data.role_display || 'Не указана');
+        $('#userOrganization').text(data.organization || 'Не указана');
+        $('#userInfo').show();
+    });
+
+    $('#user_id').on('select2:clear', function() {
+        $('#userInfo').hide();
+    });
+
+    // Быстрые значения
+    window.setDefaultValues = function() {
+        $('#quantity').val(10);
+        $('#date_created').val('{{ now()->addDays(7)->format("Y-m-d") }}');
+        Swal.fire('Установлены значения по умолчанию', '', 'success');
+    };
+});
 </script>
 @endpush

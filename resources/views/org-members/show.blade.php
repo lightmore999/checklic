@@ -82,71 +82,143 @@
                 </div>
             </div>
 
-            <!-- Статистика лимитов -->
+            <!-- Статистика всех лимитов -->
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
-                        <i class="bi bi-speedometer text-warning me-2"></i>
+                        <i class="bi bi-speedometer text-primary me-2"></i>
                         Статистика лимитов
                     </h5>
-                    @if(isset($totalDelegated) && $totalDelegated > 0)
-                        <span class="badge bg-warning">{{ $delegatedLimits->count() }}</span>
+                    @if(isset($totalAll) && $totalAll > 0)
+                        <span class="badge bg-primary">{{ $delegatedLimits->count() + $personalLimits->count() }}</span>
                     @endif
                 </div>
                 <div class="card-body">
-                    @if(isset($totalDelegated) && $totalDelegated > 0)
-                        <div class="mb-3">
+                    @if(isset($totalAll) && $totalAll > 0)
+                        <!-- Общая статистика -->
+                        <div class="mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <small>Всего делегировано:</small>
-                                <span class="badge bg-warning">{{ $totalDelegated }} шт.</span>
+                                <small>Всего лимитов:</small>
+                                <span class="badge bg-primary">{{ $totalAll }} шт.</span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <small>Использовано:</small>
-                                <span class="badge bg-info">{{ $totalUsed }} шт.</span>
+                                <span class="badge bg-info">{{ $totalAllUsed }} шт.</span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <small>Доступно:</small>
-                                <span class="badge bg-{{ $totalAvailable > 0 ? 'success' : 'danger' }}">
-                                    {{ $totalAvailable }} шт.
+                                <small>Доступно всего:</small>
+                                <span class="badge bg-{{ $totalAllAvailable > 0 ? 'success' : 'danger' }}">
+                                    {{ $totalAllAvailable }} шт.
                                 </span>
                             </div>
                             
-                            <!-- Прогресс бар -->
+                            <!-- Прогресс бар общий -->
                             <div class="progress mb-2" style="height: 8px;">
                                 @php
-                                    $percentage = $totalDelegated > 0 ? round(($totalUsed / $totalDelegated) * 100) : 0;
+                                    $allPercentage = $totalAll > 0 ? round(($totalAllUsed / $totalAll) * 100) : 0;
                                 @endphp
-                                <div class="progress-bar bg-{{ $percentage > 80 ? 'danger' : ($percentage > 50 ? 'warning' : 'success') }}" 
-                                     style="width: {{ $percentage }}%">
+                                <div class="progress-bar bg-{{ $allPercentage > 80 ? 'danger' : ($allPercentage > 50 ? 'warning' : 'success') }}" 
+                                     style="width: {{ $allPercentage }}%">
                                 </div>
                             </div>
                             <small class="text-muted d-block text-center">
-                                Использовано {{ $percentage }}% от общего лимита
+                                Использовано {{ $allPercentage }}% от всех лимитов
                             </small>
+                        </div>
+
+                        <!-- Разделение на собственные и делегированные -->
+                        <div class="row mb-3">
+                            <!-- Собственные лимиты -->
+                            <div class="col-6">
+                                <div class="border p-2 rounded bg-light">
+                                    <h6 class="text-center mb-2">
+                                        <i class="bi bi-person-check text-success"></i>
+                                        <small>Собственные</small>
+                                    </h6>
+                                    <div class="text-center mb-1">
+                                        <span class="badge bg-{{ $totalPersonalAvailable > 0 ? 'success' : 'danger' }}">
+                                            {{ $totalPersonalAvailable }}
+                                        </span>
+                                        <small class="d-block text-muted">доступно</small>
+                                    </div>
+                                    <div class="text-center">
+                                        <span class="badge bg-secondary">{{ $totalPersonal }}</span>
+                                        <small class="d-block text-muted">всего</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Делегированные лимиты -->
+                            <div class="col-6">
+                                <div class="border p-2 rounded bg-light">
+                                    <h6 class="text-center mb-2">
+                                        <i class="bi bi-share text-warning"></i>
+                                        <small>Делегированные</small>
+                                    </h6>
+                                    <div class="text-center mb-1">
+                                        <span class="badge bg-{{ $totalDelegatedAvailable > 0 ? 'success' : 'danger' }}">
+                                            {{ $totalDelegatedAvailable }}
+                                        </span>
+                                        <small class="d-block text-muted">доступно</small>
+                                    </div>
+                                    <div class="text-center">
+                                        <span class="badge bg-warning">{{ $totalDelegated }}</span>
+                                        <small class="d-block text-muted">всего</small>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Типы лимитов -->
-                        @if(!empty($limitsByType))
+                        @if(!empty($delegatedLimitsByType) || !empty($personalLimitsByType))
                             <div class="border-top pt-3">
                                 <small class="text-muted d-block mb-2">По типам отчетов:</small>
-                                @foreach($limitsByType as $typeName => $stats)
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <small class="text-truncate" style="max-width: 120px;" title="{{ $typeName }}">
+                                @php
+                                    // Объединяем типы
+                                    $allTypes = array_unique(
+                                        array_merge(
+                                            array_keys($personalLimitsByType),
+                                            array_keys($delegatedLimitsByType)
+                                        )
+                                    );
+                                @endphp
+                                
+                                @foreach($allTypes as $typeName)
+                                    <div class="mb-2">
+                                        <small class="text-truncate d-block mb-1" style="max-width: 120px;" title="{{ $typeName }}">
                                             {{ $typeName }}
                                         </small>
-                                        <div>
-                                            <span class="badge bg-light text-dark border" title="Делегировано: {{ $stats['delegated'] }}, Использовано: {{ $stats['used'] }}">
-                                                {{ $stats['available'] }}/{{ $stats['delegated'] }}
-                                            </span>
-                                        </div>
+                                        
+                                        <!-- Собственные лимиты по этому типу -->
+                                        @if(isset($personalLimitsByType[$typeName]))
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <small><i class="bi bi-person text-success me-1"></i> Собственные:</small>
+                                                <span class="badge bg-light text-dark border">
+                                                    {{ $personalLimitsByType[$typeName]['available'] }}/{{ $personalLimitsByType[$typeName]['total'] }}
+                                                </span>
+                                            </div>
+                                        @endif
+                                        
+                                        <!-- Делегированные лимиты по этому типу -->
+                                        @if(isset($delegatedLimitsByType[$typeName]))
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <small><i class="bi bi-share text-warning me-1"></i> Делегированные:</small>
+                                                <span class="badge bg-light text-dark border">
+                                                    {{ $delegatedLimitsByType[$typeName]['available'] }}/{{ $delegatedLimitsByType[$typeName]['delegated'] }}
+                                                </span>
+                                            </div>
+                                        @endif
                                     </div>
+                                    @if(!$loop->last)
+                                        <hr class="my-2">
+                                    @endif
                                 @endforeach
                             </div>
                         @endif
                     @else
                         <div class="text-center py-3">
                             <i class="bi bi-speedometer text-muted fs-1 mb-3 d-block"></i>
-                            <p class="text-muted mb-0">Нет делегированных лимитов</p>
+                            <p class="text-muted mb-0">У сотрудника нет лимитов</p>
                         </div>
                     @endif
                 </div>
@@ -198,7 +270,7 @@
                                 </button>
                             </form>
 
-                            @if(isset($ownerLimits) && count($ownerLimits) > 0)
+                            @if($isOwner)
                                 <button type="button" class="btn btn-outline-warning delegate-btn"
                                         data-employee-id="{{ $member->user->id }}"
                                         data-employee-name="{{ $member->user->name }}">
@@ -296,72 +368,167 @@
                 </div>
             </div>
 
-            <!-- Делегированные лимиты -->
-            @if(isset($delegatedLimits) && $delegatedLimits->count() > 0)
+            <!-- Табы для лимитов -->
             <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-list-check text-info me-2"></i>
-                        Делегированные лимиты
-                        <span class="badge bg-info ms-2">{{ $delegatedLimits->count() }}</span>
-                    </h5>
-                    <small class="text-muted">
-                        Всего делегировано: {{ $totalDelegated }} шт.
-                    </small>
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" id="limitsTab" role="tablist">
+                        @if($personalLimits->count() > 0)
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="personal-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#personal" type="button" role="tab">
+                                    <i class="bi bi-person-check me-1"></i>
+                                    Собственные лимиты
+                                    <span class="badge bg-success ms-1">{{ $personalLimits->count() }}</span>
+                                </button>
+                            </li>
+                        @endif
+                        @if($delegatedLimits->count() > 0)
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link {{ $personalLimits->count() == 0 ? 'active' : '' }}" 
+                                        id="delegated-tab" data-bs-toggle="tab" 
+                                        data-bs-target="#delegated" type="button" role="tab">
+                                    <i class="bi bi-share me-1"></i>
+                                    Делегированные лимиты
+                                    <span class="badge bg-warning ms-1">{{ $delegatedLimits->count() }}</span>
+                                </button>
+                            </li>
+                        @endif
+                    </ul>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Тип отчета</th>
-                                    <th>Делегировано</th>
-                                    <th>Использовано</th>
-                                    <th>Доступно</th>
-                                    <th>Дата делегирования</th>
-                                    <th>Статус</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($delegatedLimits as $delegated)
-                                @php
-                                    $available = $delegated->quantity - $delegated->used_quantity;
-                                @endphp
-                                <tr>
-                                    <td>
-                                        <strong>{{ $delegated->limit->reportType->name ?? 'Без типа' }}</strong>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-warning">{{ $delegated->quantity }} шт.</span>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-info">{{ $delegated->used_quantity }} шт.</span>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-{{ $available > 0 ? 'success' : 'danger' }}">
-                                            {{ $available }} шт.
-                                        </span>
-                                    </td>
-                                    <td>{{ $delegated->created_at->format('d.m.Y H:i') }}</td>
-                                    <td>
-                                        @if($delegated->is_active)
-                                            @if($available <= 0)
-                                                <span class="badge bg-danger">Исчерпан</span>
-                                            @else
-                                                <span class="badge bg-success">Активен</span>
-                                            @endif
-                                        @else
-                                            <span class="badge bg-secondary">Неактивен</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                    <div class="tab-content" id="limitsTabContent">
+                        <!-- Собственные лимиты -->
+                        @if($personalLimits->count() > 0)
+                            <div class="tab-pane fade show active" id="personal" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Тип отчета</th>
+                                                <th>Общий лимит</th>
+                                                <th>Использовано</th>
+                                                <th>Доступно</th>
+                                                <th>Дата создания</th>
+                                                <th>Статус</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($personalLimits as $limit)
+                                            @php
+                                                $available = $limit->getAvailableQuantity();
+                                            @endphp
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ $limit->reportType->name ?? 'Без типа' }}</strong>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-secondary">{{ $limit->quantity }} шт.</span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-info">{{ $limit->used_quantity }} шт.</span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-{{ $available > 0 ? 'success' : 'danger' }}">
+                                                        {{ $available }} шт.
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {{ $limit->date_created->format('d.m.Y') }}<br>
+                                                    <small class="text-muted">{{ $limit->created_at->format('H:i') }}</small>
+                                                </td>
+                                                <td>
+                                                    @if($limit->isExhausted())
+                                                        <span class="badge bg-danger">Исчерпан</span>
+                                                    @else
+                                                        <span class="badge bg-success">Активен</span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endif
+
+                        <!-- Делегированные лимиты -->
+                        @if($delegatedLimits->count() > 0)
+                            <div class="tab-pane fade {{ $personalLimits->count() == 0 ? 'show active' : '' }}" 
+                                 id="delegated" role="tabpanel">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Тип отчета</th>
+                                                <th>От кого</th>
+                                                <th>Делегировано</th>
+                                                <th>Использовано</th>
+                                                <th>Доступно</th>
+                                                <th>Дата делегирования</th>
+                                                <th>Статус</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($delegatedLimits as $delegated)
+                                            @php
+                                                $available = $delegated->quantity - $delegated->used_quantity;
+                                                $originalUser = $delegated->limit->user ?? null;
+                                            @endphp
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ $delegated->limit->reportType->name ?? 'Без типа' }}</strong>
+                                                </td>
+                                                <td>
+                                                    @if($originalUser)
+                                                        <small>
+                                                            <i class="bi bi-person-up"></i>
+                                                            {{ $originalUser->name }}
+                                                        </small>
+                                                    @else
+                                                        <span class="text-muted">Неизвестно</span>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-warning">{{ $delegated->quantity }} шт.</span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-info">{{ $delegated->used_quantity }} шт.</span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-{{ $available > 0 ? 'success' : 'danger' }}">
+                                                        {{ $available }} шт.
+                                                    </span>
+                                                </td>
+                                                <td>{{ $delegated->created_at->format('d.m.Y H:i') }}</td>
+                                                <td>
+                                                    @if($delegated->is_active)
+                                                        @if($available <= 0)
+                                                            <span class="badge bg-danger">Исчерпан</span>
+                                                        @else
+                                                            <span class="badge bg-success">Активен</span>
+                                                        @endif
+                                                    @else
+                                                        <span class="badge bg-secondary">Неактивен</span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endif
+
+                        <!-- Нет лимитов -->
+                        @if($personalLimits->count() == 0 && $delegatedLimits->count() == 0)
+                            <div class="text-center py-3">
+                                <i class="bi bi-clipboard-x text-muted fs-1 mb-3 d-block"></i>
+                                <p class="text-muted mb-0">У сотрудника нет доступных лимитов</p>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
-            @endif
 
             <!-- Карточки статистики -->
             <div class="row">
@@ -482,9 +649,44 @@
 </div>
 
 <!-- Модальное окно делегирования (если есть доступные лимиты) -->
-@if($isOwner && isset($ownerLimits) && count($ownerLimits) > 0)
+@if($isOwner)
 <div class="modal fade" id="delegateModal" tabindex="-1" aria-labelledby="delegateModalLabel" aria-hidden="true">
-    <!-- Содержимое модального окна (аналогично предыдущим шаблонам) -->
+    <!-- Содержимое модального окна для делегирования -->
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ route('owner.org-members.delegate-limit', [$organization->id, $member->id]) }}" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title" id="delegateModalLabel">
+                        <i class="bi bi-share me-2"></i>
+                        Делегировать лимит сотруднику
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Выберите тип лимита:</label>
+                        <select name="limit_type" class="form-select" id="limitTypeSelect">
+                            <option value="">Выберите тип отчета</option>
+                            <!-- Можно добавить опции через JS или PHP -->
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Количество:</label>
+                        <input type="number" name="quantity" class="form-control" min="1" value="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Дополнительная информация:</label>
+                        <textarea name="notes" class="form-control" rows="3" placeholder="При необходимости добавьте комментарий..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Делегировать</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 @endif
 
@@ -504,6 +706,28 @@ function confirmDelete() {
         document.getElementById('delete-form').submit();
     }
 }
+
+// Инициализация табов
+document.addEventListener('DOMContentLoaded', function() {
+    const triggerTabList = [].slice.call(document.querySelectorAll('#limitsTab button'))
+    triggerTabList.forEach(function (triggerEl) {
+        const tabTrigger = new bootstrap.Tab(triggerEl)
+        
+        triggerEl.addEventListener('click', function (event) {
+            event.preventDefault()
+            tabTrigger.show()
+        })
+    })
+    
+    // Обработка кнопки делегирования
+    const delegateBtn = document.querySelector('.delegate-btn');
+    if (delegateBtn) {
+        delegateBtn.addEventListener('click', function() {
+            const modal = new bootstrap.Modal(document.getElementById('delegateModal'));
+            modal.show();
+        });
+    }
+});
 </script>
 @endif
 @endsection

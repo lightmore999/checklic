@@ -18,7 +18,7 @@
 @if(session('success'))
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         <i class="bi bi-check-circle me-2"></i>
-        {{ session('success') }}
+        {!! session('success') !!}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 @endif
@@ -26,7 +26,7 @@
 @if(session('error'))
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <i class="bi bi-exclamation-triangle me-2"></i>
-        {{ session('error') }}
+        {!! session('error') !!}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 @endif
@@ -52,91 +52,261 @@
     </div>
 @endif
 
-<div class="row">
-    <div class="col-md-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white border-bottom">
-                <h6 class="mb-0">
-                    <i class="bi bi-pencil text-success me-2"></i>
-                    Создание отчета
-                </h6>
-            </div>
-            
-            <div class="card-body">
-                <form method="POST" action="{{ route('reports.store') }}" id="reportForm">
-                    @csrf
+<!-- ВКЛАДКИ: Одиночное создание / Массовая загрузка -->
+<ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="single-tab" data-bs-toggle="tab" data-bs-target="#single" type="button" role="tab">
+            <i class="bi bi-pencil-square me-2"></i>Одиночное создание
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="bulk-tab" data-bs-toggle="tab" data-bs-target="#bulk" type="button" role="tab">
+            <i class="bi bi-file-earmark-spreadsheet me-2"></i>Массовая загрузка из Excel/CSV
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="reportTabsContent">
+    
+    <!-- === ВКЛАДКА 1: ОДИНОЧНОЕ СОЗДАНИЕ (БЕЗ ИЗМЕНЕНИЙ) === -->
+    <div class="tab-pane fade show active" id="single" role="tabpanel">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-bottom">
+                        <h6 class="mb-0">
+                            <i class="bi bi-pencil text-success me-2"></i>
+                            Создание одиночного отчета
+                        </h6>
+                    </div>
                     
-                    <!-- Скрытые поля для частей имени -->
-                    <input type="hidden" name="last_name" id="hidden_last_name">
-                    <input type="hidden" name="first_name" id="hidden_first_name">
-                    <input type="hidden" name="patronymic" id="hidden_patronymic">
-                    
-                    <div class="row">
-                        <!-- Выбор типов отчетов - ТЕПЕРЬ ВНУТРИ ФОРМЫ -->
-                        <div class="col-md-4">
-                            <div class="card border-light shadow-sm mb-4">
-                                <div class="card-header bg-light">
-                                    <h6 class="mb-0">
-                                        <i class="bi bi-list-check text-primary me-2"></i>
-                                        Выберите типы отчетов
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <div id="reportTypesContainer">
-                                        @foreach($reportTypes as $type)
-                                            <div class="form-check mb-3">
-                                                <input class="form-check-input report-type-checkbox" 
-                                                       type="checkbox" 
-                                                       value="{{ $type->id }}" 
-                                                       id="type_{{ $type->id }}"
-                                                       name="report_types[]"
-                                                       data-name="{{ $type->name }}">
-                                                <label class="form-check-label d-flex align-items-center" for="type_{{ $type->id }}">
-                                                    <span class="badge bg-primary me-2">{{ substr($type->name, 0, 2) }}</span>
-                                                    <span>{{ $type->name }}</span>
-                                                </label>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                    
-                                    <div class="alert alert-info mt-3">
-                                        <i class="bi bi-info-circle me-2"></i>
-                                        Можно выбрать несколько типов отчетов
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Поля для заполнения -->
-                        <div class="col-md-8">
-                            <!-- Динамические поля появятся здесь -->
-                            <div id="dynamicFields"></div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ route('reports.store') }}" id="reportForm">
+                            @csrf
                             
-                            <!-- Сообщение о валидации (всегда присутствует, но скрыто) -->
-                            <div id="validationMessage" class="alert alert-warning d-none">
-                                <i class="bi bi-exclamation-triangle me-2"></i>
-                                <span id="validationText"></span>
+                            <!-- Скрытые поля для частей имени -->
+                            <input type="hidden" name="last_name" id="hidden_last_name">
+                            <input type="hidden" name="first_name" id="hidden_first_name">
+                            <input type="hidden" name="patronymic" id="hidden_patronymic">
+                            
+                            <div class="row">
+                                <!-- Выбор типов отчетов -->
+                                <div class="col-md-4">
+                                    <div class="card border-light shadow-sm mb-4">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">
+                                                <i class="bi bi-list-check text-primary me-2"></i>
+                                                Выберите типы отчетов
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="reportTypesContainer">
+                                                @foreach($reportTypes as $type)
+                                                    <div class="form-check mb-3">
+                                                        <input class="form-check-input report-type-checkbox" 
+                                                               type="checkbox" 
+                                                               value="{{ $type->id }}" 
+                                                               id="type_{{ $type->id }}"
+                                                               name="report_types[]"
+                                                               data-name="{{ $type->name }}">
+                                                        <label class="form-check-label d-flex align-items-center" for="type_{{ $type->id }}">
+                                                            <span class="badge bg-primary me-2">{{ substr($type->name, 0, 2) }}</span>
+                                                            <span>{{ $type->name }}</span>
+                                                        </label>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                            
+                                            <div class="alert alert-info mt-3">
+                                                <i class="bi bi-info-circle me-2"></i>
+                                                Можно выбрать несколько типов отчетов
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Поля для заполнения -->
+                                <div class="col-md-8">
+                                    <div id="dynamicFields"></div>
+                                    <div id="validationMessage" class="alert alert-warning d-none">
+                                        <i class="bi bi-exclamation-triangle me-2"></i>
+                                        <span id="validationText"></span>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                            
+                            <!-- Кнопки -->
+                            <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                                <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                                    <i class="bi bi-x-circle me-1"></i> Сбросить
+                                </button>
+                                <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                                    <i class="bi bi-check-circle me-1"></i> Создать отчет
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- === ВКЛАДКА 2: МАССОВАЯ ЗАГРУЗКА === -->
+    <div class="tab-pane fade" id="bulk" role="tabpanel">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-bottom">
+                        <h6 class="mb-0">
+                            <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i>
+                            Массовая загрузка отчетов из Excel/CSV
+                        </h6>
                     </div>
                     
-                    <!-- Кнопки -->
-                    <div class="d-flex justify-content-between mt-4 pt-3 border-top">
-                        <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
-                            <i class="bi bi-x-circle me-1"></i> Сбросить
-                        </button>
-                        
-                        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
-                            <i class="bi bi-check-circle me-1"></i> Создать отчет
-                        </button>
+                    <div class="card-body">
+                        <form method="POST" action="{{ route('reports.bulk.store') }}" enctype="multipart/form-data" id="bulkUploadForm">
+                            @csrf
+                            
+                            <div class="row">
+                                <!-- ЛЕВАЯ КОЛОНКА: Выбор типов отчетов -->
+                                <div class="col-md-5">
+                                    <div class="card border-light shadow-sm mb-4">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">
+                                                <i class="bi bi-list-check text-primary me-2"></i>
+                                                Типы отчетов для загрузки
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="alert alert-warning mb-3">
+                                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                                Каждая запись в файле создаст ВСЕ выбранные типы отчетов
+                                            </div>
+                                            
+                                            <div id="bulkReportTypesContainer">
+                                                @foreach($reportTypes as $type)
+                                                    <div class="form-check mb-3">
+                                                        <input class="form-check-input bulk-report-type-checkbox" 
+                                                               type="checkbox" 
+                                                               value="{{ $type->id }}" 
+                                                               id="bulk_type_{{ $type->id }}"
+                                                               name="bulk_report_types[]"
+                                                               data-name="{{ $type->name }}">
+                                                        <label class="form-check-label d-flex align-items-center" for="bulk_type_{{ $type->id }}">
+                                                            <span class="badge bg-primary me-2">{{ substr($type->name, 0, 2) }}</span>
+                                                            <span>{{ $type->name }}</span>
+                                                        </label>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- ПРАВАЯ КОЛОНКА: Загрузка файла и настройки -->
+                                <div class="col-md-7">
+                                    <div class="card border-light shadow-sm mb-4">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0">
+                                                <i class="bi bi-upload text-primary me-2"></i>
+                                                Загрузка файла
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <!-- Блок загрузки файла -->
+                                            <div class="mb-4">
+                                                <label class="form-label fw-bold">Выберите Excel/CSV файл</label>
+                                                <div class="border rounded p-4 bg-light text-center" id="dropZone">
+                                                    <div class="mb-3">
+                                                        <i class="bi bi-file-earmark-excel fs-1 text-success"></i>
+                                                        <i class="bi bi-file-earmark-spreadsheet fs-1 text-primary ms-2"></i>
+                                                    </div>
+                                                    <input type="file" 
+                                                           class="form-control" 
+                                                           name="excel_file" 
+                                                           id="excelFile"
+                                                           accept=".xlsx,.xls,.csv"
+                                                           required>
+                                                    <div class="form-text mt-2">
+                                                        <i class="bi bi-info-circle me-1"></i>
+                                                        Поддерживаемые форматы: .xlsx, .xls, .csv
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Настройки импорта -->
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label fw-bold">Строка с заголовками</label>
+                                                    <input type="number" 
+                                                           class="form-control" 
+                                                           name="header_row" 
+                                                           id="header_row"
+                                                           value="1" 
+                                                           min="1"
+                                                           step="1">
+                                                    <div class="form-text">Номер строки с названиями колонок</div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Информация о формате файла -->
+                                            <div class="alert alert-info mt-2">
+                                                <h6 class="alert-heading"><i class="bi bi-table me-2"></i>Требования к файлу:</h6>
+                                                <ul class="mb-0 small">
+                                                    <li>Первая строка (настраивается) - заголовки колонок</li>
+                                                    <li>Поддерживаемые заголовки: 
+                                                        <code>last_name</code>, <code>first_name</code>, <code>patronymic</code>, 
+                                                        <code>birth_date</code>, <code>region</code>, <code>passport_series</code>, 
+                                                        <code>passport_number</code>, <code>passport_date</code>, 
+                                                        <code>vehicle_number</code>, <code>cadastral_number</code>, 
+                                                        <code>property_type</code>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Кнопки массовой загрузки -->
+                            <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                                <button type="button" class="btn btn-outline-secondary" onclick="resetBulkForm()">
+                                    <i class="bi bi-x-circle me-1"></i> Сбросить
+                                </button>
+                                <button type="submit" class="btn btn-success" id="bulkSubmitBtn" disabled>
+                                    <i class="bi bi-cloud-upload me-1"></i> Загрузить и обработать
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- СЕКЦИЯ ПРЕДПРОСМОТРА (появляется после выбора файла) -->
+        <div id="previewSection" class="mt-4 d-none">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <h6 class="mb-0">
+                        <i class="bi bi-eye text-info me-2"></i>
+                        Предпросмотр данных из файла
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="previewLoader" class="text-center py-4 d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                        <p class="mt-2">Чтение файла...</p>
+                    </div>
+                    <div id="previewContent"></div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Шаблоны полей -->
+<!-- === ШАБЛОНЫ ПОЛЕЙ (БЕЗ ИЗМЕНЕНИЙ) === -->
 <template id="fieldPersonalInfo">
     <div class="card border-light shadow-sm mb-4">
         <div class="card-header bg-light">
@@ -254,22 +424,19 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        
+        // =========================================
+        // 1. ЛОГИКА ДЛЯ ОДИНОЧНОГО СОЗДАНИЯ (БЕЗ ИЗМЕНЕНИЙ)
+        // =========================================
+        
         // Конфигурация блоков для каждого типа отчета
         const reportConfig = {
-            // CL:Базовый V1
             1: ['personalInfo'],
-            
-            // CL:Паспорт V1
             2: ['personalInfo', 'passportInfo'],
-            
-            // AI:АвтоИстория V1
             3: ['vehicleInfo'],
-            
-            // CL:Недвижимость
             4: ['propertyInfo']
         };
         
-        // Маппинг блоков на их шаблоны
         const blockTemplates = {
             'personalInfo': 'fieldPersonalInfo',
             'passportInfo': 'fieldPassportInfo',
@@ -277,57 +444,37 @@
             'propertyInfo': 'fieldPropertyInfo'
         };
         
-        // Требования для каждого типа отчета
         const requirements = {
-            1: { // CL:Базовый V1
-                name: ['first_name', 'last_name'],
-                message: 'Для базового отчета заполните Фамилию и Имя'
-            },
-            2: { // CL:Паспорт V1
-                passport: ['passport_series', 'passport_number'],
-                message: 'Для паспортного отчета заполните серию и номер паспорта'
-            },
-            3: { // AI:АвтоИстория V1
-                vehicle: ['vehicle_number'],
-                message: 'Для отчета по автоистории заполните номер ТС'
-            },
-            4: { // CL:Недвижимость
-                property: ['cadastral_number', 'property_type'],
-                message: 'Для отчета по недвижимости заполните кадастровый номер и выберите тип'
-            }
+            1: { name: ['first_name', 'last_name'], message: 'Для базового отчета заполните Фамилию и Имя' },
+            2: { passport: ['passport_series', 'passport_number'], message: 'Для паспортного отчета заполните серию и номер паспорта' },
+            3: { vehicle: ['vehicle_number'], message: 'Для отчета по автоистории заполните номер ТС' },
+            4: { property: ['cadastral_number', 'property_type'], message: 'Для отчета по недвижимости заполните кадастровый номер и выберите тип' }
         };
         
-        // Уникальные блоки, которые уже добавлены
         let addedBlocks = new Set();
         
-        // Обработчик изменения чекбоксов
+        // Обработчик чекбоксов для одиночного создания
         document.querySelectorAll('.report-type-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', updateFormFields);
         });
         
-        // Обновление полей формы
         function updateFormFields() {
             const container = document.getElementById('dynamicFields');
             const submitBtn = document.getElementById('submitBtn');
             const validationMsg = document.getElementById('validationMessage');
             const selectedTypes = [];
             
-            // Собираем выбранные типы
             document.querySelectorAll('.report-type-checkbox:checked').forEach(cb => {
                 selectedTypes.push(cb.value);
             });
             
-            
-            // Очищаем контейнер
             container.innerHTML = '';
             addedBlocks.clear();
             
-            // Скрываем сообщение валидации если оно есть
             if (validationMsg) {
                 validationMsg.classList.add('d-none');
             }
             
-            // Добавляем заголовок если есть выбранные типы
             if (selectedTypes.length > 0) {
                 container.innerHTML = `
                     <div class="alert alert-info mb-4">
@@ -342,7 +489,6 @@
                 `;
             }
             
-            // Добавляем блоки для каждого выбранного типа
             selectedTypes.forEach(typeId => {
                 if (reportConfig[typeId]) {
                     reportConfig[typeId].forEach(blockId => {
@@ -354,22 +500,18 @@
                 }
             });
             
-            // Активируем/деактивируем кнопку отправки
             submitBtn.disabled = selectedTypes.length === 0;
         }
         
-        // Добавление блока по ID
         function addBlock(blockId) {
             const container = document.getElementById('dynamicFields');
             const template = document.getElementById(blockTemplates[blockId]);
-            
             if (template) {
                 const clone = template.content.cloneNode(true);
                 container.appendChild(clone);
             }
         }
         
-        // Получение названий выбранных типов
         function getSelectedTypesNames() {
             const names = [];
             document.querySelectorAll('.report-type-checkbox:checked').forEach(cb => {
@@ -378,7 +520,6 @@
             return names.join(', ');
         }
         
-        // Сброс формы
         window.resetForm = function() {
             document.querySelectorAll('.report-type-checkbox').forEach(cb => {
                 cb.checked = false;
@@ -387,161 +528,267 @@
             document.getElementById('submitBtn').disabled = true;
             
             const validationMsg = document.getElementById('validationMessage');
-            if (validationMsg) {
-                validationMsg.classList.add('d-none');
-            }
+            if (validationMsg) validationMsg.classList.add('d-none');
             
             addedBlocks.clear();
-            
-            // Очищаем скрытые поля имени
             document.getElementById('hidden_last_name').value = '';
             document.getElementById('hidden_first_name').value = '';
             document.getElementById('hidden_patronymic').value = '';
             
-            // Очищаем поле полного имени если оно существует
             const fullNameInput = document.getElementById('full_name');
-            if (fullNameInput) {
-                fullNameInput.value = '';
-            }
+            if (fullNameInput) fullNameInput.value = '';
         };
         
-        // Валидация формы перед отправкой
+        // Валидация одиночной формы
         document.getElementById('reportForm').addEventListener('submit', function(e) {
-    console.log('=== ОБРАБОТЧИК SUBMIT ВЫЗВАН ===');
-    
-    const selectedTypes = [];
-    const errors = [];
-    
-    // Собираем выбранные типы
-    document.querySelectorAll('.report-type-checkbox:checked').forEach(cb => {
-        selectedTypes.push(cb.value);
-    });
-    
-    console.log('Выбранные типы в submit:', selectedTypes);
-    
-    if (selectedTypes.length === 0) {
-        console.log('Нет выбранных типов - отменяем отправку');
-        e.preventDefault();
-        showValidation('Выберите хотя бы один тип отчета');
-        return false;
-    }
-    
-    console.log('Проверяем требования...');
-    
-    // Проверяем требования для каждого выбранного типа
-    selectedTypes.forEach(typeId => {
-        const req = requirements[typeId];
-        if (req) {
-            console.log('Проверка типа', typeId, 'требования:', req);
+            const selectedTypes = [];
+            const errors = [];
             
-            // Проверка имени
-            if (req.name) {
-                const lastName = document.getElementById('hidden_last_name').value;
-                const firstName = document.getElementById('hidden_first_name').value;
-                console.log('Имя проверка:', {lastName, firstName});
-                if (!lastName || !firstName) {
-                    errors.push(req.message);
-                    console.log('Ошибка имени добавлена');
-                }
+            document.querySelectorAll('.report-type-checkbox:checked').forEach(cb => {
+                selectedTypes.push(cb.value);
+            });
+            
+            if (selectedTypes.length === 0) {
+                e.preventDefault();
+                showValidation('Выберите хотя бы один тип отчета');
+                return false;
             }
             
-            // Проверка паспорта
-            if (req.passport) {
-                const series = document.querySelector('input[name="passport_series"]')?.value;
-                const number = document.querySelector('input[name="passport_number"]')?.value;
-                console.log('Паспорт проверка:', {series, number});
-                if (!series || !number || series.length !== 4 || number.length !== 6) {
-                    if (!errors.includes(req.message)) {
-                        errors.push(req.message);
-                        console.log('Ошибка паспорта добавлена');
+            selectedTypes.forEach(typeId => {
+                const req = requirements[typeId];
+                if (req) {
+                    if (req.name) {
+                        const lastName = document.getElementById('hidden_last_name').value;
+                        const firstName = document.getElementById('hidden_first_name').value;
+                        if (!lastName || !firstName) errors.push(req.message);
+                    }
+                    if (req.passport) {
+                        const series = document.querySelector('input[name="passport_series"]')?.value;
+                        const number = document.querySelector('input[name="passport_number"]')?.value;
+                        if (!series || !number || series.length !== 4 || number.length !== 6) {
+                            if (!errors.includes(req.message)) errors.push(req.message);
+                        }
+                    }
+                    if (req.vehicle) {
+                        const vehicle = document.querySelector('input[name="vehicle_number"]')?.value;
+                        if (!vehicle && !errors.includes(req.message)) errors.push(req.message);
+                    }
+                    if (req.property) {
+                        const cadastral = document.querySelector('input[name="cadastral_number"]')?.value;
+                        const propertyType = document.querySelector('select[name="property_type"]')?.value;
+                        if ((!cadastral || !propertyType) && !errors.includes(req.message)) errors.push(req.message);
                     }
                 }
-            }
+            });
             
-            // Проверка ТС
-            if (req.vehicle) {
-                const vehicle = document.querySelector('input[name="vehicle_number"]')?.value;
-                console.log('ТС проверка:', {vehicle});
-                if (!vehicle) {
-                    if (!errors.includes(req.message)) {
-                        errors.push(req.message);
-                        console.log('Ошибка ТС добавлена');
-                    }
-                }
+            if (errors.length > 0) {
+                e.preventDefault();
+                showValidation(errors.join('<br>'));
+                return false;
             }
-            
-            // Проверка недвижимости
-            if (req.property) {
-                const cadastral = document.querySelector('input[name="cadastral_number"]')?.value;
-                const propertyType = document.querySelector('select[name="property_type"]')?.value;
-                console.log('Недвижимость проверка:', {cadastral, propertyType});
-                if (!cadastral || !propertyType) {
-                    if (!errors.includes(req.message)) {
-                        errors.push(req.message);
-                        console.log('Ошибка недвижимости добавлена');
-                    }
-                }
-            }
-        }
-    });
-    
-    console.log('Найдено ошибок:', errors.length, errors);
-    
-    // Если есть ошибки - показываем и отменяем отправку
-    if (errors.length > 0) {
-        console.log('Есть ошибки - отменяем отправку');
-        e.preventDefault();
-        showValidation(errors.join('<br>'));
-        return false;
-    }
-    
-    console.log('Все проверки пройдены - отправляем форму');
-    // Если все ок - разрешаем отправку формы
-    return true;
-});
+            return true;
+        });
         
-        // Функция показа сообщения валидации
         function showValidation(message) {
             const validationMsg = document.getElementById('validationMessage');
             const validationText = document.getElementById('validationText');
-            
             if (validationMsg && validationText) {
                 validationText.innerHTML = message;
                 validationMsg.classList.remove('d-none');
-                
-                // Прокрутка к сообщению
                 validationMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
         
-        // Функция разбора полного имени на части
         window.parseFullName = function() {
             const fullNameInput = document.getElementById('full_name');
             if (!fullNameInput) return;
-            
             const fullName = fullNameInput.value;
             const parts = fullName.trim().split(/\s+/);
-            
             document.getElementById('hidden_last_name').value = parts[0] || '';
             document.getElementById('hidden_first_name').value = parts[1] || '';
             document.getElementById('hidden_patronymic').value = parts[2] || '';
         };
-    });
-
-    document.addEventListener('DOMContentLoaded', function() {
-        const alerts = document.querySelectorAll('.alert');
-        alerts.forEach(alert => {
-            // Удаляем все обработчики авто-скрытия
-            alert.classList.remove('alert-dismissible');
-            alert.classList.remove('fade');
-            alert.classList.remove('show');
-            
-            // Удаляем кнопку закрытия если есть
-            const closeBtn = alert.querySelector('.btn-close');
-            if (closeBtn) {
-                closeBtn.remove();
+        
+        // =========================================
+        // 2. ЛОГИКА ДЛЯ МАССОВОЙ ЗАГРУЗКИ (НОВАЯ)
+        // =========================================
+        
+        // Элементы массовой загрузки
+        const excelFile = document.getElementById('excelFile');
+        const bulkCheckboxes = document.querySelectorAll('.bulk-report-type-checkbox');
+        const bulkSubmitBtn = document.getElementById('bulkSubmitBtn');
+        const previewSection = document.getElementById('previewSection');
+        const headerRowInput = document.getElementById('header_row');
+        
+        // Функция активации кнопки загрузки
+        function updateBulkSubmitButton() {
+            const hasFile = excelFile && excelFile.files.length > 0;
+            const hasTypes = Array.from(bulkCheckboxes).some(cb => cb.checked);
+            if (bulkSubmitBtn) {
+                bulkSubmitBtn.disabled = !(hasFile && hasTypes);
             }
+        }
+        
+        // Слушатели для массовой загрузки
+        if (bulkCheckboxes.length > 0) {
+            bulkCheckboxes.forEach(cb => {
+                cb.addEventListener('change', updateBulkSubmitButton);
+            });
+        }
+        
+        if (excelFile) {
+            excelFile.addEventListener('change', function(e) {
+                updateBulkSubmitButton();
+                if (this.files.length > 0) {
+                    previewExcelFile(this.files[0]);
+                } else {
+                    previewSection.classList.add('d-none');
+                }
+            });
+        }
+        
+        if (headerRowInput) {
+            headerRowInput.addEventListener('change', function() {
+                if (excelFile && excelFile.files.length > 0) {
+                    previewExcelFile(excelFile.files[0]);
+                }
+            });
+        }
+        
+        // Функция предпросмотра Excel/CSV
+        function previewExcelFile(file) {
+            const previewLoader = document.getElementById('previewLoader');
+            const previewContent = document.getElementById('previewContent');
+            
+            if (previewLoader) previewLoader.classList.remove('d-none');
+            if (previewContent) previewContent.innerHTML = '';
+            previewSection.classList.remove('d-none');
+            
+            const formData = new FormData();
+            formData.append('excel_file', file);
+            formData.append('header_row', headerRowInput ? headerRowInput.value : 1);
+            
+            fetch('{{ route("reports.preview") }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (previewLoader) previewLoader.classList.add('d-none');
+                
+                if (data.success) {
+                    displayPreview(data);
+                } else {
+                    previewContent.innerHTML = `<div class="alert alert-danger">${data.error || 'Ошибка чтения файла'}</div>`;
+                }
+            })
+            .catch(error => {
+                if (previewLoader) previewLoader.classList.add('d-none');
+                previewContent.innerHTML = `<div class="alert alert-danger">Ошибка загрузки: ${error.message}</div>`;
+            });
+        }
+        
+        // Отображение предпросмотра
+        function displayPreview(data) {
+            const previewContent = document.getElementById('previewContent');
+            
+            let html = `
+                <div class="alert alert-success mb-3">
+                    <i class="bi bi-check-circle me-2"></i>
+                    Найдено записей для обработки: <strong>${data.rowCount}</strong>
+                </div>
+            `;
+            
+            if (data.headers && data.headers.length > 0) {
+                html += `<div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>`;
+                
+                data.headers.forEach(header => {
+                    html += `<th>${header ? header : '<em class="text-muted">пусто</em>'}</th>`;
+                });
+                
+                html += `</tr></thead><tbody>`;
+                
+                if (data.previewRows && data.previewRows.length > 0) {
+                    data.previewRows.forEach(row => {
+                        html += '<tr>';
+                        row.forEach(cell => {
+                            html += `<td>${cell !== null && cell !== '' ? cell : '<em class="text-muted">—</em>'}</td>`;
+                        });
+                        html += '</tr>';
+                    });
+                }
+                
+                if (data.rowCount > 5) {
+                    html += `<tr><td colspan="${data.headers.length}" class="text-center text-muted">
+                        <i class="bi bi-three-dots"></i> и еще ${data.rowCount - 5} записей
+                    </td></tr>`;
+                }
+                
+                html += `</tbody></table></div>`;
+            } else {
+                html += `<div class="alert alert-warning">Не найдены заголовки колонок</div>`;
+            }
+            
+            previewContent.innerHTML = html;
+        }
+        
+        // Сброс формы массовой загрузки
+        window.resetBulkForm = function() {
+            bulkCheckboxes.forEach(cb => { cb.checked = false; });
+            if (excelFile) excelFile.value = '';
+            if (bulkSubmitBtn) bulkSubmitBtn.disabled = true;
+            previewSection.classList.add('d-none');
+            
+            if (headerRowInput) headerRowInput.value = 1;
+        };
+        
+        // Переключение вкладок - сброс алертов
+        const triggerTabList = [].slice.call(document.querySelectorAll('#reportTabs button'));
+        triggerTabList.forEach(function(triggerEl) {
+            triggerEl.addEventListener('shown.bs.tab', function(event) {
+                // Скрываем сообщения валидации при переключении
+                const validationMsg = document.getElementById('validationMessage');
+                if (validationMsg) validationMsg.classList.add('d-none');
+            });
         });
     });
 </script>
+
+<!-- Стили для вкладок и предпросмотра -->
+<style>
+    .nav-tabs .nav-link {
+        color: #495057;
+        font-weight: 500;
+        padding: 0.75rem 1.25rem;
+    }
+    .nav-tabs .nav-link.active {
+        color: #0d6efd;
+        font-weight: 600;
+        border-bottom: 3px solid #0d6efd;
+    }
+    .nav-tabs .nav-link i {
+        margin-right: 0.5rem;
+    }
+    #dropZone {
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    #dropZone:hover {
+        background-color: #e9ecef !important;
+        border-color: #0d6efd !important;
+    }
+    .table-sm td {
+        max-width: 200px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+
 @endsection

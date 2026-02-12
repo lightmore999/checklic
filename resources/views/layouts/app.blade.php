@@ -11,6 +11,10 @@
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     
+    <!-- Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap4-theme@1.0.0/dist/select2-bootstrap4.min.css" rel="stylesheet" />
+    
     <style>
         body {
             background-color: #f8f9fa;
@@ -76,6 +80,33 @@
             background-color: #dc3545;
             color: white !important;
         }
+
+        /* Select2 Custom Styles */
+        .select2-container--default .select2-selection--single {
+            height: calc(2.25rem + 2px);
+            border: 1px solid #ced4da;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: calc(2.25rem + 2px);
+            color: #495057;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: calc(2.25rem + 2px);
+        }
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: #0d6efd;
+        }
+        .select2-container--default .select2-search__field {
+            border-radius: 4px !important;
+            border: 1px solid #ced4da !important;
+            padding: 6px !important;
+        }
+        .select2-container--default .select2-results__option {
+            padding: 8px 12px;
+        }
+        .select2-dropdown {
+            border-color: #ced4da;
+        }
     </style>
     
     @stack('styles')
@@ -83,7 +114,7 @@
 <body>
     <div class="container-fluid">
         <div class="row">
-            <!-- Sidebar (Светлая) -->
+            <!-- Sidebar -->
             <div class="col-md-3 col-lg-2 px-0 sidebar">
                 <!-- User Info -->
                 <div class="p-3 text-center user-info">
@@ -143,7 +174,7 @@
                             </a>
                             <a href="{{ route('limits.index') }}" 
                                class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-building-add"></i>
+                                <i class="nav-icon bi bi-pie-chart"></i>
                                 Управление лимитами
                             </a>
                         @endif
@@ -163,14 +194,9 @@
                                 Создать организацию
                             </a>
                             
-                            <a href="{{ route('manager.profile') }}" 
-                               class="nav-link {{ request()->routeIs('manager.profile') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-person"></i>
-                                Мой профиль
-                            </a>
                             <a href="{{ route('limits.index') }}" 
                                class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-building-add"></i>
+                                <i class="nav-icon bi bi-pie-chart"></i>
                                 Управление лимитами
                             </a>
                         @endif
@@ -288,23 +314,40 @@
         </div>
     </div>
 
-    <!-- Bootstrap JS Bundle with Popper -->
+    <!-- JavaScript в правильном порядке -->
+    
+    <!-- 1. jQuery (ОБЯЗАТЕЛЬНО ПЕРВЫМ) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- 2. Bootstrap (зависит от jQuery) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Custom Scripts -->
+    <!-- 3. SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- 4. Select2 (зависит от jQuery) -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ru.js"></script>
+    
+    <!-- 5. Custom Scripts -->
     <script>
+        // Проверка загрузки jQuery и Select2
+        $(document).ready(function() {
+            console.log('✓ jQuery version:', $.fn.jquery);
+            console.log('✓ Select2 loaded:', typeof $.fn.select2 !== 'undefined');
+            console.log('✓ SweetAlert2 loaded:', typeof Swal !== 'undefined');
+        });
+
         // Initialize tooltips
         document.addEventListener('DOMContentLoaded', function() {
             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
             var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
-            
-            // Auto-dismiss alerts after 5 seconds
-
         });
     </script>
     
+    <!-- 6. Stack скриптов из дочерних шаблонов -->
     @stack('scripts')
 </body>
 </html>

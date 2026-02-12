@@ -9,15 +9,6 @@
         <i class="bi bi-speedometer text-primary me-2"></i>
         Панель менеджера
     </h5>
-    <div class="d-flex gap-2">
-        <!-- ДОБАВЛЕНА КНОПКА УПРАВЛЕНИЯ ЛИМИТАМИ -->
-        <a href="{{ route('limits.index') }}" class="btn btn-info">
-            <i class="bi bi-graph-up"></i> Управление лимитами
-        </a>
-        <a href="{{ route('manager.organization.create') }}" class="btn btn-success">
-            <i class="bi bi-building-add"></i> Создать организацию
-        </a>
-    </div>
 </div>
 
 <!-- Информация о менеджере -->
@@ -45,15 +36,6 @@
                     @else
                         <span class="badge bg-danger">Неактивен</span>
                     @endif
-                </div>
-                
-                <div class="d-grid gap-2 mt-3">
-                    <a href="{{ route('manager.profile') }}" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-person"></i> Мой профиль
-                    </a>
-                    <a href="{{ route('manager.profile.edit') }}" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-pencil"></i> Редактировать профиль
-                    </a>
                 </div>
                 
                 @if($admin)
@@ -98,38 +80,6 @@
             </div>
         </div>
         
-        <!-- Быстрые действия -->
-        <div class="row mt-3">
-            <div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body">
-                        <div class="row g-2">
-                            <div class="col-md-3">
-                                <a href="{{ route('manager.organization.create') }}" class="btn btn-outline-success w-100">
-                                    <i class="bi bi-building-add me-1"></i> Новая организация
-                                </a>
-                            </div>
-                            <div class="col-md-3">
-                                <!-- ДОБАВЛЕНА КНОПКА ДЛЯ МЕНЕДЖЕРА -->
-                                <a href="{{ route('limits.create') }}" class="btn btn-outline-info w-100">
-                                    <i class="bi bi-plus-circle me-1"></i> Создать лимит
-                                </a>
-                            </div>
-                            <div class="col-md-3">
-                                <a href="{{ route('reports.create') }}" class="btn btn-outline-info w-100">
-                                    <i class="bi bi-file-earmark-plus me-1"></i> Создать отчет
-                                </a>
-                            </div>
-                            <div class="col-md-3">
-                                <a href="{{ route('manager.organizations.list') }}" class="btn btn-outline-primary w-100">
-                                    <i class="bi bi-list-ul me-1"></i> Все организации
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -168,31 +118,39 @@
                             <p class="small text-muted mb-2">{{ Str::limit($limit['description'], 60) }}</p>
                         @endif
                         
+                        <!-- ИСПРАВЛЕНО: Показываем доступное количество -->
                         <div class="text-center my-3">
-                            <div class="display-6 {{ $limit['is_exhausted'] ? 'text-danger' : ($limit['quantity'] > 0 ? 'text-success' : 'text-secondary') }}">
-                                {{ $limit['quantity'] }}
+                            <div class="display-6 {{ $limit['is_exhausted'] ? 'text-danger' : ($limit['available_quantity'] > 0 ? 'text-success' : 'text-secondary') }}">
+                                {{ $limit['available_quantity'] }}
                             </div>
-                            <small class="text-muted">осталось запросов</small>
+                            <small class="text-muted">доступно запросов</small>
                         </div>
                         
+                        <!-- ДОБАВЛЕНО: Информация об использовании -->
+                        <div class="d-flex justify-content-between small text-muted mb-2">
+                            <span><i class="bi bi-box"></i> Всего: {{ $limit['quantity'] }}</span>
+                            <span><i class="bi bi-check-circle-fill text-warning"></i> Использовано: {{ $limit['used_quantity'] }}</span>
+                        </div>
+                        
+                        <!-- Прогресс-бар на основе доступного/всего -->
                         <div class="progress mb-2" style="height: 6px;">
                             @php
-                                $percentage = $limit['quantity'] > 0 ? min(100, ($limit['quantity'] / 100) * 100) : 0;
+                                $percentage = $limit['quantity'] > 0 ? round(($limit['used_quantity'] / $limit['quantity']) * 100) : 0;
                                 $progressClass = $limit['is_exhausted'] ? 'bg-danger' : 
-                                                ($limit['quantity'] > 50 ? 'bg-success' : 
-                                                ($limit['quantity'] > 10 ? 'bg-warning' : 'bg-danger'));
+                                                ($percentage > 80 ? 'bg-danger' : 
+                                                ($percentage > 50 ? 'bg-warning' : 'bg-success'));
                             @endphp
                             <div class="progress-bar {{ $progressClass }}" 
-                                 style="width: {{ $percentage }}%"
-                                 role="progressbar"
-                                 aria-valuenow="{{ $limit['quantity'] }}"
-                                 aria-valuemin="0"
-                                 aria-valuemax="100">
+                                style="width: {{ $percentage }}%"
+                                role="progressbar"
+                                aria-valuenow="{{ $percentage }}"
+                                aria-valuemin="0"
+                                aria-valuemax="100">
                             </div>
                         </div>
                         
-                        <div class="d-flex justify-content-between align-items-center small">
-                            <div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <div class="small">
                                 @if($limit['has_limit'])
                                     <span class="text-success" title="Индивидуальный лимит установлен">
                                         <i class="bi bi-check-circle-fill"></i> Установлен
@@ -208,8 +166,12 @@
                                 <span class="badge bg-danger">
                                     <i class="bi bi-exclamation-triangle"></i> Исчерпан
                                 </span>
-                            @elseif($limit['quantity'] == 0)
+                            @elseif(!$limit['has_limit'])
                                 <span class="badge bg-secondary">Нет лимита</span>
+                            @else
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle"></i> Активен
+                                </span>
                             @endif
                         </div>
                     </div>
@@ -235,13 +197,19 @@
                     Исчерпано: <span class="{{ $exhaustedCount > 0 ? 'text-danger fw-bold' : 'text-success' }}">{{ $exhaustedCount }}</span>
                 </div>
                 
-                <!-- ДОБАВЛЕНА ССЫЛКА ДЛЯ МЕНЕДЖЕРА -->
                 <div>
                     <a href="{{ route('limits.index') }}" class="btn btn-sm btn-info">
                         <i class="bi bi-graph-up me-1"></i> Управление лимитами
                     </a>
                 </div>
             </div>
+            
+            @if($exhaustedCount > 0)
+                <div class="alert alert-danger py-1 px-3 mt-2 mb-0">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    <small>{{ $exhaustedCount }} лимит(ов) исчерпано</small>
+                </div>
+            @endif
         </div>
     </div>
 </div>
@@ -263,9 +231,6 @@
         <a href="{{ route('limits.create') }}" class="btn btn-info">
             <i class="bi bi-plus-circle me-1"></i> Создать лимит
         </a>
-        <a href="{{ route('limits.bulk-create') }}" class="btn btn-success ms-2">
-            <i class="bi bi-layer-group me-1"></i> Массовое создание
-        </a>
     </div>
 </div>
 @endif
@@ -282,10 +247,6 @@
             <small class="text-muted">Последние созданные организации</small>
         </div>
         <div class="d-flex gap-2">
-            <!-- ДОБАВЛЕНА КНОПКА МАССОВОГО СОЗДАНИЯ ЛИМИТОВ -->
-            <a href="{{ route('limits.bulk-create') }}" class="btn btn-info">
-                <i class="bi bi-layer-group"></i> Массовые лимиты
-            </a>
             <a href="{{ route('manager.organization.create') }}" class="btn btn-success">
                 <i class="bi bi-building-add"></i> Создать организацию
             </a>

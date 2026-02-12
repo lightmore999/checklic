@@ -21,6 +21,7 @@ class Limit extends Model
         'user_id',
         'report_type_id',
         'quantity',
+        'created_by',
         'used_quantity', // Добавляем
         'date_created',
     ];
@@ -144,7 +145,7 @@ class Limit extends Model
     {
         $date = $date ?: now()->format('Y-m-d');
         
-        return self::updateOrCreate(
+        $limit = self::updateOrCreate(
             [
                 'user_id' => $userId,
                 'report_type_id' => $reportTypeId,
@@ -152,9 +153,17 @@ class Limit extends Model
             ],
             [
                 'quantity' => $quantity,
-                'used_quantity' => 0, // Инициализируем
+                'used_quantity' => 0,
             ]
         );
+        
+        // Если запись новая и created_by еще не установлен
+        if (!$limit->created_by && auth()->check()) {
+            $limit->created_by = auth()->id();
+            $limit->save();
+        }
+        
+        return $limit;
     }
 
     /**
@@ -209,5 +218,22 @@ class Limit extends Model
     public function delegatedVersions()
     {
         return $this->hasMany(DelegatedLimit::class, 'limit_id');
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Переопределяем метод create
+     */
+    protected static function booted()
+    {
+        static::creating(function ($limit) {
+            if (auth()->check() && !$limit->created_by) {
+                $limit->created_by = auth()->id();
+            }
+        });
     }
 }

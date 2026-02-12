@@ -7,18 +7,7 @@
     <h2 class="mb-0">
         <i class="bi bi-speedometer2 text-primary"></i> Панель администратора
     </h2>
-    <div class="d-flex gap-2">
-        <!-- ДОБАВЛЕНА КНОПКА УПРАВЛЕНИЯ ЛИМИТАМИ -->
-        <a href="{{ route('limits.index') }}" class="btn btn-info">
-            <i class="bi bi-graph-up"></i> Управление лимитами
-        </a>
-        <a href="{{ route('admin.organization.create') }}" class="btn btn-success">
-            <i class="bi bi-building-add"></i> Создать организацию
-        </a>
-        <a href="{{ route('admin.managers.create') }}" class="btn btn-primary">
-            <i class="bi bi-person-plus"></i> Создать менеджера
-        </a>
-    </div>
+
 </div>
 
 <!-- Статистика -->
@@ -138,30 +127,38 @@
                                 <p class="small text-muted mb-2">{{ Str::limit($limit['description'], 60) }}</p>
                             @endif
                             
+                            <!-- ИСПРАВЛЕНО: Показываем доступное количество -->
                             <div class="text-center my-3">
-                                <div class="display-6 {{ $limit['is_exhausted'] ? 'text-danger' : ($limit['quantity'] > 0 ? 'text-success' : 'text-secondary') }}">
-                                    {{ $limit['quantity'] }}
+                                <div class="display-6 {{ $limit['is_exhausted'] ? 'text-danger' : ($limit['available_quantity'] > 0 ? 'text-success' : 'text-secondary') }}">
+                                    {{ $limit['available_quantity'] }}
                                 </div>
-                                <small class="text-muted">осталось запросов</small>
+                                <small class="text-muted">доступно запросов</small>
                             </div>
                             
+                            <!-- ДОБАВЛЕНО: Информация об использовании -->
+                            <div class="d-flex justify-content-between small text-muted mb-2">
+                                <span><i class="bi bi-box"></i> Всего: {{ $limit['quantity'] }}</span>
+                                <span><i class="bi bi-check-circle-fill text-warning"></i> Использовано: {{ $limit['used_quantity'] }}</span>
+                            </div>
+                            
+                            <!-- Прогресс-бар на основе доступного/всего -->
                             <div class="progress mb-2" style="height: 6px;">
                                 @php
-                                    $percentage = $limit['quantity'] > 0 ? min(100, ($limit['quantity'] / 100) * 100) : 0;
+                                    $percentage = $limit['quantity'] > 0 ? round(($limit['used_quantity'] / $limit['quantity']) * 100) : 0;
                                     $progressClass = $limit['is_exhausted'] ? 'bg-danger' : 
-                                                    ($limit['quantity'] > 50 ? 'bg-success' : 
-                                                    ($limit['quantity'] > 10 ? 'bg-warning' : 'bg-danger'));
+                                                    ($percentage > 80 ? 'bg-danger' : 
+                                                    ($percentage > 50 ? 'bg-warning' : 'bg-success'));
                                 @endphp
                                 <div class="progress-bar {{ $progressClass }}" 
-                                     style="width: {{ $percentage }}%"
-                                     role="progressbar"
-                                     aria-valuenow="{{ $limit['quantity'] }}"
-                                     aria-valuemin="0"
-                                     aria-valuemax="100">
+                                    style="width: {{ $percentage }}%"
+                                    role="progressbar"
+                                    aria-valuenow="{{ $percentage }}"
+                                    aria-valuemin="0"
+                                    aria-valuemax="100">
                                 </div>
                             </div>
                             
-                            <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex justify-content-between align-items-center mt-2">
                                 <div class="small">
                                     @if($limit['has_limit'])
                                         <span class="text-success" title="Индивидуальный лимит установлен">
@@ -178,8 +175,12 @@
                                     <span class="badge bg-danger">
                                         <i class="bi bi-exclamation-triangle"></i> Исчерпан
                                     </span>
-                                @elseif($limit['quantity'] == 0)
+                                @elseif(!$limit['has_limit'])
                                     <span class="badge bg-secondary">Нет лимита</span>
+                                @else
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Активен
+                                    </span>
                                 @endif
                             </div>
                         </div>
@@ -238,11 +239,7 @@
             </h5>
             <small class="text-muted">Последние созданные организации</small>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{{ route('admin.organizations.list') }}" class="btn btn-sm btn-outline-success">
-                Все организации <i class="bi bi-arrow-right"></i>
-            </a>
-        </div>
+
     </div>
     <div class="card-body">
         @if($organizations->count() > 0)

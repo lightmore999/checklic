@@ -6,6 +6,7 @@ use App\Models\Limit;
 use App\Models\User;
 use App\Models\ReportType;
 use App\Models\Organization;
+use App\Models\DelegatedLimit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -23,7 +24,7 @@ class LimitController extends Controller
         $query = Limit::with([
             'user.orgOwnerProfile', 
             'user.orgMemberProfile',
-            'creator', // <-- ДОБАВЬТЕ ЭТО
+            'creator',
             'creator.orgOwnerProfile',
             'creator.orgMemberProfile',
             'reportType',
@@ -35,15 +36,15 @@ class LimitController extends Controller
         
         // Если пользователь - менеджер, показываем только лимиты его организаций
         if ($user->isManager()) {
-            $organizationIds = Organization::whereHas('manager', function($query) use ($user) {
-                $query->where('user_id', $user->id);
-            })->pluck('id');
+            // ИСПРАВЛЕНО:直接用 where('manager_id')
+            $organizationIds = Organization::where('manager_id', $user->id)
+                ->pluck('id');
             
             if ($organizationIds->isNotEmpty()) {
                 // Получаем ID пользователей из организаций менеджера
                 $userIds = User::whereHas('orgOwnerProfile', function($q) use ($organizationIds) {
                         $q->whereIn('organization_id', $organizationIds);
-                    })
+                    })  
                     ->orWhereHas('orgMemberProfile', function($q) use ($organizationIds) {
                         $q->whereIn('organization_id', $organizationIds);
                     })
@@ -100,9 +101,10 @@ class LimitController extends Controller
         if ($user->isAdmin()) {
             $organizations = Organization::orderBy('name')->get();
         } elseif ($user->isManager()) {
-            $organizations = Organization::whereHas('manager', function($q) use ($user) {
-                $q->where('user_id', $user->id);
-            })->orderBy('name')->get();
+            // ИСПРАВЛЕНО:直接用 where('manager_id')
+            $organizations = Organization::where('manager_id', $user->id)
+                ->orderBy('name')
+                ->get();
         } else {
             $organizations = collect();
         }
@@ -110,7 +112,6 @@ class LimitController extends Controller
         return view('limits.index', compact('limits', 'users', 'reportTypes', 'organizations'));
     }
 
-    
     /**
      * Форма создания лимита
      */
@@ -485,14 +486,54 @@ class LimitController extends Controller
     }
     
     /**
+     * Делегировать лимит сотруднику
+     */
+    public function delegate(Request $request, Limit $limit)
+    {
+        $user = Auth::user();
+        
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'quantity' => 'required|integer|min:1|max:' . $limit->getAvailableQuantity(),
+        ]);
+
+        // Проверяем доступность лимита
+        if ($limit->getAvailableQuantity() < $request->quantity) {
+            return back()->with('error', 'Недостаточно доступного лимита для делегирования');
+        }
+
+        // Проверяем, не делегируем ли самому себе
+        if ($limit->user_id == $request->user_id) {
+            return back()->with('error', 'Нельзя делегировать лимит самому себе');
+        }
+
+        // Проверяем права на делегирование этому пользователю
+        if (!$this->checkUserAvailability($user->id, $request->user_id)) {
+            return back()->with('error', 'Вы не можете делегировать лимиты этому пользователю');
+        }
+
+        // Используем лимит из основного пула
+        $limit->useQuantity($request->quantity);
+
+        // Создаем или обновляем делегированный лимит
+        DelegatedLimit::createOrUpdateDelegatedLimit(
+            $request->user_id,
+            $limit->id,
+            $request->quantity
+        );
+
+        return back()->with('success', 'Лимит успешно делегирован');
+    }
+    
+    /**
      * Получить список доступных пользователей
      */
     private function getAvailableUsers(User $currentUser)
     {
         if ($currentUser->isAdmin()) {
-            // Админ может выдавать лимиты всем: менеджерам, владельцам, сотрудникам и СЕБЕ
+            // Админ может выдавать лимиты всем: менеджерам, владельцам, сотрудникам и себе
             return User::whereIn('role', ['manager', 'org_owner', 'org_member'])
-                ->orWhere('id', $currentUser->id) // Добавляем самого админа
+                ->orWhere('id', $currentUser->id)
                 ->where('is_active', true)
                 ->orderByRaw("
                     CASE 
@@ -507,10 +548,8 @@ class LimitController extends Controller
         }
         
         if ($currentUser->isManager()) {
-            // Получаем организации менеджера через связь с Manager
-            $organizations = Organization::whereHas('manager', function($query) use ($currentUser) {
-                $query->where('user_id', $currentUser->id);
-            })->get();
+            // ИСПРАВЛЕНО:直接用 where('manager_id')
+            $organizations = Organization::where('manager_id', $currentUser->id)->get();
             
             if ($organizations->isEmpty()) {
                 return collect();
@@ -547,9 +586,8 @@ class LimitController extends Controller
             return false;
         }
         
-        // Админ может выдавать лимиты кому угодно (включая себя и менеджеров)
+        // Админ может выдавать лимиты кому угодно
         if ($currentUser->isAdmin()) {
-            // Проверяем только что пользователь активен
             return $targetUser->is_active;
         }
         
@@ -559,10 +597,8 @@ class LimitController extends Controller
                 return false;
             }
             
-            // Получаем организации менеджера через связь с Manager
-            $organizations = Organization::whereHas('manager', function($query) use ($currentUserId) {
-                $query->where('user_id', $currentUserId);
-            })->get();
+            // ИСПРАВЛЕНО:直接用 where('manager_id')
+            $organizations = Organization::where('manager_id', $currentUserId)->get();
             
             if ($organizations->isEmpty()) {
                 return false;
@@ -585,35 +621,5 @@ class LimitController extends Controller
         }
         
         return false;
-    }
-
-    public function delegate(Request $request, Limit $limit)
-    {
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'quantity' => 'required|integer|min:1|max:' . $limit->getAvailableQuantity(),
-        ]);
-
-        // Проверяем доступность лимита
-        if ($limit->getAvailableQuantity() < $request->quantity) {
-            return back()->with('error', 'Недостаточно доступного лимита для делегирования');
-        }
-
-        // Проверяем, не делегируем ли самому себе
-        if ($limit->user_id == $request->user_id) {
-            return back()->with('error', 'Нельзя делегировать лимит самому себе');
-        }
-
-        // Используем лимит из основного пула
-        $limit->useQuantity($request->quantity);
-
-        // Создаем или обновляем делегированный лимит
-        DelegatedLimit::createOrUpdateDelegatedLimit(
-            $request->user_id,
-            $limit->id,
-            $request->quantity
-        );
-
-        return back()->with('success', 'Лимит успешно делегирован');
     }
 }

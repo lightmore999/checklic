@@ -20,7 +20,7 @@ class OrganizationController extends Controller
     /**
      * Список организаций (для админа)
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
         
@@ -28,28 +28,116 @@ class OrganizationController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
+        // Базовый запрос
         if ($user->isAdmin()) {
-            $organizations = Organization::whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
+            // Для админа - все организации менеджеров этого админа
+            $query = Organization::whereHas('manager', function($query) use ($user) {
+                    $query->whereHas('managerProfile', function($subQuery) use ($user) {
+                        $subQuery->where('admin_id', $user->id);
+                    });
                 })
-                ->with(['manager.user', 'owner.user'])
-                ->orderBy('created_at', 'desc')
-                ->get();
-            
-            $view = 'admin.organizations.index';
+                ->with(['manager', 'owner.user']);
         } else {
-            // Для менеджера
-            $organizations = Organization::whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->with(['owner.user'])
-                ->orderBy('created_at', 'desc')
-                ->get();
-            
-            $view = 'manager.organizations.index';
+            // Для менеджера - только свои организации
+            $query = Organization::where('manager_id', $user->id)
+                ->with(['owner.user']);
         }
         
-        return view($view, compact('user', 'organizations'));
+        // ПРИМЕНЯЕМ ФИЛЬТРЫ
+        
+        // 1. Поиск по названию организации
+        if ($request->filled('search')) {
+            $searchTerm = $request->search;
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('name', 'ILIKE', "%{$searchTerm}%");
+            });
+        }
+        
+        // 2. Фильтр по оставшимся дням подписки
+        if ($request->filled('subscription_days')) {
+            $days = (int) $request->subscription_days;
+            $targetDate = now()->addDays($days);
+            
+            $query->where(function($q) use ($targetDate, $days) {
+                // Организации, у которых подписка истекает через $days дней или меньше
+                $q->whereNotNull('subscription_ends_at')
+                ->where('subscription_ends_at', '<=', $targetDate);
+                
+                // Если $days = 0, показываем уже истекшие
+                if ($days == 0) {
+                    $q->orWhere('subscription_ends_at', '<', now());
+                }
+            });
+        }
+        
+        // 3. Поиск по владельцу (имя или email)
+        if ($request->filled('owner_search')) {
+            $ownerSearch = $request->owner_search;
+            $query->whereHas('owner.user', function($q) use ($ownerSearch) {
+                $q->where(function($subQ) use ($ownerSearch) {
+                    $subQ->where('name', 'ILIKE', "%{$ownerSearch}%")
+                        ->orWhere('email', 'ILIKE', "%{$ownerSearch}%");
+                });
+            });
+        }
+        
+        // 4. Фильтр по менеджеру
+        if ($request->filled('manager_id')) {
+            $managerId = $request->manager_id;
+            
+            if ($user->isAdmin()) {
+                // Для админа - проверяем что менеджер принадлежит ему
+                $query->whereHas('manager', function($q) use ($managerId, $user) {
+                    $q->where('id', $managerId)
+                    ->whereHas('managerProfile', function($subQ) use ($user) {
+                        $subQ->where('admin_id', $user->id);
+                    });
+                });
+            } else {
+                // Для менеджера - только если это он сам
+                if ($managerId == $user->id) {
+                    $query->where('manager_id', $user->id);
+                }
+            }
+        }
+        
+        // 5. Фильтр по статусу
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        
+        // 6. Сортировка
+        $sortField = $request->get('sort', 'created_at');
+        $sortDirection = $request->get('direction', 'desc');
+        
+        // Разрешенные поля для сортировки
+        $allowedSorts = ['created_at', 'name', 'status', 'subscription_ends_at'];
+        if (in_array($sortField, $allowedSorts)) {
+            $query->orderBy($sortField, $sortDirection);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+        
+        // Получаем организации с пагинацией
+        $organizations = $query->paginate(15)->withQueryString();
+        
+        // Получаем список менеджеров для фильтра
+        if ($user->isAdmin()) {
+            $managers = User::where('role', 'manager')
+                ->whereHas('managerProfile', function($q) use ($user) {
+                    $q->where('admin_id', $user->id);
+                })
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']);
+        } else {
+            $managers = collect([$user]); // Только текущий менеджер
+        }
+        
+        // Определяем шаблон в зависимости от роли
+        $view = $user->isAdmin() ? 'organizations.index' : 'manager.organizations.index';
+        
+        return view($view, compact('user', 'organizations', 'managers'));
     }
     
     /**
@@ -64,42 +152,24 @@ class OrganizationController extends Controller
         }
         
         if ($user->isAdmin()) {
-            // Получаем менеджеров текущего админа
-            $managers = Manager::where('admin_id', $user->id)
-                ->with('user')
-                ->whereHas('user', function($query) {
-                    $query->where('is_active', true);
+            // Для админа - получаем менеджеров (пользователей с ролью manager, созданных этим админом)
+            $managers = User::where('role', 'manager')
+                ->whereHas('managerProfile', function($query) use ($user) {
+                    $query->where('admin_id', $user->id);
                 })
-                ->get()
-                ->map(function($manager) {
-                    return [
-                        'id' => $manager->id,
-                        'user_id' => $manager->user_id,
-                        'name' => $manager->user->name,
-                        'email' => $manager->user->email
-                    ];
-                });
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']);
                 
-            // Для админа передаем менеджеров
             return view('organizations.create', compact('user', 'managers'));
         } else {
-            // Для менеджера получаем его менеджерскую запись
-            $managerRecord = Manager::where('user_id', $user->id)->first();
-            
-            if (!$managerRecord) {
-                abort(403, 'Менеджер не найден в системе');
-            }
-            
             // Для менеджера не нужно выбирать менеджера - он сам менеджер
-            $managers = []; // Пустой массив
-            
-            // Передаем manager_id в представление
-            return view('organizations.create', compact('user', 'managers', 'managerRecord'));
+            return view('organizations.create', compact('user'));
         }
     }
     
     /**
-     * Сохранение организации с владельцем (объединенный метод)
+     * Сохранение организации с владельцем
      */
     public function store(Request $request)
     {
@@ -109,7 +179,7 @@ class OrganizationController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
-        // Валидация - исправлены названия полей
+        // Базовые правила валидации
         $validationRules = [
             'organization.name' => 'required|string|max:255|unique:organizations,name',
             'organization.subscription_ends_at' => 'nullable|date|after:today',
@@ -118,24 +188,35 @@ class OrganizationController extends Controller
             'user.password' => 'required|string|min:8|confirmed',
         ];
         
-        // Разные статусы для админа и менеджера
+        // Статус в зависимости от роли
         if ($user->isAdmin()) {
-            $validationRules['organization.status'] = 'required|in:active,suspended,expire';
+            $validationRules['organization.status'] = 'required|in:active,suspended,expired';
+            
+            // ИСПРАВЛЕНО: Заменяем Rule::exists на кастомное правило
             $validationRules['manager_id'] = [
                 'nullable',
                 'integer',
-                Rule::exists('managers', 'id')->where('admin_id', $user->id)
+                function ($attribute, $value, $fail) use ($user) {
+                    if ($value) {
+                        // Проверяем, что пользователь существует, имеет роль manager
+                        // и принадлежит этому админу
+                        $exists = User::where('id', $value)
+                            ->where('role', 'manager')
+                            ->whereHas('managerProfile', function($query) use ($user) {
+                                $query->where('admin_id', $user->id);
+                            })
+                            ->exists();
+                        
+                        if (!$exists) {
+                            $fail('Выбранный менеджер не найден или не принадлежит вам');
+                        }
+                    }
+                }
             ];
         } else {
-            // Для менеджера
+            // Для менеджера - только active/inactive
             $validationRules['organization.status'] = 'required|in:active,inactive';
-            
-            // Менеджер может создавать организации только от своего имени
-            $validationRules['manager_id'] = [
-                'nullable',
-                'integer',
-                Rule::exists('managers', 'id')->where('user_id', $user->id)
-            ];
+            // manager_id не нужен - менеджером будет текущий пользователь
         }
         
         $validated = $request->validate($validationRules);
@@ -143,46 +224,16 @@ class OrganizationController extends Controller
         DB::beginTransaction();
         
         try {
-            // 1. Определяем ID менеджера
-            $managerId = $validated['manager_id'] ?? null;
-            $managerUserId = null;
-            
-            if ($managerId) {
-                // Если указан менеджер
-                $manager = Manager::findOrFail($managerId);
-                $managerUserId = $manager->user_id;
-                
-                // Проверяем права
-                if ($user->isAdmin() && $manager->admin_id != $user->id) {
-                    abort(403, 'Доступ запрещен');
-                }
-                if ($user->isManager() && $manager->user_id != $user->id) {
-                    abort(403, 'Доступ запрещен');
-                }
+            // 1. Определяем ID менеджера (user_id)
+            if ($user->isAdmin()) {
+                // Админ выбрал менеджера или NULL
+                $managerUserId = $validated['manager_id'] ?? null;
             } else {
-                // Если менеджер не указан
-                if ($user->isAdmin()) {
-                    // Админ становится менеджером
-                    $adminManager = Manager::where('user_id', $user->id)->first();
-                    
-                    if (!$adminManager) {
-                        $adminManager = Manager::create([
-                            'user_id' => $user->id,
-                            'admin_id' => $user->id,
-                        ]);
-                    }
-                    
-                    $managerId = $adminManager->id;
-                    $managerUserId = $user->id;
-                } else {
-                    // Менеджер - используем его менеджерскую запись
-                    $manager = Manager::where('user_id', $user->id)->firstOrFail();
-                    $managerId = $manager->id;
-                    $managerUserId = $user->id;
-                }
+                // Менеджер - текущий пользователь
+                $managerUserId = $user->id;
             }
             
-            // 2. Создаем пользователя для владельца организации - исправлены ключи
+            // 2. Создаем пользователя для владельца организации
             $ownerUser = User::create([
                 'name' => $validated['user']['name'],
                 'email' => $validated['user']['email'],
@@ -195,7 +246,7 @@ class OrganizationController extends Controller
             // 3. Создаем организацию
             $organization = Organization::create([
                 'name' => $validated['organization']['name'],
-                'manager_id' => $managerId,
+                'manager_id' => $managerUserId,
                 'subscription_ends_at' => $validated['organization']['subscription_ends_at'] ?? null,
                 'status' => $validated['organization']['status'],
             ]);
@@ -228,7 +279,7 @@ class OrganizationController extends Controller
     }
     
     /**
-     * Просмотр организации и владельца (общий для админа и менеджера)
+     * Просмотр организации и владельца
      */
     public function show($id)
     {
@@ -241,18 +292,20 @@ class OrganizationController extends Controller
         $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
         
         if ($user->isAdmin()) {
+            // Для админа - организации менеджеров этого админа
             $organization = Organization::where('id', $id)
                 ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
+                    $query->whereHas('managerProfile', function($subQuery) use ($user) {
+                        $subQuery->where('admin_id', $user->id);
+                    });
                 })
-                ->with(['manager.user', 'owner.user', 'members.user'])
+                ->with(['manager', 'owner.user', 'members.user'])
                 ->firstOrFail();
         } else {
+            // Для менеджера - только свои организации
             $organization = Organization::where('id', $id)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->with(['manager.user', 'owner.user', 'members.user'])
+                ->where('manager_id', $user->id)
+                ->with(['manager', 'owner.user', 'members.user'])
                 ->firstOrFail();
         }
         
@@ -263,7 +316,6 @@ class OrganizationController extends Controller
         
         if ($organization->owner && $organization->owner->user) {
             $owner = $organization->owner->user;
-            $today = now()->format('Y-m-d');
             
             // Получаем обычные лимиты владельца
             $limits = Limit::where('user_id', $owner->id)
@@ -283,10 +335,7 @@ class OrganizationController extends Controller
             foreach ($limits as $limit) {
                 if ($limit->reportType && (!$limit->reportType->only_api || ($limit->reportType->only_api && $limit->quantity > 0))) {
                     
-                    // Сумма делегированных лимитов для этого лимита
                     $delegatedAmount = $delegatedLimits->where('limit_id', $limit->id)->sum('quantity');
-                    
-                    // Общее выделенное = текущий остаток + использовано + делегировано
                     $totalAllocated = $limit->quantity + ($limit->used_quantity ?? 0) + $delegatedAmount;
                     
                     $ownerLimits[] = [
@@ -329,7 +378,7 @@ class OrganizationController extends Controller
     }
     
     /**
-     * Форма редактирования организации и владельца (объединенная)
+     * Форма редактирования организации и владельца
      */
     public function edit($id)
     {
@@ -342,30 +391,25 @@ class OrganizationController extends Controller
         if ($user->isAdmin()) {
             $organization = Organization::where('id', $id)
                 ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
+                    $query->whereHas('managerProfile', function($subQuery) use ($user) {
+                        $subQuery->where('admin_id', $user->id);
+                    });
                 })
                 ->with('owner.user')
                 ->firstOrFail();
                 
-            // Получаем менеджеров текущего админа
-            $managers = Manager::where('admin_id', $user->id)
-                ->with('user')
-                ->whereHas('user', function($query) {
-                    $query->where('is_active', true);
+            // Получаем менеджеров (пользователей с ролью manager) этого админа
+            $managers = User::where('role', 'manager')
+                ->whereHas('managerProfile', function($query) use ($user) {
+                    $query->where('admin_id', $user->id);
                 })
-                ->get()
-                ->map(function($manager) {
-                    return [
-                        'id' => $manager->id,
-                        'name' => $manager->user->name,
-                    ];
-                });
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']);
         } else {
-            // Для менеджера
+            // Для менеджера - только свои организации
             $organization = Organization::where('id', $id)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
+                ->where('manager_id', $user->id)
                 ->with('owner.user')
                 ->firstOrFail();
                 
@@ -378,33 +422,37 @@ class OrganizationController extends Controller
     }
     
     /**
-     * Обновление организации и владельца (объединенный метод)
+     * Обновление организации и владельца
      */
     public function update(Request $request, $id)
-    {
+    {   
         $user = Auth::user();
         
         if (!$user->isAdmin() && !$user->isManager()) {
             abort(403, 'Доступ запрещен');
         }
         
-        // Определяем префикс маршрута для редиректа
         $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
         
+        $organization = Organization::with('owner.user', 'manager')->findOrFail($id);
+        
+        // Проверка прав доступа
         if ($user->isAdmin()) {
-            $organization = Organization::where('id', $id)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
-                })
-                ->with('owner.user')
-                ->firstOrFail();
-        } else {
-            $organization = Organization::where('id', $id)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->with('owner.user')
-                ->firstOrFail();
+            // Для админа - проверяем, что менеджер организации принадлежит этому админу
+            if ($organization->manager) {
+                $managerExists = Manager::where('user_id', $organization->manager->id)
+                    ->where('admin_id', $user->id)
+                    ->exists();
+                    
+                if (!$managerExists) {
+                    abort(403, 'У вас нет прав на редактирование этой организации');
+                }
+            }
+        } else if ($user->isManager()) {
+            // Менеджер может редактировать только свои организации
+            if (!$organization->manager || $organization->manager->id != $user->id) {
+                abort(403, 'У вас нет прав на редактирование этой организации');
+            }
         }
         
         $owner = $organization->owner;
@@ -412,27 +460,37 @@ class OrganizationController extends Controller
         // Правила валидации
         $validationRules = [
             'organization.name' => 'required|string|max:255|unique:organizations,name,' . $organization->id,
-            'organization.subscription_ends_at' => 'nullable|date|after:today',
+            'organization.subscription_ends_at' => 'nullable|date',
             'organization.status' => 'required|in:active,suspended,expired',
         ];
         
-        // Если админ, добавляем правило для менеджера
         if ($user->isAdmin()) {
             $validationRules['organization.manager_id'] = [
                 'nullable',
                 'integer',
-                Rule::exists('managers', 'id')->where('admin_id', $user->id)
+                // ИСПРАВЛЕНО: Убрана ошибка с "has"
+                function ($attribute, $value, $fail) use ($user) {
+                    if ($value) {
+                        $exists = User::where('id', $value)
+                            ->where('role', 'manager')
+                            ->whereHas('managerProfile', function($query) use ($user) {
+                                $query->where('admin_id', $user->id);
+                            })
+                            ->exists();
+                        
+                        if (!$exists) {
+                            $fail('Выбранный менеджер не найден или не принадлежит вам');
+                        }
+                    }
+                }
             ];
         }
         
-        // Если есть владелец, добавляем правила для редактирования
         if ($owner && $owner->user) {
             $validationRules['owner.name'] = 'required|string|max:255';
             $validationRules['owner.email'] = 'required|email|unique:users,email,' . $owner->user_id;
             $validationRules['owner.password'] = 'nullable|string|min:8|confirmed';
-        }
-        // Если нет владельца, добавляем правила для создания
-        else {
+        } else {
             $validationRules['owner.name'] = 'required|string|max:255';
             $validationRules['owner.email'] = 'required|email|unique:users,email';
             $validationRules['owner.password'] = 'required|string|min:8|confirmed';
@@ -443,39 +501,34 @@ class OrganizationController extends Controller
         DB::beginTransaction();
         
         try {
-            // 1. Обновляем данные организации
             $organizationData = [
                 'name' => $validated['organization']['name'],
                 'subscription_ends_at' => $validated['organization']['subscription_ends_at'] ?? null,
                 'status' => $validated['organization']['status'],
             ];
             
-            if ($user->isAdmin() && isset($validated['organization']['manager_id'])) {
-                $organizationData['manager_id'] = $validated['organization']['manager_id'];
+            // Обновляем менеджера (только для админа)
+            if ($user->isAdmin() && array_key_exists('manager_id', $validated['organization'])) {
+                $organizationData['manager_id'] = $validated['organization']['manager_id'] ?: null;
             }
             
             $organization->update($organizationData);
             
-            // 2. Работаем с владельцем
+            // Обновляем владельца
             if ($owner && $owner->user) {
-                // Обновляем существующего владельца
                 $ownerUserData = [
                     'name' => $validated['owner']['name'],
                     'email' => $validated['owner']['email'],
                 ];
                 
-                // Если указан новый пароль
                 if (!empty($validated['owner']['password'])) {
                     $ownerUserData['password'] = Hash::make($validated['owner']['password']);
                 }
                 
                 $owner->user->update($ownerUserData);
             } else {
-                // Создаем нового владельца
-                $managerUserId = null;
-                if ($organization->manager) {
-                    $managerUserId = $organization->manager->user_id;
-                }
+                // Создаем нового владельца (если его не было)
+                $managerUserId = $organization->manager ? $organization->manager->id : null;
                 
                 $ownerUser = User::create([
                     'name' => $validated['owner']['name'],
@@ -508,7 +561,7 @@ class OrganizationController extends Controller
     }
     
     /**
-     * Изменение статуса организации (активна/неактивна)
+     * Изменение статуса организации
      */
     public function toggleStatus(Request $request, $id)
     {
@@ -521,15 +574,15 @@ class OrganizationController extends Controller
         if ($user->isAdmin()) {
             $organization = Organization::where('id', $id)
                 ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
+                    $query->whereHas('managerProfile', function($subQuery) use ($user) {
+                        $subQuery->where('admin_id', $user->id);
+                    });
                 })
                 ->firstOrFail();
         } else {
             // Для менеджера
             $organization = Organization::where('id', $id)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
+                ->where('manager_id', $user->id)
                 ->firstOrFail();
         }
         
@@ -561,7 +614,6 @@ class OrganizationController extends Controller
                 'success' => true,
                 'message' => "Организация {$statusText}",
                 'status' => $organization->status,
-                'status_badge' => $organization->getStatusBadge(), // добавить метод в модель
             ]);
         }
         
@@ -582,15 +634,15 @@ class OrganizationController extends Controller
         if ($user->isAdmin()) {
             $organization = Organization::where('id', $id)
                 ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
+                    $query->whereHas('managerProfile', function($subQuery) use ($user) {
+                        $subQuery->where('admin_id', $user->id);
+                    });
                 })
                 ->firstOrFail();
         } else {
             // Для менеджера
             $organization = Organization::where('id', $id)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
+                ->where('manager_id', $user->id)
                 ->firstOrFail();
         }
         
@@ -598,18 +650,13 @@ class OrganizationController extends Controller
             'days' => 'required|integer|min:1|max:365',
         ]);
         
-        // Метод extendSubscription должен быть определен в модели Organization
-        if (method_exists($organization, 'extendSubscription')) {
-            $organization->extendSubscription($validated['days']);
+        // Продлеваем подписку
+        if (!$organization->subscription_ends_at) {
+            $organization->subscription_ends_at = now()->addDays($validated['days']);
         } else {
-            // Если метода нет, реализуем здесь
-            if (!$organization->subscription_ends_at) {
-                $organization->subscription_ends_at = now()->addDays($validated['days']);
-            } else {
-                $organization->subscription_ends_at = $organization->subscription_ends_at->addDays($validated['days']);
-            }
-            $organization->save();
+            $organization->subscription_ends_at = $organization->subscription_ends_at->addDays($validated['days']);
         }
+        $organization->save();
         
         // Редирект в зависимости от роли
         if ($user->isAdmin()) {
@@ -635,16 +682,16 @@ class OrganizationController extends Controller
         if ($user->isAdmin()) {
             $organization = Organization::where('id', $id)
                 ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
+                    $query->whereHas('managerProfile', function($subQuery) use ($user) {
+                        $subQuery->where('admin_id', $user->id);
+                    });
                 })
                 ->with('owner.user')
                 ->firstOrFail();
         } else {
             // Для менеджера
             $organization = Organization::where('id', $id)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
+                ->where('manager_id', $user->id)
                 ->with('owner.user')
                 ->firstOrFail();
         }
@@ -656,7 +703,9 @@ class OrganizationController extends Controller
             if ($organization->owner) {
                 $ownerUser = $organization->owner->user;
                 $organization->owner->delete();
-                $ownerUser->delete();
+                if ($ownerUser) {
+                    $ownerUser->delete();
+                }
             }
             
             // Удаляем организацию
@@ -691,9 +740,7 @@ class OrganizationController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
-        $organizations = Organization::whereHas('manager', function($query) use ($manager) {
-                $query->where('user_id', $manager->id);
-            })
+        $organizations = Organization::where('manager_id', $manager->id)
             ->with(['owner.user', 'members.user'])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -706,7 +753,7 @@ class OrganizationController extends Controller
      */
     public function managerShow($id)
     {
-        return $this->show($id); // Используем общий метод
+        return $this->show($id);
     }
     
     /**
@@ -734,6 +781,12 @@ class OrganizationController extends Controller
             abort(404, 'Организация не найдена');
         }
         
+        // Получаем менеджера организации
+        $manager = null;
+        if ($organization->manager) {
+            $manager = $organization->manager;
+        }
+        
         // Получаем сотрудников организации
         $members = $organization->members()
             ->with('user')
@@ -749,7 +802,7 @@ class OrganizationController extends Controller
             ->where('is_active', true)
             ->count();
         
-        // Получаем лимиты владельца
+        // Получаем лимиты владельца (БЕЗ map и вычисления used_quantity)
         $ownerLimits = Limit::where('user_id', $user->id)
             ->with('reportType')
             ->orderBy('date_created', 'desc')
@@ -775,6 +828,7 @@ class OrganizationController extends Controller
         return view('org-owner.dashboard', compact(
             'user', 
             'organization', 
+            'manager',
             'members', 
             'membersCount', 
             'activeMembersCount',
@@ -785,11 +839,11 @@ class OrganizationController extends Controller
     }
     
     /**
-     * Просмотр организаций менеджером (для самого менеджера)
+     * Редактирование организации менеджером
      */
     public function managerEdit($id)
     {
-        return $this->edit($id); // Используем общий метод
+        return $this->edit($id);
     }
     
     /**
@@ -797,7 +851,7 @@ class OrganizationController extends Controller
      */
     public function managerUpdate(Request $request, $id)
     {
-        return $this->update($request, $id); // Используем общий метод
+        return $this->update($request, $id);
     }
 
 }

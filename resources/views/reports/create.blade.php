@@ -544,8 +544,9 @@
             const selectedTypes = [];
             const errors = [];
             
+            // Собираем выбранные типы
             document.querySelectorAll('.report-type-checkbox:checked').forEach(cb => {
-                selectedTypes.push(cb.value);
+                selectedTypes.push(parseInt(cb.value));
             });
             
             if (selectedTypes.length === 0) {
@@ -554,38 +555,78 @@
                 return false;
             }
             
+            // ПРОВЕРЯЕМ КАЖДЫЙ ТИП СО ВСЕМИ ЕГО ПОЛЯМИ
             selectedTypes.forEach(typeId => {
-                const req = requirements[typeId];
-                if (req) {
-                    if (req.name) {
-                        const lastName = document.getElementById('hidden_last_name').value;
-                        const firstName = document.getElementById('hidden_first_name').value;
-                        if (!lastName || !firstName) errors.push(req.message);
-                    }
-                    if (req.passport) {
-                        const series = document.querySelector('input[name="passport_series"]')?.value;
-                        const number = document.querySelector('input[name="passport_number"]')?.value;
-                        if (!series || !number || series.length !== 4 || number.length !== 6) {
-                            if (!errors.includes(req.message)) errors.push(req.message);
+                switch(typeId) {
+                    case 1: // CL:Базовый V1
+                        const lastName = document.getElementById('hidden_last_name')?.value;
+                        const firstName = document.getElementById('hidden_first_name')?.value;
+                        const patronymic = document.getElementById('hidden_patronymic')?.value; // ИЗМЕНЕНО!
+                        const birthDate = document.querySelector('input[name="birth_date"]')?.value;
+                        const region = document.querySelector('input[name="region"]')?.value;
+                        
+                        if (!lastName) errors.push('Базовый отчет: Фамилия обязательна');
+                        if (!firstName) errors.push('Базовый отчет: Имя обязательно');
+                        if (!patronymic) errors.push('Базовый отчет: Отчество обязательно');
+                        if (!birthDate) errors.push('Базовый отчет: Дата рождения обязательна');
+                        if (!region) errors.push('Базовый отчет: Регион проживания обязателен');
+                        break;
+
+                        
+                    case 2: // CL:Паспорт V1 - ВСЕ ПОЛЯ ОБЯЗАТЕЛЬНЫ
+                        const pLastName = document.getElementById('hidden_last_name')?.value;
+                        const pFirstName = document.getElementById('hidden_first_name')?.value;
+                        const pPatronymic = document.querySelector('input[name="patronymic"]')?.value;
+                        const pBirthDate = document.querySelector('input[name="birth_date"]')?.value;
+                        const pRegion = document.querySelector('input[name="region"]')?.value;
+                        const pSeries = document.querySelector('input[name="passport_series"]')?.value;
+                        const pNumber = document.querySelector('input[name="passport_number"]')?.value;
+                        const pDate = document.querySelector('input[name="passport_date"]')?.value;
+                        
+                        if (!pLastName) errors.push('Паспортный отчет: Фамилия обязательна');
+                        if (!pFirstName) errors.push('Паспортный отчет: Имя обязательно');
+                        if (!pPatronymic) errors.push('Паспортный отчет: Отчество обязательно');
+                        if (!pBirthDate) errors.push('Паспортный отчет: Дата рождения обязательна');
+                        if (!pRegion) errors.push('Паспортный отчет: Регион обязателен');
+                        if (!pSeries) errors.push('Паспортный отчет: Серия паспорта обязательна');
+                        if (!pNumber) errors.push('Паспортный отчет: Номер паспорта обязателен');
+                        if (!pDate) errors.push('Паспортный отчет: Дата выдачи паспорта обязательна');
+                        
+                        // Проверка формата
+                        if (pSeries && pSeries.length !== 4) {
+                            errors.push('Паспортный отчет: Серия должна быть 4 цифры');
                         }
-                    }
-                    if (req.vehicle) {
+                        if (pNumber && pNumber.length !== 6) {
+                            errors.push('Паспортный отчет: Номер должен быть 6 цифр');
+                        }
+                        break;
+                        
+                    case 3: // AI:АвтоИстория V1 - ТОЛЬКО НОМЕР ТС
                         const vehicle = document.querySelector('input[name="vehicle_number"]')?.value;
-                        if (!vehicle && !errors.includes(req.message)) errors.push(req.message);
-                    }
-                    if (req.property) {
+                        if (!vehicle) {
+                            errors.push('Автоотчет: Номер транспортного средства обязателен');
+                        }
+                        break;
+                        
+                    case 4: // CL:Недвижимость - ВСЕ ПОЛЯ ОБЯЗАТЕЛЬНЫ
                         const cadastral = document.querySelector('input[name="cadastral_number"]')?.value;
                         const propertyType = document.querySelector('select[name="property_type"]')?.value;
-                        if ((!cadastral || !propertyType) && !errors.includes(req.message)) errors.push(req.message);
-                    }
+                        
+                        if (!cadastral) errors.push('Отчет по недвижимости: Кадастровый номер обязателен');
+                        if (!propertyType) errors.push('Отчет по недвижимости: Тип недвижимости обязателен');
+                        break;
                 }
             });
             
-            if (errors.length > 0) {
+            // Убираем дубликаты ошибок
+            const uniqueErrors = [...new Set(errors)];
+            
+            if (uniqueErrors.length > 0) {
                 e.preventDefault();
-                showValidation(errors.join('<br>'));
+                showValidation(uniqueErrors.join('<br>'));
                 return false;
             }
+            
             return true;
         });
         
@@ -602,11 +643,20 @@
         window.parseFullName = function() {
             const fullNameInput = document.getElementById('full_name');
             if (!fullNameInput) return;
-            const fullName = fullNameInput.value;
-            const parts = fullName.trim().split(/\s+/);
+            
+            const fullName = fullNameInput.value.trim();
+            const parts = fullName.split(/\s+/);
+            
+            // Устанавливаем значения в скрытые поля (эти поля УЖЕ ЕСТЬ в форме)
             document.getElementById('hidden_last_name').value = parts[0] || '';
             document.getElementById('hidden_first_name').value = parts[1] || '';
             document.getElementById('hidden_patronymic').value = parts[2] || '';
+            
+            console.log('ФИО разобрано:', {
+                last_name: parts[0],
+                first_name: parts[1],
+                patronymic: parts[2]
+            });
         };
         
         // =========================================

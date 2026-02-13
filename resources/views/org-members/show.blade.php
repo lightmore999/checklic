@@ -377,7 +377,7 @@
                                 <button class="nav-link active" id="personal-tab" data-bs-toggle="tab" 
                                         data-bs-target="#personal" type="button" role="tab">
                                     <i class="bi bi-person-check me-1"></i>
-                                    Собственные лимиты
+                                    Собственные отчеты
                                     <span class="badge bg-success ms-1">{{ $personalLimits->count() }}</span>
                                 </button>
                             </li>
@@ -388,7 +388,7 @@
                                         id="delegated-tab" data-bs-toggle="tab" 
                                         data-bs-target="#delegated" type="button" role="tab">
                                     <i class="bi bi-share me-1"></i>
-                                    Делегированные лимиты
+                                    Делегированные отчеты
                                     <span class="badge bg-warning ms-1">{{ $delegatedLimits->count() }}</span>
                                 </button>
                             </li>

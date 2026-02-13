@@ -79,7 +79,7 @@
                                         <option value="">Выберите статус</option>
                                         <option value="active" {{ old('organization.status') == 'active' ? 'selected' : '' }}>Активна</option>
                                         <option value="suspended" {{ old('organization.status') == 'suspended' ? 'selected' : '' }}>Приостановлена</option>
-                                        <option value="expire" {{ old('organization.status') == 'expire' ? 'selected' : '' }}>Истекла</option>
+                                        <option value="expired" {{ old('organization.status') == 'expired' ? 'selected' : '' }}>Истекла</option>
                                     </select>
                                 @else
                                     <select class="form-select @error('organization.status') is-invalid @enderror" 
@@ -103,7 +103,7 @@
                                 <input type="date" class="form-control @error('organization.subscription_ends_at') is-invalid @enderror" 
                                        id="subscription_ends_at" name="organization[subscription_ends_at]" 
                                        value="{{ old('organization.subscription_ends_at') }}"
-                                       min="{{ date('Y-m-d') }}">
+                                       min="{{ date('Y-m-d', strtotime('+1 day')) }}">
                                 @error('organization.subscription_ends_at')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -115,29 +115,29 @@
                                     Ответственный менеджер
                                 </label>
                                 @if($user->isManager())
-                                    {{-- Для менеджера показываем только его самого --}}
-                                    <input type="hidden" name="manager_id" value="{{ $managerRecord->id }}">
+                                    {{-- Для менеджера - скрытое поле с его ID --}}
+                                    <input type="hidden" name="manager_id" value="{{ $user->id }}">
                                     <input type="text" class="form-control" value="{{ $user->name }} ({{ $user->email }})" readonly>
                                     <div class="form-text text-muted">Вы являетесь менеджером этой организации</div>
                                 @else
-                                    {{-- Для админа показываем выбор менеджера --}}
+                                    {{-- Для админа показываем выбор менеджера (пользователей с ролью manager) --}}
                                     <select class="form-select @error('manager_id') is-invalid @enderror" 
                                             id="manager_id" name="manager_id">
-                                        <option value="">Выберите менеджера</option>
-                                        <option value="" {{ old('manager_id') === '' ? 'selected' : '' }}>
+                                        <option value="">-- Без менеджера --</option>
+                                        <option value="{{ $user->id }}" {{ old('manager_id') == $user->id ? 'selected' : '' }}>
                                             Я буду менеджером ({{ $user->name }})
                                         </option>
                                         @foreach($managers as $manager)
-                                            <option value="{{ $manager['id'] }}" 
-                                                    {{ old('manager_id') == $manager['id'] ? 'selected' : '' }}>
-                                                {{ $manager['name'] }} ({{ $manager['email'] }})
+                                            <option value="{{ $manager->id }}" 
+                                                    {{ old('manager_id') == $manager->id ? 'selected' : '' }}>
+                                                {{ $manager->name }} ({{ $manager->email }})
                                             </option>
                                         @endforeach
                                     </select>
                                     @error('manager_id')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
-                                    <div class="form-text text-muted">Если не выберете менеджера, вы станете ответственным</div>
+                                    <div class="form-text text-muted">Выберите менеджера для организации</div>
                                 @endif
                             </div>
                         </div>
@@ -209,7 +209,7 @@
                             <i class="bi bi-x-circle me-1"></i> Отмена
                         </a>
                         
-                        <button type="submit" class="btn btn-success">
+                        <button type="submit" class="btn btn-success" id="submitBtn">
                             <i class="bi bi-check-circle me-1"></i> Создать организацию
                         </button>
                     </div>
@@ -224,7 +224,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Устанавливаем минимальную дату для подписки
         const subscriptionField = document.getElementById('subscription_ends_at');
-        if (!subscriptionField.value) {
+        if (subscriptionField) {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             subscriptionField.min = tomorrow.toISOString().split('T')[0];
@@ -232,6 +232,8 @@
         
         // Валидация формы
         const form = document.getElementById('createOrganizationForm');
+        const submitBtn = document.getElementById('submitBtn');
+        
         form.addEventListener('submit', function(e) {
             const password = document.getElementById('user_password').value;
             const confirmPassword = document.getElementById('user_password_confirmation').value;
@@ -240,7 +242,12 @@
                 e.preventDefault();
                 alert('Пароли не совпадают!');
                 document.getElementById('user_password').focus();
+                return false;
             }
+            
+            // Блокируем кнопку повторной отправки
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Создание...';
         });
     });
 </script>

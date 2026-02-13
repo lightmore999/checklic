@@ -8,7 +8,7 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h3 class="card-title">Лимиты</h3>
+                    <h3 class="card-title">Отчеты</h3>
                     <div>
                         @if(auth()->user()->isAdmin() || auth()->user()->isManager())
                             <a href="{{ route('limits.create') }}" class="btn btn-primary btn-sm">
@@ -130,8 +130,8 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Пользователь</th>
-                                    <th>Создатель</th>
                                     <th>Организация</th>
+                                    <th>Создатель</th>
                                     <th>Тип отчета</th>
                                     <th>Количество</th>
                                     <th>Использовано</th>
@@ -159,21 +159,31 @@
                                             @endif
                                         </td>
                                         <td>
+                                            <!-- ИСПРАВЛЕНО: Определяем организацию пользователя -->
                                             @if($limit->user)
                                                 @php
-                                                    $orgOwner = $limit->user->orgOwnerProfile ?? null;
-                                                    $orgMember = $limit->user->orgMemberProfile ?? null;
-                                                    $organization = $orgOwner ?? $orgMember;
+                                                    $userOrg = null;
+                                                    if ($limit->user->isOrgOwner() && $limit->user->orgOwnerProfile) {
+                                                        $userOrg = $limit->user->orgOwnerProfile->organization;
+                                                    } elseif ($limit->user->isOrgMember() && $limit->user->orgMemberProfile) {
+                                                        $userOrg = $limit->user->orgMemberProfile->organization;
+                                                    } elseif ($limit->user->isManager() && $limit->user->managerProfile) {
+                                                        // Для менеджера показываем "Менеджер" без конкретной организации
+                                                        $userOrg = null;
+                                                    }
                                                 @endphp
-                                                @if($organization)
-                                                    <strong>{{ $organization->name ?? '' }}</strong><br>
+                                                
+                                                @if($userOrg)
+                                                    <strong>{{ $userOrg->name }}</strong><br>
                                                     <small class="text-muted">
-                                                        @if($orgOwner)
+                                                        @if($limit->user->isOrgOwner())
                                                             <span class="badge bg-primary">Руководитель</span>
-                                                        @elseif($orgMember)
+                                                        @elseif($limit->user->isOrgMember())
                                                             <span class="badge bg-info">Сотрудник</span>
                                                         @endif
                                                     </small>
+                                                @elseif($limit->user->isManager())
+                                                    <span class="badge bg-secondary">Менеджер</span>
                                                 @else
                                                     <span class="text-muted">Не указана</span>
                                                 @endif
@@ -259,7 +269,7 @@
                                                         <i class="fas fa-user"></i>
                                                     </a>
                                                 @endif
-                                                @if(auth()->user()->isAdmin() || auth()->user()->isManager())
+                                                @if((auth()->user()->isAdmin() || auth()->user()->isManager()) && $limit->getAvailableQuantity() > 0)
                                                     <button type="button" class="btn btn-sm btn-secondary" 
                                                             data-toggle="modal" data-target="#delegateModal{{ $limit->id }}" title="Делегировать">
                                                         <i class="fas fa-share-alt"></i>
@@ -272,9 +282,9 @@
                                     <!-- Детали делегированных лимитов (скрытый блок) -->
                                     @if($limit->delegatedVersions && $limit->delegatedVersions->count() > 0)
                                         <tr class="collapse" id="delegated-{{ $limit->id }}">
-                                            <td colspan="12" class="p-0">
+                                            <td colspan="13" class="p-0">
                                                 <div class="p-3 bg-light">
-                                                    <h6 class="mb-3"><i class="fas fa-share-alt mr-2"></i>Делегированные лимиты:</h6>
+                                                    <h6 class="mb-3"><i class="fas fa-share-alt mr-2"></i>Делегированные отчеты:</h6>
                                                     <div class="table-responsive">
                                                         <table class="table table-sm table-bordered mb-0">
                                                             <thead class="thead-light">
@@ -300,14 +310,19 @@
                                                                             @endif
                                                                         </td>
                                                                         <td>
+                                                                            <!-- ИСПРАВЛЕНО: Организация делегированного пользователя -->
                                                                             @if($delegated->user)
                                                                                 @php
-                                                                                    $delOrgOwner = $delegated->user->orgOwnerProfile ?? null;
-                                                                                    $delOrgMember = $delegated->user->orgMemberProfile ?? null;
-                                                                                    $delOrganization = $delOrgOwner ?? $delOrgMember;
+                                                                                    $delUserOrg = null;
+                                                                                    if ($delegated->user->isOrgOwner() && $delegated->user->orgOwnerProfile) {
+                                                                                        $delUserOrg = $delegated->user->orgOwnerProfile->organization;
+                                                                                    } elseif ($delegated->user->isOrgMember() && $delegated->user->orgMemberProfile) {
+                                                                                        $delUserOrg = $delegated->user->orgMemberProfile->organization;
+                                                                                    }
                                                                                 @endphp
-                                                                                @if($delOrganization)
-                                                                                    {{ $delOrganization->name ?? '' }}
+                                                                                
+                                                                                @if($delUserOrg)
+                                                                                    {{ $delUserOrg->name }}
                                                                                 @else
                                                                                     <span class="text-muted">Не указана</span>
                                                                                 @endif
@@ -343,9 +358,9 @@
                                     @endif
                                 @empty
                                     <tr>
-                                        <td colspan="12" class="text-center py-4">
+                                        <td colspan="13" class="text-center py-4">
                                             <i class="fas fa-inbox fa-3x mb-3 text-muted"></i>
-                                            <p class="text-muted mb-0">Лимиты не найдены</p>
+                                            <p class="text-muted mb-0">Отчеты не найдены</p>
                                         </td>
                                     </tr>
                                 @endforelse
@@ -474,6 +489,12 @@
     .bg-primary {
         background-color: #007bff !important;
     }
+    .ml-2 {
+        margin-left: 0.5rem;
+    }
+    .mr-2 {
+        margin-right: 0.5rem;
+    }
 </style>
 @endpush
 
@@ -498,7 +519,7 @@
                 data: function(params) {
                     return {
                         search: params.term || '',
-                        organization_id: $('select[name="organization_id"]').val() // Передаем выбранную организацию
+                        organization_id: $('select[name="organization_id"]').val()
                     };
                 },
                 processResults: function(data) {
@@ -528,7 +549,6 @@
 
         // При изменении организации - обновляем список пользователей
         $('select[name="organization_id"]').on('change', function() {
-            // Очищаем и обновляем select пользователей
             $('.select2-user').val(null).trigger('change');
             $('#filterForm').submit();
         });
@@ -542,42 +562,44 @@
         $('.select2-user').on('change', function() {
             $('#filterForm').submit();
         });
-    });
 
-    // Инициализация Select2 для делегирования
-    $('.select2-delegate').each(function() {
-        let excludeUserId = $(this).data('exclude-user-id');
-        
-        $(this).select2({
-            theme: 'default',
-            language: 'ru',
-            placeholder: 'Поиск пользователя...',
-            allowClear: true,
-            width: '100%',
-            dropdownParent: $(this).closest('.modal'),
-            minimumInputLength: 0,
-            ajax: {
-                url: '{{ route("users.search") }}',
-                dataType: 'json',
-                delay: 300,
-                data: function(params) {
-                    return {
-                        search: params.term || '',
-                        organization_id: $('select[name="organization_id"]').val() // Для делегирования тоже передаем организацию
-                    };
-                },
-                processResults: function(data) {
-                    // Исключаем текущего пользователя
-                    let filtered = data.filter(function(user) {
-                        return user.id != excludeUserId;
-                    });
-                    
-                    return {
-                        results: filtered
-                    };
-                },
-                cache: true
-            }
+        // Инициализация Select2 для делегирования
+        $('.select2-delegate').each(function() {
+            let excludeUserId = $(this).data('exclude-user-id');
+            let modal = $(this).closest('.modal');
+            
+            $(this).select2({
+                theme: 'default',
+                language: 'ru',
+                placeholder: 'Поиск пользователя...',
+                allowClear: true,
+                width: '100%',
+                dropdownParent: modal,
+                minimumInputLength: 0,
+                ajax: {
+                    url: '{{ route("users.search") }}',
+                    dataType: 'json',
+                    delay: 300,
+                    data: function(params) {
+                        return {
+                            search: params.term || '',
+                            organization_id: $('select[name="organization_id"]').val(),
+                            exclude_user_id: excludeUserId
+                        };
+                    },
+                    processResults: function(data) {
+                        // Исключаем текущего пользователя
+                        let filtered = data.filter(function(user) {
+                            return user.id != excludeUserId;
+                        });
+                        
+                        return {
+                            results: filtered
+                        };
+                    },
+                    cache: true
+                }
+            });
         });
     });
 </script>

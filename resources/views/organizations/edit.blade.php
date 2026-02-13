@@ -43,9 +43,9 @@
         </div>
     @endif
 
+    <!-- ОСНОВНАЯ ФОРМА РЕДАКТИРОВАНИЯ -->
     <form action="{{ route($routePrefix . 'organization.update', $organization->id) }}" method="POST">
         @csrf
-        @method('POST')
         
         <div class="row">
             <!-- Левая колонка: Организация -->
@@ -98,53 +98,22 @@
                                 <label for="manager_id" class="form-label">Ответственный менеджер</label>
                                 <select class="form-select @error('organization.manager_id') is-invalid @enderror" 
                                         id="manager_id" name="organization[manager_id]">
-                                    <option value="">-- Без менеджера (админ) --</option>
+                                    <option value="">-- Без менеджера --</option>
                                     @foreach($managers as $manager)
-                                        <option value="{{ $manager['id'] }}" 
-                                                {{ old('organization.manager_id', $organization->manager_id) == $manager['id'] ? 'selected' : '' }}>
-                                            {{ $manager['name'] }}
+                                        <option value="{{ $manager->id }}" 
+                                                {{ old('organization.manager_id', $organization->manager_id) == $manager->id ? 'selected' : '' }}>
+                                            {{ $manager->name }}
                                         </option>
                                     @endforeach
                                 </select>
                                 @error('organization.manager_id')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
+                                <div class="form-text">Выберите менеджера из списка</div>
                             </div>
                         @endif
                     </div>
                 </div>
-
-                <!-- Дополнительные действия для админа -->
-                @if($isAdmin)
-                    <div class="card mb-4">
-                        <div class="card-header bg-danger text-white">
-                            <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Опасные действия</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="d-grid gap-2">
-                                <form action="{{ route('admin.organization.toggle-status', $organization->id) }}" 
-                                      method="POST">
-                                    @csrf
-                                    <button type="submit" 
-                                            class="btn btn-outline-{{ $organization->status == 'active' ? 'warning' : 'success' }} w-100 mb-2">
-                                        <i class="bi bi-toggle-{{ $organization->status == 'active' ? 'off' : 'on' }}"></i>
-                                        {{ $organization->status == 'active' ? 'Деактивировать организацию' : 'Активировать организацию' }}
-                                    </button>
-                                </form>
-
-                                <button type="button" class="btn btn-outline-danger w-100 mb-2"
-                                        onclick="confirmDelete({{ $organization->id }}, '{{ $organization->name }}')">
-                                    <i class="bi bi-trash"></i> Удалить организацию
-                                </button>
-
-                                <button type="button" class="btn btn-outline-info w-100" 
-                                        data-bs-toggle="modal" data-bs-target="#extendSubscriptionModal">
-                                    <i class="bi bi-calendar-plus"></i> Продлить подписку
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                @endif
             </div>
 
             <!-- Правая колонка: Владелец организации -->
@@ -161,7 +130,6 @@
                         </h5>
                     </div>
                     <div class="card-body">
-
                         <!-- Поля для редактирования/создания владельца -->
                         <div class="mb-3">
                             <label for="owner_name" class="form-label">Имя владельца *</label>
@@ -224,7 +192,7 @@
                         </div>
 
                         @if($ownerUser)
-                            <div class="alert alert-light">
+                            <div class="alert alert-light border">
                                 <h6 class="alert-heading">Информация о владельце:</h6>
                                 <p class="mb-1"><strong>Зарегистрирован:</strong> {{ $ownerUser->created_at->format('d.m.Y H:i') }}</p>
                                 <p class="mb-1"><strong>Роль:</strong> <span class="badge bg-success">Владелец организации</span></p>
@@ -261,6 +229,51 @@
             </div>
         </div>
     </form>
+    <!-- КОНЕЦ ОСНОВНОЙ ФОРМЫ РЕДАКТИРОВАНИЯ -->
+
+    <!-- Дополнительные действия для админа (ВНЕ основной формы) -->
+    @if($isAdmin)
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Опасные действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Кнопка изменения статуса -->
+                        <div class="col-md-4 mb-2">
+                            <form action="{{ route('admin.organization.toggle-status', $organization->id) }}" method="POST">
+                                @csrf
+                                <button type="submit" 
+                                        class="btn btn-outline-{{ $organization->status == 'active' ? 'warning' : 'success' }} w-100">
+                                    <i class="bi bi-toggle-{{ $organization->status == 'active' ? 'off' : 'on' }}"></i>
+                                    {{ $organization->status == 'active' ? 'Деактивировать' : 'Активировать' }}
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Кнопка продления подписки -->
+                        <div class="col-md-4 mb-2">
+                            <button type="button" class="btn btn-outline-info w-100" 
+                                    data-bs-toggle="modal" data-bs-target="#extendSubscriptionModal">
+                                <i class="bi bi-calendar-plus"></i> Продлить подписку
+                            </button>
+                        </div>
+
+                        <!-- Кнопка удаления -->
+                        <div class="col-md-4 mb-2">
+                            <button type="button" class="btn btn-outline-danger w-100"
+                                    onclick="confirmDelete({{ $organization->id }}, '{{ $organization->name }}')">
+                                <i class="bi bi-trash"></i> Удалить организацию
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
 
 <!-- Модальное окно продления подписки -->
@@ -310,7 +323,7 @@
 function confirmDelete(id, name) {
     if (confirm(`ВНИМАНИЕ! Вы собираетесь удалить организацию "${name}".\n\nЭто действие: \n• Удалит организацию \n• Удалит владельца организации \n• Удалит всех сотрудников \n• Удалит все данные связанные с организацией\n\nЭто действие нельзя отменить!`)) {
         const form = document.getElementById('delete-form');
-        form.action = `/admin/organization/${id}/delete`;
+        form.action = '/admin/organization/' + id + '/delete';
         form.submit();
     }
 }
@@ -330,6 +343,17 @@ document.getElementById('togglePassword')?.addEventListener('click', function() 
     }
     
     this.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+});
+
+// Предотвращаем двойную отправку формы
+document.querySelector('form[action*="update"]')?.addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('button[type="submit"]');
+    if (submitBtn.disabled) {
+        e.preventDefault();
+        return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
 });
 </script>
 @endsection

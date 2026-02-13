@@ -9,7 +9,7 @@
             <div class="card">
                 <div class="card-header bg-primary text-white">
                     <h3 class="card-title mb-0">
-                        <i class="fas fa-share-alt"></i> Делегирование лимита
+                        <i class="fas fa-share-alt"></i> Делегирование отчета
                     </h3>
                 </div>
                 
@@ -31,12 +31,12 @@
                                 <!-- Выбор лимита для делегирования -->
                                 <div class="form-group">
                                     <label for="limit_id" class="font-weight-bold">
-                                        <i class="fas fa-tachometer-alt"></i> Лимит для делегирования *
+                                        <i class="fas fa-tachometer-alt"></i> Отчет для делегирования *
                                     </label>
                                     <select name="limit_id" id="limit_id" 
                                             class="form-control select2 @error('limit_id') is-invalid @enderror" 
                                             required
-                                            data-placeholder="Выберите лимит...">
+                                            data-placeholder="Выберите отчет...">
                                         <option value=""></option>
                                         @foreach($limits as $limit)
                                             <option value="{{ $limit->id }}" 
@@ -56,7 +56,7 @@
                                         <span class="invalid-feedback">{{ $message }}</span>
                                     @enderror
                                     <small class="form-text text-muted">
-                                        Выберите лимит, который хотите делегировать
+                                        Выберите отчет, который хотите делегировать
                                     </small>
                                 </div>
 
@@ -114,7 +114,7 @@
                                         <span class="invalid-feedback">{{ $message }}</span>
                                     @enderror
                                     <small class="form-text text-muted">
-                                        Выберите сотрудника, которому делегируете лимит
+                                        Выберите сотрудника, которому делегируете отчет
                                     </small>
                                 </div>
 
@@ -161,7 +161,7 @@
                                 <div class="d-flex justify-content-between">
                                     <div>
                                         <button type="submit" class="btn btn-primary">
-                                            <i class="fas fa-share-alt"></i> Делегировать лимит
+                                            <i class="fas fa-share-alt"></i> Делегировать отчет
                                         </button>
                                     </div>
                                     <div>
@@ -178,8 +178,8 @@
                 <div class="card-footer text-muted">
                     <small>
                         <i class="fas fa-info-circle"></i> 
-                        <strong>Владелец организации</strong> может делегировать свои лимиты только своим сотрудникам.<br>
-                        <strong>Менеджер/Администратор</strong> может делегировать лимиты владельцев своим сотрудникам.
+                        <strong>Владелец организации</strong> может делегировать свои отчеты только своим сотрудникам.<br>
+                        <strong>Менеджер/Администратор</strong> может делегировать отчеты владельцев своим сотрудникам.
                     </small>
                 </div>
             </div>

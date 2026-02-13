@@ -27,7 +27,8 @@ class Organization extends Model
      */
     public function manager(): BelongsTo
     {
-        return $this->belongsTo(Manager::class, 'manager_id');
+        // Менеджер - это пользователь (User), а не модель Manager
+        return $this->belongsTo(User::class, 'manager_id');
     }
 
     /**

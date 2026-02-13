@@ -7,7 +7,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h5 class="mb-0">
         <i class="bi bi-person-badge text-primary me-2"></i>
-        Профиль менеджера
+        Профиль менеджера: {{ $manager->name }}
     </h5>
     <div>
         <a href="{{ route('admin.dashboard') }}" class="btn btn-outline-secondary btn-sm">
@@ -81,24 +81,129 @@
             </div>
         </div>
         
+        <!-- Лимиты менеджера -->
+        @if(count($limits) > 0)
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">
+                    <i class="bi bi-speedometer text-info me-2"></i>
+                    Отчеты менеджера
+                    <span class="badge bg-info ms-2">{{ count($limits) }}</span>
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Тип отчета</th>
+                                <th>Описание</th>
+                                <th>Доступ через</th>
+                                <th>Всего</th>
+                                <th>Использовано</th>
+                                <th>Доступно</th>
+                                <th>Статус</th>
+                                <th>Прогресс</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($limits as $limit)
+                            <tr>
+                                <td>
+                                    <strong>{{ $limit['report_type_name'] }}</strong>
+                                </td>
+                                <td>
+                                    @if($limit['description'])
+                                        <small class="text-muted">{{ Str::limit($limit['description'], 50) }}</small>
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($limit['only_api'])
+                                        <span class="badge bg-warning">API</span>
+                                    @else
+                                        <span class="badge bg-primary">UI</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ $limit['quantity'] }} шт.</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ $limit['used_quantity'] }} шт.</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ $limit['available_quantity'] > 0 ? 'success' : 'danger' }}">
+                                        {{ $limit['available_quantity'] }} шт.
+                                    </span>
+                                </td>
+                                <td>
+                                    @if($limit['is_exhausted'])
+                                        <span class="badge bg-danger">Исчерпан</span>
+                                    @elseif(!$limit['has_limit'])
+                                        <span class="badge bg-secondary">Не настроен</span>
+                                    @else
+                                        <span class="badge bg-success">Активен</span>
+                                    @endif
+                                </td>
+                                <td style="min-width: 150px;">
+                                    @if($limit['quantity'] > 0)
+                                        @php
+                                            $percentage = round(($limit['used_quantity'] / $limit['quantity']) * 100);
+                                            $progressClass = $limit['is_exhausted'] ? 'bg-danger' : 
+                                                            ($percentage > 80 ? 'bg-danger' : 
+                                                            ($percentage > 50 ? 'bg-warning' : 'bg-success'));
+                                        @endphp
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="progress flex-grow-1" style="height: 8px;">
+                                                <div class="progress-bar {{ $progressClass }}" 
+                                                     style="width: {{ $percentage }}%">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">{{ $percentage }}%</small>
+                                        </div>
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Сводка по лимитам -->
+                <div class="mt-3 pt-3 border-top">
+                    <div class="small text-muted">
+                        @php
+                            $exhaustedCount = count(array_filter($limits, fn($l) => $l['is_exhausted']));
+                            $totalAvailable = array_sum(array_column($limits, 'available_quantity'));
+                            $totalUsed = array_sum(array_column($limits, 'used_quantity'));
+                            $totalQuantity = array_sum(array_column($limits, 'quantity'));
+                        @endphp
+                        <i class="bi bi-info-circle"></i>
+                        Всего лимитов: {{ count($limits) }} | 
+                        Исчерпано: <span class="{{ $exhaustedCount > 0 ? 'text-danger fw-bold' : 'text-success' }}">{{ $exhaustedCount }}</span> |
+                        Всего запросов: {{ $totalQuantity }} | 
+                        Использовано: {{ $totalUsed }} | 
+                        Доступно: <span class="{{ $totalAvailable > 0 ? 'text-success fw-bold' : 'text-danger' }}">{{ $totalAvailable }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @endif
+        
         <!-- Организации менеджера -->
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white border-bottom">
                 <h6 class="mb-0">
                     <i class="bi bi-buildings text-success me-2"></i>
                     Организации менеджера
-                    @php
-                        $managerOrganizations = $manager->managerProfile ? $manager->managerProfile->organizations : collect();
-                    @endphp
-                    <span class="badge bg-success ms-2">{{ $managerOrganizations->count() }}</span>
+                    <span class="badge bg-success ms-2">{{ $organizations->count() }}</span>
                 </h6>
-                <a href="{{ route('admin.organization.create') }}?manager_id={{ $manager->managerProfile->id ?? '' }}" 
-                   class="btn btn-success btn-sm">
-                    <i class="bi bi-plus"></i> Создать организацию
-                </a>
             </div>
             <div class="card-body">
-                @if($managerOrganizations->count() > 0)
+                @if($organizations->count() > 0)
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
@@ -107,11 +212,10 @@
                                     <th>Владелец</th>
                                     <th>Статус</th>
                                     <th>Подписка до</th>
-                                    <th>Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($managerOrganizations as $organization)
+                                @foreach($organizations as $organization)
                                 <tr>
                                     <td>
                                         <div class="fw-bold">{{ $organization->name }}</div>
@@ -126,7 +230,6 @@
                                                 </div>
                                                 <div>
                                                     <div class="small">{{ $organization->owner->user->name }}</div>
-                                                    <small class="text-muted">Владелец</small>
                                                 </div>
                                             </div>
                                         @else
@@ -144,6 +247,8 @@
                                             @case('pending')
                                                 <span class="badge bg-warning">Ожидает</span>
                                                 @break
+                                            @default
+                                                <span class="badge bg-secondary">{{ $organization->status }}</span>
                                         @endswitch
                                     </td>
                                     <td>
@@ -161,14 +266,6 @@
                                             <span class="text-muted small">Бессрочно</span>
                                         @endif
                                     </td>
-                                    <td>
-                                        <div class="d-flex gap-1">
-                                            <a href="{{ route('admin.organization.show', $organization->id) }}" 
-                                               class="btn btn-sm btn-outline-info" title="Просмотреть">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                        </div>
-                                    </td>
                                 </tr>
                                 @endforeach
                             </tbody>
@@ -178,50 +275,14 @@
                     <div class="text-center py-5">
                         <i class="bi bi-buildings fs-1 text-muted mb-3"></i>
                         <h6 class="text-muted">Организаций пока нет</h6>
-                        <p class="text-muted mb-4">Этот менеджер еще не создал ни одной организации</p>
-                        <a href="{{ route('admin.organization.create') }}?manager_id={{ $manager->managerProfile->id ?? '' }}" 
-                           class="btn btn-success">
-                            <i class="bi bi-building-add"></i> Создать организацию
-                        </a>
                     </div>
                 @endif
             </div>
         </div>
     </div>
     
-    <!-- Действия и статистика -->
+    <!-- Статистика -->
     <div class="col-md-4">
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-header bg-white border-bottom">
-                <h6 class="mb-0">
-                    <i class="bi bi-lightning-charge text-warning me-2"></i>
-                    Действия
-                </h6>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <form method="POST" action="{{ route('admin.managers.toggle-status', $manager->id) }}">
-                        @csrf
-                        @method('POST')
-                        <button type="submit" class="btn btn-{{ $manager->is_active ? 'warning' : 'success' }} w-100 mb-2">
-                            <i class="bi bi-{{ $manager->is_active ? 'ban' : 'check' }} me-1"></i>
-                            {{ $manager->is_active ? 'Деактивировать' : 'Активировать' }}
-                        </button>
-                    </form>
-
-                    <form method="POST" action="{{ route('admin.managers.delete', $manager->id) }}"
-                        onsubmit="return confirm('Удалить менеджера {{ $manager->name }}?')">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-outline-danger w-100">
-                            <i class="bi bi-trash me-1"></i> Удалить менеджера
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Статистика -->
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-bottom">
                 <h6 class="mb-0">
@@ -231,22 +292,27 @@
             </div>
             <div class="card-body">
                 @php
-                    $orgCount = $managerOrganizations->count();
-                    $activeOrgs = $managerOrganizations->where('status', 'active')->count();
-                    $pendingOrgs = $managerOrganizations->where('status', 'pending')->count();
+                    $orgCount = $organizations->count();
+                    $activeOrgs = $organizations->where('status', 'active')->count();
+                    $pendingOrgs = $organizations->where('status', 'pending')->count();
+                    $inactiveOrgs = $organizations->where('status', 'inactive')->count();
                 @endphp
                 
                 <div class="text-center py-3 border-bottom">
                     <div class="display-6 text-primary mb-2">{{ $orgCount }}</div>
-                    <div class="text-muted">Организаций</div>
+                    <div class="text-muted">Всего организаций</div>
                 </div>
                 <div class="text-center py-3 border-bottom">
                     <div class="display-6 text-success mb-2">{{ $activeOrgs }}</div>
                     <div class="text-muted">Активных</div>
                 </div>
-                <div class="text-center py-3">
+                <div class="text-center py-3 border-bottom">
                     <div class="display-6 text-warning mb-2">{{ $pendingOrgs }}</div>
                     <div class="text-muted">Ожидающих</div>
+                </div>
+                <div class="text-center py-3">
+                    <div class="display-6 text-secondary mb-2">{{ $inactiveOrgs }}</div>
+                    <div class="text-muted">Неактивных</div>
                 </div>
             </div>
         </div>

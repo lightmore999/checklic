@@ -395,7 +395,6 @@ class ReportController extends Controller
     {
         $user = Auth::user();
 
-        \Log::info('ВЕСЬ REQUEST: ' . json_encode($request->all()));
 
         $validator = Validator::make($request->all(), [
             'report_types' => 'required|array|min:1',
@@ -497,22 +496,53 @@ class ReportController extends Controller
      */
     private function validateMinimalRequirements($reportTypeId, $request)
     {
-        // Минимальные требования для каждого типа отчета
-        $minimalRequirements = [
-            1 => ['last_name', 'first_name'], // CL:Базовый V1 - нужно хотя бы Фамилия и Имя
-            2 => ['passport_series', 'passport_number'], // CL:Паспорт V1 - серия и номер паспорта
-            3 => ['vehicle_number'], // AI:АвтоИстория V1 - номер ТС
-            4 => ['cadastral_number', 'property_type'], // CL:Недвижимость - кадастровый номер и тип
-        ];
-        
-        if (!isset($minimalRequirements[$reportTypeId])) {
-            return true; // Если нет требований, все ок
-        }
-        
-        foreach ($minimalRequirements[$reportTypeId] as $field) {
-            if (empty($request->$field)) {
-                return false;
-            }
+        switch ($reportTypeId) {
+            case 1: // CL:Базовый V1 - ФИО + дата + регион
+                if (empty($request->last_name) || 
+                    empty($request->first_name) || 
+                    empty($request->patronymic) || 
+                    empty($request->birth_date) || 
+                    empty($request->region)) {
+                    return false;
+                }
+                break;
+                
+            case 2: // CL:Паспорт V1 - ВСЕ ПОЛЯ
+                // ФИО + дата + регион
+                if (empty($request->last_name) || 
+                    empty($request->first_name) || 
+                    empty($request->patronymic) || 
+                    empty($request->birth_date) || 
+                    empty($request->region)) {
+                    return false;
+                }
+                
+                // Паспортные данные
+                if (empty($request->passport_series) || 
+                    empty($request->passport_number) || 
+                    empty($request->passport_date)) {
+                    return false;
+                }
+                
+                // Проверка формата
+                if (strlen($request->passport_series) !== 4 || 
+                    strlen($request->passport_number) !== 6) {
+                    return false;
+                }
+                break;
+                
+            case 3: // AI:АвтоИстория V1 - только номер ТС
+                if (empty($request->vehicle_number)) {
+                    return false;
+                }
+                break;
+                
+            case 4: // CL:Недвижимость - кадастр + тип
+                if (empty($request->cadastral_number) || 
+                    empty($request->property_type)) {
+                    return false;
+                }
+                break;
         }
         
         return true;
@@ -526,29 +556,29 @@ class ReportController extends Controller
     {
         $data = [];
         
-        // Определяем, какие поля НУЖНЫ для каждого типа отчета
-        $fieldMapping = [
-            // CL:Базовый V1 - нужны только эти поля
-            1 => ['last_name', 'first_name', 'patronymic', 'birth_date', 'region'],
-            
-            // CL:Паспорт V1 - нужны эти поля + паспортные данные
-            2 => ['last_name', 'first_name', 'patronymic', 'birth_date', 'region', 
-                'passport_series', 'passport_number', 'passport_date'],
-            
-            // AI:АвтоИстория V1 - нужен только номер ТС
-            3 => ['vehicle_number'],
-            
-            // CL:Недвижимость - нужны только данные недвижимости
-            4 => ['cadastral_number', 'property_type'],
-        ];
+        // Базовые поля - всегда сохраняем, если они есть
+        $data['last_name'] = $request->last_name ?? null;
+        $data['first_name'] = $request->first_name ?? null;
+        $data['patronymic'] = $request->patronymic ?? null;
+        $data['birth_date'] = $request->birth_date ?? null;
+        $data['region'] = $request->region ?? null;
         
-        if (isset($fieldMapping[$reportTypeId])) {
-            foreach ($fieldMapping[$reportTypeId] as $field) {
-                // Если поле есть в запросе - добавляем его (даже если оно пустое)
-                if ($request->has($field)) {
-                    $data[$field] = $request->$field;
-                }
-            }
+        // Специфичные поля в зависимости от типа
+        switch ($reportTypeId) {
+            case 2: // Паспорт
+                $data['passport_series'] = $request->passport_series ?? null;
+                $data['passport_number'] = $request->passport_number ?? null;
+                $data['passport_date'] = $request->passport_date ?? null;
+                break;
+                
+            case 3: // Авто
+                $data['vehicle_number'] = $request->vehicle_number ?? null;
+                break;
+                
+            case 4: // Недвижимость
+                $data['cadastral_number'] = $request->cadastral_number ?? null;
+                $data['property_type'] = $request->property_type ?? null;
+                break;
         }
         
         return $data;
@@ -977,30 +1007,64 @@ class ReportController extends Controller
         $typeName = $reportType ? $reportType->name : "Тип {$reportTypeId}";
         
         switch ($reportTypeId) {
-            case 1:
-                if (empty($rowData['last_name']) || empty($rowData['first_name'])) {
-                    $errors[] = "Строка {$rowNumber}, {$typeName}: нужны Фамилия и Имя";
+            case 1: // CL:Базовый V1
+                $missing = [];
+                if (empty($rowData['last_name'])) $missing[] = 'фамилия';
+                if (empty($rowData['first_name'])) $missing[] = 'имя';
+                if (empty($rowData['patronymic'])) $missing[] = 'отчество';
+                if (empty($rowData['birth_date'])) $missing[] = 'дата рождения';
+                if (empty($rowData['region'])) $missing[] = 'регион';
+                
+                if (!empty($missing)) {
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: отсутствуют: " . implode(', ', $missing);
                     return false;
                 }
                 break;
                 
-            case 2:
-                if (empty($rowData['passport_series']) || empty($rowData['passport_number'])) {
-                    $errors[] = "Строка {$rowNumber}, {$typeName}: нужны серия и номер паспорта";
+            case 2: // CL:Паспорт V1
+                $missing = [];
+                if (empty($rowData['last_name'])) $missing[] = 'фамилия';
+                if (empty($rowData['first_name'])) $missing[] = 'имя';
+                if (empty($rowData['patronymic'])) $missing[] = 'отчество';
+                if (empty($rowData['birth_date'])) $missing[] = 'дата рождения';
+                if (empty($rowData['region'])) $missing[] = 'регион';
+                if (empty($rowData['passport_series'])) $missing[] = 'серия паспорта';
+                if (empty($rowData['passport_number'])) $missing[] = 'номер паспорта';
+                if (empty($rowData['passport_date'])) $missing[] = 'дата выдачи паспорта';
+                
+                if (!empty($missing)) {
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: отсутствуют: " . implode(', ', $missing);
+                    return false;
+                }
+                
+                // Проверка формата
+                $series = preg_replace('/[^0-9]/', '', $rowData['passport_series']);
+                $number = preg_replace('/[^0-9]/', '', $rowData['passport_number']);
+                
+                if (strlen($series) !== 4) {
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: серия паспорта должна быть 4 цифры";
+                    return false;
+                }
+                if (strlen($number) !== 6) {
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: номер паспорта должен быть 6 цифр";
                     return false;
                 }
                 break;
                 
-            case 3:
+            case 3: // AI:АвтоИстория V1
                 if (empty($rowData['vehicle_number'])) {
-                    $errors[] = "Строка {$rowNumber}, {$typeName}: нужен номер ТС";
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: номер ТС обязателен";
                     return false;
                 }
                 break;
                 
-            case 4:
-                if (empty($rowData['cadastral_number']) || empty($rowData['property_type'])) {
-                    $errors[] = "Строка {$rowNumber}, {$typeName}: нужны кадастровый номер и тип";
+            case 4: // CL:Недвижимость
+                $missing = [];
+                if (empty($rowData['cadastral_number'])) $missing[] = 'кадастровый номер';
+                if (empty($rowData['property_type'])) $missing[] = 'тип недвижимости';
+                
+                if (!empty($missing)) {
+                    $errors[] = "Строка {$rowNumber}, {$typeName}: отсутствуют: " . implode(', ', $missing);
                     return false;
                 }
                 break;
@@ -1022,19 +1086,21 @@ class ReportController extends Controller
             'region' => $rowData['region'] ?? null,
         ];
         
-        if (in_array($reportTypeId, [2])) {
-            $data['passport_series'] = preg_replace('/[^0-9]/', '', $rowData['passport_series'] ?? '');
-            $data['passport_number'] = preg_replace('/[^0-9]/', '', $rowData['passport_number'] ?? '');
-            $data['passport_date'] = $this->formatExcelDate($rowData['passport_date'] ?? null);
-        }
-        
-        if (in_array($reportTypeId, [3])) {
-            $data['vehicle_number'] = strtoupper(trim($rowData['vehicle_number'] ?? ''));
-        }
-        
-        if (in_array($reportTypeId, [4])) {
-            $data['cadastral_number'] = $rowData['cadastral_number'] ?? null;
-            $data['property_type'] = $rowData['property_type'] ?? null;
+        switch ($reportTypeId) {
+            case 2: // Паспорт
+                $data['passport_series'] = preg_replace('/[^0-9]/', '', $rowData['passport_series'] ?? '');
+                $data['passport_number'] = preg_replace('/[^0-9]/', '', $rowData['passport_number'] ?? '');
+                $data['passport_date'] = $this->formatExcelDate($rowData['passport_date'] ?? null);
+                break;
+                
+            case 3: // Авто
+                $data['vehicle_number'] = strtoupper(trim($rowData['vehicle_number'] ?? ''));
+                break;
+                
+            case 4: // Недвижимость
+                $data['cadastral_number'] = $rowData['cadastral_number'] ?? null;
+                $data['property_type'] = $rowData['property_type'] ?? null;
+                break;
         }
         
         return $data;

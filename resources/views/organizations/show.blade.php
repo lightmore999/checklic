@@ -24,7 +24,7 @@
                 $canDelegateAny = true;
             } elseif ($isManager) {
                 // Менеджер может делегировать, если он является менеджером этой организации
-                $canDelegateAny = $organization->manager && $organization->manager->user_id == $currentUserId;
+                $canDelegateAny = $organization->manager && $organization->manager->id == $currentUserId;
             }
         }
     @endphp
@@ -187,17 +187,18 @@
                                     </div>
                                 </div>
                                 
+                                <!-- ИСПРАВЛЕНО: Отображение менеджера -->
                                 <div class="d-flex align-items-center">
                                     <i class="bi bi-person-badge text-muted me-2" style="width: 20px;"></i>
                                     <span class="text-muted">Менеджер:</span>
                                     <div class="ms-2">
-                                        @if($organization->manager && $organization->manager->user)
+                                        @if($organization->manager)
                                             <div class="d-flex align-items-center">
                                                 <div class="rounded-circle bg-info d-flex align-items-center justify-content-center me-2" 
                                                      style="width: 28px; height: 28px; color: white; font-size: 0.7rem;">
-                                                    {{ strtoupper(substr($organization->manager->user->name, 0, 1)) }}
+                                                    {{ strtoupper(substr($organization->manager->name, 0, 1)) }}
                                                 </div>
-                                                <div>{{ $organization->manager->user->name }}</div>
+                                                <div>{{ $organization->manager->name }}</div>
                                             </div>
                                         @else
                                             <span class="text-muted">Не назначен</span>
@@ -277,7 +278,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
                             <i class="bi bi-speedometer text-info me-2"></i>
-                            Лимиты владельца
+                            Отчеты владельца
                             <small class="text-muted ms-2">({{ now()->format('d.m.Y') }})</small>
                         </h5>
                         <div class="d-flex gap-2">
@@ -397,7 +398,7 @@
             </div>
             @endif
 
-            <!-- Ответственный менеджер -->
+            <!-- ИСПРАВЛЕНО: Ответственный менеджер -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white border-bottom">
                     <h5 class="mb-0">
@@ -406,16 +407,16 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    @if($organization->manager && $organization->manager->user)
+                    @if($organization->manager)
                         <div class="text-center">
                             <div class="rounded-circle bg-primary d-inline-flex align-items-center justify-content-center mb-3" 
                                  style="width: 60px; height: 60px; color: white; font-size: 1.5rem;">
-                                {{ strtoupper(substr($organization->manager->user->name, 0, 1)) }}
+                                {{ strtoupper(substr($organization->manager->name, 0, 1)) }}
                             </div>
-                            <h6 class="mb-1">{{ $organization->manager->user->name }}</h6>
-                            <p class="text-muted small mb-3">{{ $organization->manager->user->email }}</p>
+                            <h6 class="mb-1">{{ $organization->manager->name }}</h6>
+                            <p class="text-muted small mb-3">{{ $organization->manager->email }}</p>
                             
-                            @if($organization->manager->user->id === Auth::id())
+                            @if($organization->manager->id === Auth::id())
                                 <span class="badge bg-success">Это вы</span>
                             @endif
                         </div>
@@ -460,7 +461,7 @@
         <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
                 <i class="bi bi-share text-warning me-2"></i>
-                Делегированные лимиты
+                Делегированные отчеты
                 <span class="badge bg-warning ms-2">{{ $delegatedLimits->count() }}</span>
             </h5>
             <small class="text-muted">

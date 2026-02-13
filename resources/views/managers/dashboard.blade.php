@@ -89,127 +89,149 @@
     <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
         <h6 class="mb-0">
             <i class="bi bi-speedometer text-info me-2"></i>
-            Ваши лимиты
-            <span class="badge bg-secondary ms-2">{{ now()->format('d.m.Y') }}</span>
+            Ваши отчеты
+            <span class="badge bg-info ms-2">{{ count($limits) }}</span>
         </h6>
         <div class="small text-muted">
             <i class="bi bi-info-circle"></i> Обновлено: {{ now()->format('H:i') }}
         </div>
     </div>
     <div class="card-body">
-        <div class="row">
-            @foreach($limits as $limit)
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-3">
-                <div class="card h-100 border-{{ $limit['is_exhausted'] ? 'danger' : ($limit['only_api'] ? 'warning' : 'primary') }} shadow-sm">
-                    <div class="card-body p-3">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h6 class="mb-0 text-truncate" title="{{ $limit['report_type_name'] }}">
-                                <i class="bi bi-{{ $limit['only_api'] ? 'plug' : 'window' }} me-1"></i>
-                                {{ $limit['report_type_name'] }}
-                            </h6>
-                            @if($limit['only_api'])
-                                <span class="badge bg-warning" title="Только через API">API</span>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Тип отчета</th>
+                        <th>Описание</th>
+                        <th>Доступ через</th>
+                        <th>Всего</th>
+                        <th>Использовано</th>
+                        <th>Доступно</th>
+                        <th>Статус</th>
+                        <th>Прогресс</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($limits as $limit)
+                    <tr>
+                        <td>
+                            <strong>{{ $limit['report_type_name'] }}</strong>
+                        </td>
+                        <td>
+                            @if($limit['description'])
+                                <small class="text-muted">{{ Str::limit($limit['description'], 50) }}</small>
                             @else
-                                <span class="badge bg-primary" title="Доступен в интерфейсе">UI</span>
+                                <span class="text-muted">—</span>
                             @endif
-                        </div>
-                        
-                        @if($limit['description'])
-                            <p class="small text-muted mb-2">{{ Str::limit($limit['description'], 60) }}</p>
-                        @endif
-                        
-                        <!-- ИСПРАВЛЕНО: Показываем доступное количество -->
-                        <div class="text-center my-3">
-                            <div class="display-6 {{ $limit['is_exhausted'] ? 'text-danger' : ($limit['available_quantity'] > 0 ? 'text-success' : 'text-secondary') }}">
-                                {{ $limit['available_quantity'] }}
-                            </div>
-                            <small class="text-muted">доступно запросов</small>
-                        </div>
-                        
-                        <!-- ДОБАВЛЕНО: Информация об использовании -->
-                        <div class="d-flex justify-content-between small text-muted mb-2">
-                            <span><i class="bi bi-box"></i> Всего: {{ $limit['quantity'] }}</span>
-                            <span><i class="bi bi-check-circle-fill text-warning"></i> Использовано: {{ $limit['used_quantity'] }}</span>
-                        </div>
-                        
-                        <!-- Прогресс-бар на основе доступного/всего -->
-                        <div class="progress mb-2" style="height: 6px;">
-                            @php
-                                $percentage = $limit['quantity'] > 0 ? round(($limit['used_quantity'] / $limit['quantity']) * 100) : 0;
-                                $progressClass = $limit['is_exhausted'] ? 'bg-danger' : 
-                                                ($percentage > 80 ? 'bg-danger' : 
-                                                ($percentage > 50 ? 'bg-warning' : 'bg-success'));
-                            @endphp
-                            <div class="progress-bar {{ $progressClass }}" 
-                                style="width: {{ $percentage }}%"
-                                role="progressbar"
-                                aria-valuenow="{{ $percentage }}"
-                                aria-valuemin="0"
-                                aria-valuemax="100">
-                            </div>
-                        </div>
-                        
-                        <div class="d-flex justify-content-between align-items-center mt-2">
-                            <div class="small">
-                                @if($limit['has_limit'])
-                                    <span class="text-success" title="Индивидуальный лимит установлен">
-                                        <i class="bi bi-check-circle-fill"></i> Установлен
-                                    </span>
-                                @else
-                                    <span class="text-muted" title="Лимит не настроен">
-                                        <i class="bi bi-dash-circle"></i> Не настроен
-                                    </span>
-                                @endif
-                            </div>
-                            
+                        </td>
+                        <td>
+                            @if($limit['only_api'])
+                                <span class="badge bg-warning" title="Только через API">
+                                    <i class="bi bi-plug"></i> API
+                                </span>
+                            @else
+                                <span class="badge bg-primary" title="Доступен в интерфейсе">
+                                    <i class="bi bi-window"></i> UI
+                                </span>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ $limit['quantity'] }} шт.</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ $limit['used_quantity'] }} шт.</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ $limit['available_quantity'] > 0 ? 'success' : 'danger' }}">
+                                {{ $limit['available_quantity'] }} шт.
+                            </span>
+                        </td>
+                        <td>
                             @if($limit['is_exhausted'])
                                 <span class="badge bg-danger">
                                     <i class="bi bi-exclamation-triangle"></i> Исчерпан
                                 </span>
                             @elseif(!$limit['has_limit'])
-                                <span class="badge bg-secondary">Нет лимита</span>
+                                <span class="badge bg-secondary">Не настроен</span>
                             @else
                                 <span class="badge bg-success">
                                     <i class="bi bi-check-circle"></i> Активен
                                 </span>
                             @endif
-                        </div>
-                    </div>
-                </div>
-            </div>
-            @endforeach
+                        </td>
+                        <td style="min-width: 150px;">
+                            @if($limit['quantity'] > 0)
+                                @php
+                                    $percentage = round(($limit['used_quantity'] / $limit['quantity']) * 100);
+                                    $progressClass = $limit['is_exhausted'] ? 'bg-danger' : 
+                                                    ($percentage > 80 ? 'bg-danger' : 
+                                                    ($percentage > 50 ? 'bg-warning' : 'bg-success'));
+                                @endphp
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="progress flex-grow-1" style="height: 8px;">
+                                        <div class="progress-bar {{ $progressClass }}" 
+                                             style="width: {{ $percentage }}%"
+                                             role="progressbar"
+                                             aria-valuenow="{{ $percentage }}"
+                                             aria-valuemin="0"
+                                             aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">{{ $percentage }}%</small>
+                                </div>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
         
         <!-- Сводка по лимитам -->
         <div class="mt-3 pt-3 border-top">
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="small text-muted">
-                    @php
-                        $interfaceCount = count(array_filter($limits, fn($l) => !$l['only_api']));
-                        $apiCount = count(array_filter($limits, fn($l) => $l['only_api']));
-                        $exhaustedCount = count(array_filter($limits, fn($l) => $l['is_exhausted']));
-                        $hasLimitCount = count(array_filter($limits, fn($l) => $l['has_limit']));
-                    @endphp
-                    <i class="bi bi-info-circle"></i>
-                    Всего: {{ count($limits) }} | 
-                    UI: {{ $interfaceCount }} | 
-                    API: {{ $apiCount }} | 
-                    Исчерпано: <span class="{{ $exhaustedCount > 0 ? 'text-danger fw-bold' : 'text-success' }}">{{ $exhaustedCount }}</span>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="small text-muted">
+                        @php
+                            $interfaceCount = count(array_filter($limits, fn($l) => !$l['only_api']));
+                            $apiCount = count(array_filter($limits, fn($l) => $l['only_api']));
+                            $exhaustedCount = count(array_filter($limits, fn($l) => $l['is_exhausted']));
+                            $hasLimitCount = count(array_filter($limits, fn($l) => $l['has_limit']));
+                            $totalAvailable = array_sum(array_column($limits, 'available_quantity'));
+                            $totalUsed = array_sum(array_column($limits, 'used_quantity'));
+                            $totalQuantity = array_sum(array_column($limits, 'quantity'));
+                        @endphp
+                        <i class="bi bi-info-circle"></i>
+                        Всего лимитов: {{ count($limits) }} | 
+                        UI: {{ $interfaceCount }} | 
+                        API: {{ $apiCount }} | 
+                        Исчерпано: <span class="{{ $exhaustedCount > 0 ? 'text-danger fw-bold' : 'text-success' }}">{{ $exhaustedCount }}</span>
+                    </div>
                 </div>
-                
-                <div>
-                    <a href="{{ route('limits.index') }}" class="btn btn-sm btn-info">
-                        <i class="bi bi-graph-up me-1"></i> Управление лимитами
-                    </a>
+                <div class="col-md-6">
+                    <div class="small text-muted text-end">
+                        <i class="bi bi-pie-chart"></i>
+                        Всего запросов: {{ $totalQuantity }} | 
+                        Использовано: {{ $totalUsed }} | 
+                        Доступно: <span class="{{ $totalAvailable > 0 ? 'text-success fw-bold' : 'text-danger' }}">{{ $totalAvailable }}</span>
+                    </div>
                 </div>
             </div>
             
             @if($exhaustedCount > 0)
-                <div class="alert alert-danger py-1 px-3 mt-2 mb-0">
+                <div class="alert alert-danger py-2 mt-2 mb-0">
                     <i class="bi bi-exclamation-triangle me-1"></i>
-                    <small>{{ $exhaustedCount }} лимит(ов) исчерпано</small>
+                    <small>{{ $exhaustedCount }} лимит(ов) исчерпано. Обратитесь к администратору для пополнения.</small>
                 </div>
             @endif
+            
+            <div class="text-end mt-3">
+                <a href="{{ route('limits.index') }}" class="btn btn-sm btn-info">
+                    <i class="bi bi-gear me-1"></i> Управление лимитами
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -219,15 +241,15 @@
     <div class="card-header bg-white border-bottom">
         <h6 class="mb-0">
             <i class="bi bi-speedometer text-info me-2"></i>
-            Лимиты
+            Отчеты
         </h6>
     </div>
     <div class="card-body text-center py-5">
         <div class="mb-4">
             <i class="bi bi-graph-up display-1 text-muted"></i>
         </div>
-        <h4 class="text-muted mb-3">Лимиты не настроены</h4>
-        <p class="text-muted mb-4">Настройте лимиты для ваших организаций</p>
+        <h4 class="text-muted mb-3">Отчеты не настроены</h4>
+        <p class="text-muted mb-4">Настройте отчеты для ваших организаций</p>
         <a href="{{ route('limits.create') }}" class="btn btn-info">
             <i class="bi bi-plus-circle me-1"></i> Создать лимит
         </a>

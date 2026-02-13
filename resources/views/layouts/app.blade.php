@@ -153,54 +153,82 @@
                 <nav class="nav flex-column p-3">
                     @auth
                         <!-- Admin Section -->
-                        @if(Auth::user()->isAdmin())
-                            <div class="sidebar-section px-3 py-2">Администрирование</div>
-                            <a href="{{ route('admin.dashboard') }}" 
-                               class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-speedometer2"></i>
-                                Панель админа
-                            </a>
-                            
-                            <a href="{{ route('admin.managers.create') }}" 
-                               class="nav-link {{ request()->routeIs('admin.managers.create') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-person-plus"></i>
-                                Создать менеджера
-                            </a>
-                            
-                            <a href="{{ route('admin.organization.create') }}" 
-                               class="nav-link {{ request()->routeIs('admin.organization.create') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-building-add"></i>
-                                Создать организацию
-                            </a>
-                            <a href="{{ route('limits.index') }}" 
-                               class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-pie-chart"></i>
-                                Управление лимитами
-                            </a>
-                        @endif
+                    @if(Auth::user()->isAdmin())
+                        <div class="sidebar-section px-3 py-2">Администрирование</div>
+                        <a href="{{ route('admin.dashboard') }}" 
+                        class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-speedometer2"></i>
+                            Панель админа
+                        </a>
                         
-                        <!-- Manager Section -->
-                        @if(Auth::user()->role === 'manager')
-                            <div class="sidebar-section px-3 py-2">Управление</div>
-                            <a href="{{ route('manager.dashboard') }}" 
-                               class="nav-link {{ request()->routeIs('manager.dashboard') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-speedometer"></i>
-                                Панель менеджера
-                            </a>
-                            
-                            <a href="{{ route('manager.organization.create') }}" 
-                               class="nav-link {{ request()->routeIs('manager.organization.create') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-building-add"></i>
-                                Создать организацию
-                            </a>
-                            
-                            <a href="{{ route('limits.index') }}" 
-                               class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
-                                <i class="nav-icon bi bi-pie-chart"></i>
-                                Управление лимитами
-                            </a>
-                        @endif
+                        <a href="{{ route('admin.managers.create') }}" 
+                        class="nav-link {{ request()->routeIs('admin.managers.create') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-person-plus"></i>
+                            Создать менеджера
+                        </a>
                         
+                        <!-- ДОБАВЛЕНО: Список менеджеров -->
+                        <a href="{{ route('admin.managers.index') }}" 
+                        class="nav-link {{ request()->routeIs('admin.managers.index') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-people"></i>
+                            Список менеджеров
+                        </a>
+                        
+                        <a href="{{ route('admin.organization.create') }}" 
+                        class="nav-link {{ request()->routeIs('admin.organization.create') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-building-add"></i>
+                            Создать организацию
+                        </a>
+                        
+                        <!-- ДОБАВЛЕНО: Список организаций -->
+                        <a href="{{ route('admin.organizations.list') }}" 
+                        class="nav-link {{ request()->routeIs('admin.organizations.list') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-buildings"></i>
+                            Все организации
+                        </a>
+                        
+                        <a href="{{ route('limits.index') }}" 
+                        class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-pie-chart"></i>
+                            Управление лимитами
+                        </a>
+                    @endif
+
+                    <!-- Manager Section -->
+                    @if(Auth::user()->role === 'manager')
+                        <div class="sidebar-section px-3 py-2">Управление</div>
+                        <a href="{{ route('manager.dashboard') }}" 
+                        class="nav-link {{ request()->routeIs('manager.dashboard') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-speedometer"></i>
+                            Панель менеджера
+                        </a>
+                        
+                        <a href="{{ route('manager.organization.create') }}" 
+                        class="nav-link {{ request()->routeIs('manager.organization.create') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-building-add"></i>
+                            Создать организацию
+                        </a>
+                        
+                        <!-- ДОБАВЛЕНО: Мои организации -->
+                        <a href="{{ route('manager.organizations.list') }}" 
+                        class="nav-link {{ request()->routeIs('manager.organizations.list') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-buildings"></i>
+                            Мои организации
+                        </a>
+                        
+                        <a href="{{ route('limits.index') }}" 
+                        class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-pie-chart"></i>
+                            Управление лимитами
+                        </a>
+                        
+                        <!-- ДОБАВЛЕНО: Профиль менеджера -->
+                        <a href="{{ route('manager.profile') }}" 
+                        class="nav-link {{ request()->routeIs('manager.profile') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-person-circle"></i>
+                            Мой профиль
+                        </a>
+                    @endif
                         <!-- Owner Section -->
                         @if(Auth::user()->role === 'org_owner')
                             <div class="sidebar-section px-3 py-2">Управление</div>

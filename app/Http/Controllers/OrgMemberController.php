@@ -37,7 +37,7 @@ class OrgMemberController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
         
-        // Получаем собственные лимиты сотрудника (если у него есть роль с лимитами)
+        // Получаем собственные лимиты сотрудника
         $personalLimits = Limit::where('user_id', $user->id)
             ->with(['reportType'])
             ->orderBy('date_created', 'desc')
@@ -200,12 +200,15 @@ class OrgMemberController extends Controller
             // Автоматически определяем начальника (владелец организации)
             $bossId = $organization->owner->user_id ?? null;
             
+            // ИСПРАВЛЕНО: manager_id теперь это ID пользователя, а не ID записи из таблицы managers
+            $managerUserId = $organization->manager ? $organization->manager->id : null;
+            
             // Создаем профиль сотрудника
             OrgMemberProfile::create([
                 'user_id' => $memberUser->id,
                 'organization_id' => $organization->id,
                 'boss_id' => $bossId,
-                'manager_id' => $organization->manager->user_id,
+                'manager_id' => $managerUserId,
                 'is_active' => true,
             ]);
             
@@ -245,7 +248,7 @@ class OrgMemberController extends Controller
         // Получаем сотрудника с проверкой, что он принадлежит организации
         $member = OrgMemberProfile::where('id', $memberId)
             ->where('organization_id', $organizationId)
-            ->with(['user', 'boss', 'manager'])
+            ->with(['user', 'boss', 'manager']) // manager теперь User
             ->firstOrFail();
         
         // Получаем делегированные лимиты сотрудника
@@ -315,7 +318,7 @@ class OrgMemberController extends Controller
             $personalLimitsByType[$reportTypeName]['count']++;
         }
         
-        // ДОБАВЛЯЕМ СТАТИСТИКУ ПО ОТЧЕТАМ
+        // Статистика по отчетам
         $reports = Report::where('user_id', $member->user_id)->get();
         
         $totalReports = $reports->count();
@@ -544,18 +547,20 @@ class OrgMemberController extends Controller
     private function getOrganizationWithAccess($user, $organizationId)
     {
         if ($user->isAdmin()) {
+            // ИСПРАВЛЕНО: убрано ->manager.user
             return Organization::where('id', $organizationId)
                 ->whereHas('manager', function($query) use ($user) {
-                    $query->where('admin_id', $user->id);
+                    $query->whereHas('managerProfile', function($subQuery) use ($user) {
+                        $subQuery->where('admin_id', $user->id);
+                    });
                 })
-                ->with(['owner.user', 'manager.user'])
+                ->with(['owner.user', 'manager'])
                 ->firstOrFail();
         } elseif ($user->isManager()) {
+            // ИСПРАВЛЕНО: используем where('manager_id')
             return Organization::where('id', $organizationId)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->with(['owner.user', 'manager.user'])
+                ->where('manager_id', $user->id)
+                ->with(['owner.user', 'manager'])
                 ->firstOrFail();
         } else {
             // Для владельца организации
@@ -563,7 +568,7 @@ class OrgMemberController extends Controller
                 ->whereHas('owner', function($query) use ($user) {
                     $query->where('user_id', $user->id);
                 })
-                ->with(['owner.user', 'manager.user'])
+                ->with(['owner.user', 'manager'])
                 ->firstOrFail();
         }
     }

@@ -23,11 +23,11 @@
                             <div class="row">
                                 <div class="col-md-3">
                                     <strong>Создан:</strong><br>
-                                    {{ $limit->created_at->format('d.m.Y H:i') }}
+                                    {{ $limit->created_at ? $limit->created_at->format('d.m.Y H:i') : 'Не указано' }}
                                 </div>
                                 <div class="col-md-3">
                                     <strong>Обновлен:</strong><br>
-                                    {{ $limit->updated_at->format('d.m.Y H:i') }}
+                                    {{ $limit->updated_at ? $limit->updated_at->format('d.m.Y H:i') : 'Не указано' }}
                                 </div>
                                 <div class="col-md-3">
                                     <strong>Текущий статус:</strong><br>
@@ -39,9 +39,62 @@
                                 </div>
                                 <div class="col-md-3">
                                     <strong>Осталось:</strong><br>
-                                    <span class="badge bg-{{ $limit->quantity > 0 ? 'primary' : 'danger' }}">
-                                        {{ $limit->quantity }} шт.
+                                    <span class="badge bg-{{ $limit->getAvailableQuantity() > 0 ? 'primary' : 'danger' }}">
+                                        {{ $limit->getAvailableQuantity() }} шт.
                                     </span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ИСПРАВЛЕНО: Отображение информации о пользователе и его организации -->
+                        <div class="alert alert-light border">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Пользователь:</strong>
+                                    @if($limit->user)
+                                        <div class="mt-2">
+                                            <span class="badge bg-{{ $limit->user->getRoleColor() ?? 'secondary' }}">
+                                                {{ $limit->user->getRoleDisplayName() ?? 'Нет роли' }}
+                                            </span>
+                                            <div class="mt-2">
+                                                <strong>{{ $limit->user->name }}</strong><br>
+                                                <small>{{ $limit->user->email }}</small>
+                                            </div>
+                                        </div>
+                                    @else
+                                        <span class="text-muted">Пользователь не указан</span>
+                                    @endif
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Организация:</strong>
+                                    @if($limit->user)
+                                        @php
+                                            $userOrg = null;
+                                            if ($limit->user->isOrgOwner() && $limit->user->orgOwnerProfile) {
+                                                $userOrg = $limit->user->orgOwnerProfile->organization;
+                                            } elseif ($limit->user->isOrgMember() && $limit->user->orgMemberProfile) {
+                                                $userOrg = $limit->user->orgMemberProfile->organization;
+                                            }
+                                        @endphp
+                                        
+                                        @if($userOrg)
+                                            <div class="mt-2">
+                                                <strong>{{ $userOrg->name }}</strong><br>
+                                                <small>ID: {{ $userOrg->id }}</small>
+                                                @if($userOrg->status === 'active')
+                                                    <span class="badge bg-success ms-2">Активна</span>
+                                                @endif
+                                            </div>
+                                        @elseif($limit->user->isManager())
+                                            <div class="mt-2">
+                                                <span class="badge bg-secondary">Менеджер (не привязан к организации)</span>
+                                            </div>
+                                        @else
+                                            <span class="text-muted">Не привязан к организации</span>
+                                        @endif
+                                    @else
+                                        <span class="text-muted">Не указана</span>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -87,7 +140,7 @@
                                                 data-role="{{ $user->role }}"
                                                 data-organization="{{ $user->getOrganization()?->name ?? 'Не указана' }}">
                                                 {{ $user->name }} 
-                                                <small class="text-muted">({{ $user->email }})</small>
+                                                ({{ $user->email }})
                                                 - {{ $user->getRoleDisplayName() }}
                                             </option>
                                         @endforeach
@@ -96,7 +149,7 @@
                                         <span class="invalid-feedback">{{ $message }}</span>
                                     @enderror
                                     <small class="form-text text-muted">
-                                        Текущий пользователь: <strong>{{ $limit->user->name }}</strong>
+                                        Текущий пользователь: <strong>{{ $limit->user->name ?? 'Не указан' }}</strong>
                                     </small>
                                 </div>
 
@@ -169,7 +222,7 @@
                                     </label>
                                     <input type="date" name="date_created" id="date_created" 
                                            class="form-control @error('date_created') is-invalid @enderror"
-                                           value="{{ old('date_created', $limit->date_created->format('Y-m-d')) }}" 
+                                           value="{{ old('date_created', $limit->date_created ? $limit->date_created->format('Y-m-d') : now()->format('Y-m-d')) }}" 
                                            min="{{ now()->format('Y-m-d') }}"
                                            required>
                                     @error('date_created')
@@ -201,13 +254,13 @@
                                         <div class="form-check">
                                             <input type="checkbox" class="form-check-input" id="reset_usage" name="reset_usage">
                                             <label class="form-check-label" for="reset_usage">
-                                                <strong>Сбросить использование лимита</strong> - установить максимальное значение
+                                                <strong>Сбросить использование лимита</strong> - установить использованное количество в 0
                                             </label>
                                         </div>
                                         <div class="form-check mt-2">
                                             <input type="checkbox" class="form-check-input" id="extend_all" name="extend_all">
                                             <label class="form-check-label" for="extend_all">
-                                                <strong>Применить ко всем лимитам пользователя</strong> - обновить все лимиты этого пользователя на эту дату
+                                                <strong>Применить ко всем лимитам пользователя</strong> - обновить все отчеты этого пользователя на эту дату
                                             </label>
                                         </div>
                                     </div>
@@ -221,16 +274,18 @@
                                 <div class="d-flex justify-content-between">
                                     <div>
                                         <button type="submit" class="btn btn-warning">
-                                            <i class="fas fa-save"></i> Обновить лимит
+                                            <i class="fas fa-save"></i> Обновить отчет
                                         </button>
                                         <button type="button" class="btn btn-danger" onclick="confirmDelete()">
-                                            <i class="fas fa-trash"></i> Удалить лимит
+                                            <i class="fas fa-trash"></i> Удалить отчет
                                         </button>
                                     </div>
                                     <div>
-                                        <a href="{{ route('users.limits', $limit->user) }}" class="btn btn-info">
-                                            <i class="fas fa-list"></i> Все лимиты пользователя
-                                        </a>
+                                        @if($limit->user)
+                                            <a href="{{ route('users.limits', $limit->user) }}" class="btn btn-info">
+                                                <i class="fas fa-list"></i> Все отчеты пользователя
+                                            </a>
+                                        @endif
                                         <a href="{{ route('limits.index') }}" class="btn btn-secondary">
                                             <i class="fas fa-arrow-left"></i> Вернуться к списку
                                         </a>
@@ -272,6 +327,12 @@
         line-height: 1.5;
         color: #495057;
     }
+    .mr-2 {
+        margin-right: 0.5rem;
+    }
+    .ms-2 {
+        margin-left: 0.5rem;
+    }
 </style>
 @endpush
 
@@ -287,7 +348,15 @@
         });
         
         // Показать информацию о выбранном пользователе
-        $('#user_id').trigger('change');
+        $('#user_id').on('change', function() {
+            var selected = $(this).find('option:selected');
+            var role = selected.data('role');
+            var organization = selected.data('organization');
+            
+            if (selected.val()) {
+                console.log('Выбран пользователь с ролью:', role, 'организация:', organization);
+            }
+        }).trigger('change');
         
         // Функция изменения количества
         window.adjustQuantity = function(amount) {
@@ -304,7 +373,7 @@
             
             switch(type) {
                 case 'today':
-                    // сегодня - уже установлено
+                    // сегодня
                     break;
                 case 'tomorrow':
                     date.setDate(date.getDate() + 1);
@@ -314,7 +383,11 @@
                     break;
             }
             
-            var formattedDate = date.toISOString().split('T')[0];
+            var year = date.getFullYear();
+            var month = String(date.getMonth() + 1).padStart(2, '0');
+            var day = String(date.getDate()).padStart(2, '0');
+            var formattedDate = year + '-' + month + '-' + day;
+            
             $('#date_created').val(formattedDate);
         };
         
@@ -336,19 +409,15 @@
             });
         };
         
-        // Если выбрана опция сброса, установить максимальное значение
+        // Если выбрана опция сброса, показываем предупреждение
         $('#reset_usage').on('change', function() {
             if (this.checked) {
-                var currentValue = parseInt($('#quantity').val()) || 0;
-                if (currentValue < 100) {
-                    $('#quantity').val(100);
-                    Swal.fire({
-                        icon: 'info',
-                        title: 'Количество установлено',
-                        text: 'Установлено значение 100 как максимальное',
-                        timer: 1500
-                    });
-                }
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Сброс использования',
+                    text: 'При сохранении использованное количество будет сброшено до 0',
+                    timer: 3000
+                });
             }
         });
         
@@ -364,7 +433,10 @@
                     title: 'Некорректная дата',
                     text: 'Дата не может быть меньше текущей',
                 });
-                $(this).val('{{ now()->format("Y-m-d") }}');
+                var year = today.getFullYear();
+                var month = String(today.getMonth() + 1).padStart(2, '0');
+                var day = String(today.getDate()).padStart(2, '0');
+                $(this).val(year + '-' + month + '-' + day);
             }
         });
     });

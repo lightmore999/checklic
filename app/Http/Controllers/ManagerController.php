@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Manager;
 use App\Models\Organization;
+use App\Models\ReportType;
+use App\Models\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -43,24 +45,37 @@ class ManagerController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
         
-        // 1. Создаем пользователя с ролью manager
-        $managerUser = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => 'manager',
-            'email_verified_at' => now(),
-            'is_active' => true,
-        ]);
+        DB::beginTransaction();
         
-        // 2. Создаем профиль менеджера с ссылкой на админа
-        Manager::create([
-            'user_id' => $managerUser->id,
-            'admin_id' => $admin->id,
-        ]);
-        
-        return redirect()->route('admin.dashboard')
-            ->with('success', 'Менеджер успешно создан');
+        try {
+            // 1. Создаем пользователя с ролью manager
+            $managerUser = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'role' => 'manager',
+                'email_verified_at' => now(),
+                'is_active' => true,
+            ]);
+            
+            // 2. Создаем профиль менеджера с ссылкой на админа
+            Manager::create([
+                'user_id' => $managerUser->id,
+                'admin_id' => $admin->id,
+            ]);
+            
+            DB::commit();
+            
+            return redirect()->route('admin.dashboard')
+                ->with('success', 'Менеджер успешно создан');
+                
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return back()
+                ->withInput()
+                ->with('error', 'Ошибка при создании менеджера: ' . $e->getMessage());
+        }
     }
     
     /**
@@ -74,20 +89,67 @@ class ManagerController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
-        $manager = User::with('managerProfile.admin')
-            ->where('id', $id)
+        // Проверяем, что менеджер принадлежит этому админу
+        $manager = User::where('id', $id)
             ->where('role', 'manager')
+            ->whereHas('managerProfile', function($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })
+            ->with('managerProfile.admin')
             ->firstOrFail();
         
-        // Организации этого менеджера
-        $organizations = Organization::whereHas('manager', function($query) use ($manager) {
-                $query->where('user_id', $manager->id);
-            })
+        // Получаем организации этого менеджера
+        $organizations = Organization::where('manager_id', $manager->id)
             ->with(['owner.user'])
             ->orderBy('created_at', 'desc')
             ->get();
         
-        return view('managers.show', compact('admin', 'manager', 'organizations'));
+        // === ДОБАВЛЕНО: ЛИМИТЫ МЕНЕДЖЕРА ===
+        $limits = [];
+        
+        // Получаем ВСЕ типы отчетов
+        $reportTypes = ReportType::all();
+        
+        foreach ($reportTypes as $reportType) {
+            // ПОЛУЧАЕМ ПОСЛЕДНИЙ ЛИМИТ МЕНЕДЖЕРА
+            $limit = Limit::where('user_id', $manager->id)
+                ->where('report_type_id', $reportType->id)
+                ->orderBy('date_created', 'desc')
+                ->orderBy('created_at', 'desc')
+                ->first();
+            
+            // Логика отображения:
+            // 1. Если only_api = false, ВСЕГДА показываем
+            // 2. Если only_api = true, показываем ТОЛЬКО если есть лимит
+            if (!$reportType->only_api || ($reportType->only_api && $limit !== null)) {
+                $quantity = $limit ? $limit->quantity : 0;
+                $used_quantity = $limit ? $limit->used_quantity : 0;
+                $available_quantity = $limit ? ($limit->quantity - $limit->used_quantity) : 0;
+                
+                $limits[] = [
+                    'report_type_id' => $reportType->id,
+                    'report_type_name' => $reportType->name,
+                    'description' => $reportType->description,
+                    'only_api' => $reportType->only_api,
+                    'quantity' => $quantity,
+                    'used_quantity' => $used_quantity,
+                    'available_quantity' => $available_quantity,
+                    'is_exhausted' => $limit ? ($limit->quantity - $limit->used_quantity <= 0) : true,
+                    'has_limit' => $limit !== null,
+                    'date_created' => $limit ? $limit->date_created->format('d.m.Y') : null,
+                ];
+            }
+        }
+        
+        // Сортируем лимиты: сначала интерфейсные, потом API, потом по имени
+        usort($limits, function($a, $b) {
+            if ($a['only_api'] !== $b['only_api']) {
+                return $a['only_api'] ? 1 : -1;
+            }
+            return strcmp($a['report_type_name'], $b['report_type_name']);
+        });
+        
+        return view('managers.show', compact('admin', 'manager', 'organizations', 'limits'));
     }
 
     /**
@@ -101,8 +163,12 @@ class ManagerController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
+        // Проверяем, что менеджер принадлежит этому админу
         $manager = User::where('id', $id)
             ->where('role', 'manager')
+            ->whereHas('managerProfile', function($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })
             ->firstOrFail();
         
         return view('managers.edit', compact('admin', 'manager'));
@@ -119,8 +185,12 @@ class ManagerController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
+        // Проверяем, что менеджер принадлежит этому админу
         $manager = User::where('id', $id)
             ->where('role', 'manager')
+            ->whereHas('managerProfile', function($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })
             ->firstOrFail();
         
         // Правила валидации
@@ -163,8 +233,12 @@ class ManagerController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
+        // Проверяем, что менеджер принадлежит этому админу
         $manager = User::where('id', $id)
             ->where('role', 'manager')
+            ->whereHas('managerProfile', function($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })
             ->firstOrFail();
         
         // Нельзя изменить статус самому себе
@@ -209,8 +283,12 @@ class ManagerController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
+        // Проверяем, что менеджер принадлежит этому админу
         $manager = User::where('id', $id)
             ->where('role', 'manager')
+            ->whereHas('managerProfile', function($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })
             ->firstOrFail();
         
         // Нельзя удалить самого себя
@@ -218,23 +296,32 @@ class ManagerController extends Controller
             return back()->with('error', 'Нельзя удалить самого себя');
         }
         
-        // Проверяем, есть ли у менеджера организации
-        $hasOrganizations = Organization::whereHas('manager', function($query) use ($manager) {
-            $query->where('user_id', $manager->id);
-        })->exists();
+        // ИСПРАВЛЕНО: Проверяем, есть ли у менеджера организации
+        $hasOrganizations = Organization::where('manager_id', $manager->id)->exists();
         
         if ($hasOrganizations) {
             return back()->with('error', 'Нельзя удалить менеджера, у которого есть организации. Сначала передайте организации другому менеджеру.');
         }
         
-        // Удаляем профиль менеджера
-        $manager->managerProfile()->delete();
+        DB::beginTransaction();
         
-        // Удаляем пользователя
-        $manager->delete();
-        
-        return redirect()->route('admin.dashboard')
-            ->with('success', "Менеджер {$manager->name} удален");
+        try {
+            // Удаляем профиль менеджера
+            $manager->managerProfile()->delete();
+            
+            // Удаляем пользователя
+            $manager->delete();
+            
+            DB::commit();
+            
+            return redirect()->route('admin.dashboard')
+                ->with('success', "Менеджер {$manager->name} удален");
+                
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return back()->with('error', 'Ошибка при удалении менеджера: ' . $e->getMessage());
+        }
     }
     
     /**
@@ -250,37 +337,33 @@ class ManagerController extends Controller
         
         // === СТАТИСТИКА ===
         $stats = [
-            'total_organizations' => Organization::whereHas('manager', function($query) use ($manager) {
-                $query->where('user_id', $manager->id);
-            })->count(),
+            'total_organizations' => Organization::where('manager_id', $manager->id)->count(),
             
-            'active_organizations' => Organization::where('status', 'active')
-                ->whereHas('manager', function($query) use ($manager) {
-                    $query->where('user_id', $manager->id);
-                })->count(),
+            'active_organizations' => Organization::where('manager_id', $manager->id)
+                ->where('status', 'active')
+                ->count(),
             
-            'pending_organizations' => Organization::where('status', 'pending')
-                ->whereHas('manager', function($query) use ($manager) {
-                    $query->where('user_id', $manager->id);
-                })->count(),
+            'pending_organizations' => Organization::where('manager_id', $manager->id)
+                ->where('status', 'pending')
+                ->count(),
         ];
         
         // === ЛИМИТЫ МЕНЕДЖЕРА ===
         $limits = [];
         
         // Получаем ВСЕ типы отчетов
-        $reportTypes = \App\Models\ReportType::all();
+        $reportTypes = ReportType::all();
         
         foreach ($reportTypes as $reportType) {
-            // ПОЛУЧАЕМ ПОСЛЕДНИЙ ЛИМИТ МЕНЕДЖЕРА (БЕЗ ПРИВЯЗКИ К ДАТЕ)
-            $limit = \App\Models\Limit::where('user_id', $manager->id)
+            // ПОЛУЧАЕМ ПОСЛЕДНИЙ ЛИМИТ МЕНЕДЖЕРА
+            $limit = Limit::where('user_id', $manager->id)
                 ->where('report_type_id', $reportType->id)
                 ->orderBy('date_created', 'desc')
                 ->orderBy('created_at', 'desc')
                 ->first();
             
             // Логика отображения:
-            // 1. Если only_api = false, ВСЕГДА показываем (даже если лимит = 0 или не установлен)
+            // 1. Если only_api = false, ВСЕГДА показываем
             // 2. Если only_api = true, показываем ТОЛЬКО если есть лимит
             if (!$reportType->only_api || ($reportType->only_api && $limit !== null)) {
                 $quantity = $limit ? $limit->quantity : 0;
@@ -310,16 +393,14 @@ class ManagerController extends Controller
             return strcmp($a['report_type_name'], $b['report_type_name']);
         });
         
-        // === ПОСЛЕДНИЕ ОРГАНИЗАЦИИ ===
-        $organizations = Organization::whereHas('manager', function($query) use ($manager) {
-                $query->where('user_id', $manager->id);
-            })
+        // ИСПРАВЛЕНО: Получаем организации менеджера
+        $organizations = Organization::where('manager_id', $manager->id)
             ->with(['owner.user'])
             ->orderBy('created_at', 'desc')
             ->take(5)
             ->get();
         
-        // === АДМИН МЕНЕДЖЕРА ===
+        // Получаем админа менеджера
         $admin = $manager->managerProfile->admin ?? null;
         
         return view('managers.dashboard', compact(
@@ -344,7 +425,13 @@ class ManagerController extends Controller
         
         $admin = $user->managerProfile->admin ?? null;
         
-        return view('managers.profile', compact('user', 'admin'));
+        // ИСПРАВЛЕНО: Получаем статистику организаций менеджера
+        $organizationsCount = Organization::where('manager_id', $user->id)->count();
+        $activeOrganizationsCount = Organization::where('manager_id', $user->id)
+            ->where('status', 'active')
+            ->count();
+        
+        return view('managers.profile', compact('user', 'admin', 'organizationsCount', 'activeOrganizationsCount'));
     }
     
     /**
@@ -389,5 +476,36 @@ class ManagerController extends Controller
         
         return redirect()->route('manager.profile')
             ->with('success', 'Профиль успешно обновлен');
+    }
+    
+    /**
+     * Список всех менеджеров админа (для админа)
+     */
+    public function index()
+    {
+        $admin = Auth::user();
+        
+        if (!$admin->isAdmin()) {
+            abort(403, 'Доступ запрещен');
+        }
+        
+        // ИСПРАВЛЕНО: Получаем менеджеров этого админа
+        $managers = User::where('role', 'manager')
+            ->whereHas('managerProfile', function($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })
+            ->with('managerProfile')
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        // Добавляем статистику по организациям для каждого менеджера
+        foreach ($managers as $manager) {
+            $manager->organizations_count = Organization::where('manager_id', $manager->id)->count();
+            $manager->active_organizations_count = Organization::where('manager_id', $manager->id)
+                ->where('status', 'active')
+                ->count();
+        }
+        
+        return view('managers.index', compact('admin', 'managers'));
     }
 }

@@ -1,20 +1,21 @@
 @extends('layouts.app')
 
-@section('title', 'Панель владельца организации')
+@section('title', 'Панель владельца организации - ' . $organization->name)
 @section('page-icon', 'bi-buildings')
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="mb-0">
-        <i class="bi bi-buildings text-success"></i> Панель владельца организации
+        <i class="bi bi-buildings text-success"></i> {{ $organization->name }}
     </h2>
     <div>
-        <span class="badge bg-success fs-6">Владелец</span>
+        <span class="badge bg-success fs-6">Владелец организации</span>
     </div>
 </div>
 
-<!-- Информация о владельце -->
+<!-- Информация о владельце и организации -->
 <div class="row mb-4">
+    <!-- Профиль владельца -->
     <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white border-bottom">
@@ -32,20 +33,13 @@
                 <p class="text-muted">{{ Auth::user()->email }}</p>
                 
                 <div class="mb-3">
-                    <span class="badge bg-success">Владелец организации</span>
+                    <span class="badge bg-success">Владелец</span>
                     @if(Auth::user()->is_active)
                         <span class="badge bg-success">Активен</span>
                     @else
                         <span class="badge bg-danger">Неактивен</span>
                     @endif
                 </div>
-                
-                @if($organization->manager)
-                    <div class="text-muted small mt-3">
-                        <div class="mb-1">Ваш менеджер:</div>
-                        <div class="fw-bold">{{ $organization->manager->user->name ?? 'Не назначен' }}</div>
-                    </div>
-                @endif
             </div>
         </div>
     </div>
@@ -53,18 +47,17 @@
     <!-- Информация об организации -->
     <div class="col-md-8">
         <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white border-bottom">
                 <h6 class="mb-0">
                     <i class="bi bi-building text-success me-2"></i>
-                    Ваша организация
+                    Организация: <strong class="ms-1">{{ $organization->name }}</strong>
                 </h6>
-                <span class="badge bg-success">{{ $organization->name }}</span>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <strong>Статус организации:</strong>
+                            <strong>Статус:</strong>
                             @switch($organization->status)
                                 @case('active')
                                     <span class="badge bg-success ms-2">Активна</span>
@@ -80,12 +73,17 @@
                         
                         <div class="mb-3">
                             <strong>Сотрудников:</strong>
-                            <span class="ms-2">{{ $membersCount ?? 0 }} / {{ $activeMembersCount ?? 0 }} активных</span>
+                            <span class="ms-2">{{ $membersCount }} / {{ $activeMembersCount }} активных</span>
                         </div>
                         
                         <div class="mb-3">
                             <strong>Создана:</strong>
                             <span class="ms-2">{{ $organization->created_at->format('d.m.Y') }}</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <strong>ИНН/КПП:</strong>
+                            <span class="ms-2">{{ $organization->inn ?? 'Не указан' }} / {{ $organization->kpp ?? 'Не указан' }}</span>
                         </div>
                     </div>
                     
@@ -109,6 +107,16 @@
                             </span>
                         </div>
                         @endif
+                        
+                        <div class="mb-3">
+                            <strong>Адрес:</strong>
+                            <span class="ms-2">{{ $organization->address ?? 'Не указан' }}</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <strong>Телефон:</strong>
+                            <span class="ms-2">{{ $organization->phone ?? 'Не указан' }}</span>
+                        </div>
                     </div>
                 </div>
                 
@@ -130,12 +138,78 @@
     </div>
 </div>
 
+<!-- Информация о менеджере -->
+<!-- Информация о менеджере -->
+@if($manager)
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom py-2">
+                <h6 class="mb-0">
+                    <i class="bi bi-person-workspace text-primary me-1"></i>
+                    Ваш менеджер: <strong>{{ $manager->name }}</strong>
+                </h6>
+            </div>
+            <div class="card-body py-2">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                <i class="bi bi-envelope text-secondary"></i>
+                                <a href="mailto:{{ $manager->email }}" class="text-decoration-none ms-1">
+                                    {{ $manager->email }}
+                                </a>
+                            </div>
+                            
+                            @php
+                                $managerPhone = $manager->managerProfile->phone ?? $manager->phone ?? null;
+                            @endphp
+                            @if($managerPhone)
+                            <div>
+                                <i class="bi bi-telephone text-secondary ms-3"></i>
+                                <a href="tel:{{ $managerPhone }}" class="text-decoration-none ms-1">
+                                    {{ $managerPhone }}
+                                </a>
+                            </div>
+                            @endif
+                        </div>
+                    </div>
+                    
+                    @php
+                        $managerTelegram = $manager->managerProfile->telegram ?? $manager->telegram ?? null;
+                    @endphp
+                    @if($managerTelegram)
+                    <div class="col-md-4 text-md-end mt-2 mt-md-0">
+                        <a href="https://t.me/{{ $managerTelegram }}" 
+                           class="badge bg-info text-decoration-none px-3 py-2" 
+                           target="_blank">
+                            <i class="bi bi-telegram"></i> Telegram
+                        </a>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@else
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info py-2 mb-0">
+            <i class="bi bi-info-circle me-2"></i>
+            Менеджер не назначен. 
+            <a href="mailto:support@example.com" class="alert-link">Написать в поддержку</a>
+        </div>
+    </div>
+</div>
+@endif
+
 <!-- Лимиты владельца -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
         <h6 class="mb-0">
             <i class="bi bi-speedometer text-info me-2"></i>
-            Ваши лимиты
+            Ваши отчеты
             @if($ownerLimits->count() > 0)
                 <span class="badge bg-info ms-2">{{ $ownerLimits->count() }}</span>
             @endif
@@ -166,16 +240,9 @@
                     <tbody>
                         @foreach($ownerLimits as $limit)
                         @php
-                            // Используем used_quantity из модели
                             $usedAmount = $limit->used_quantity ?? 0;
-                            
-                            // Сумма делегированных лимитов для этого лимита
                             $delegatedAmount = $delegatedLimits->where('limit_id', $limit->id)->sum('quantity');
-                            
-                            // Общее выделенное = текущий остаток + использовано + делегировано
                             $totalAllocated = $limit->quantity + $usedAmount + $delegatedAmount;
-                            
-                            // Доступно = текущий остаток в лимите (то что в $limit->quantity)
                             $availableAmount = $limit->quantity;
                         @endphp
                         <tr>
@@ -216,8 +283,13 @@
         @else
             <div class="text-center py-4">
                 <i class="bi bi-speedometer fs-1 text-muted mb-3"></i>
-                <h5 class="text-muted">Лимиты не назначены</h5>
+                <h5 class="text-muted">Отчеты не назначены</h5>
                 <p class="text-muted mb-3">Обратитесь к менеджеру для получения лимитов</p>
+                @if($manager)
+                <a href="mailto:{{ $manager->email }}" class="btn btn-primary">
+                    <i class="bi bi-envelope"></i> Связаться с менеджером
+                </a>
+                @endif
             </div>
         @endif
     </div>
@@ -228,7 +300,7 @@
     <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
         <h6 class="mb-0">
             <i class="bi bi-share text-warning me-2"></i>
-            Делегированные лимиты
+            Делегированные отчеты
             @if($delegatedLimits->count() > 0)
                 <span class="badge bg-warning ms-2">{{ $delegatedLimits->count() }}</span>
             @endif
@@ -244,17 +316,15 @@
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
-                        <thead>
-                            <tr>
-                                <th>Сотрудник</th>
-                                <th>Тип отчета</th>
-                                <th>Дата лимита</th>
-                                <th>Делегировано/Использовано</th> 
-                                <th>Дата делегирования</th>
-                                <th>Статус</th>
-                                <th>Действия</th>
-                            </tr>
-                        </thead>
+                        <tr>
+                            <th>Сотрудник</th>
+                            <th>Тип отчета</th>
+                            <th>Дата лимита</th>
+                            <th>Делегировано/Использовано</th>
+                            <th>Дата делегирования</th>
+                            <th>Статус</th>
+                            <th>Действия</th>
+                        </tr>
                     </thead>
                     <tbody>
                         @foreach($delegatedLimits as $delegated)
@@ -322,7 +392,7 @@
                     @elseif($availableEmployees->count() == 0)
                         У вас нет активных сотрудников
                     @else
-                        Начните делегировать лимиты своим сотрудникам
+                        Начните делегировать отчеты своим сотрудникам
                     @endif
                 </p>
                 @if($ownerLimits->where('quantity', '>', 0)->count() > 0 && $availableEmployees->count() > 0)
@@ -340,7 +410,7 @@
     <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
         <h6 class="mb-0">
             <i class="bi bi-people text-primary me-2"></i>
-            Ваши сотрудники
+            Сотрудники организации
             @if($membersCount > 0)
                 <span class="badge bg-primary ms-2">{{ $membersCount }}</span>
             @endif
@@ -365,7 +435,6 @@
                 <div class="col-md-6 col-lg-4 mb-3">
                     <div class="card border h-100">
                         <div class="card-body p-3">
-                            <!-- Заголовок сотрудника -->
                             <div class="d-flex align-items-center mb-3">
                                 <div class="rounded-circle bg-info d-flex align-items-center justify-content-center me-3" 
                                      style="width: 40px; height: 40px; color: white; font-size: 1rem;">
@@ -389,7 +458,6 @@
                                 </div>
                             </div>
                             
-                            <!-- Статистика по лимитам -->
                             @if($hasDelegated)
                                 <div class="mb-3 border-top pt-2">
                                     <small class="text-muted d-block mb-2">Статистика по лимитам:</small>
@@ -408,7 +476,6 @@
                                         </span>
                                     </div>
                                     
-                                    <!-- Виды лимитов -->
                                     @if($memberDelegated->count() > 0)
                                         <small class="text-muted d-block mb-1">Виды лимитов:</small>
                                         <div class="mt-1">
@@ -449,7 +516,6 @@
                                 </div>
                             @endif
                             
-                            <!-- Кнопки действий -->
                             <div class="border-top pt-3">
                                 <div class="d-flex justify-content-between">
                                     <div class="d-flex gap-1">
@@ -525,9 +591,9 @@
                                 <select name="limit_id" id="limit_id" class="form-select" required>
                                     <option value="">Выберите лимит</option>
                                     @foreach($ownerLimits as $limit)
-                                        @if($limit->getAvailableQuantity() > 0) <!-- Используем новый метод -->
+                                        @if($limit->getAvailableQuantity() > 0)
                                             <option value="{{ $limit->id }}" 
-                                                    data-available="{{ $limit->getAvailableQuantity() }}" <!-- Изменить здесь -->
+                                                    data-available="{{ $limit->getAvailableQuantity() }}"
                                                     data-name="{{ $limit->reportType->name ?? 'Без типа' }}"
                                                     data-date="{{ $limit->date_created->format('d.m.Y') }}">
                                                 {{ $limit->reportType->name ?? 'Без типа' }} 
@@ -614,21 +680,44 @@
         </div>
     </div>
 </div>
+
+<!-- Кнопка быстрой связи с менеджером (плавающая) -->
+@if($manager)
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div class="dropdown">
+        <button class="btn btn-primary rounded-circle p-3 shadow" type="button" data-bs-toggle="dropdown" style="width: 60px; height: 60px;">
+            <i class="bi bi-chat-dots-fill fs-4"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li><h6 class="dropdown-header">Связаться с менеджером</h6></li>
+            <li><a class="dropdown-item" href="mailto:{{ $manager->email }}">
+                <i class="bi bi-envelope me-2"></i> Email
+            </a></li>
+            @php
+                $managerTelegram = $manager->managerProfile->telegram ?? $manager->telegram ?? null;
+            @endphp
+            @if($managerTelegram)
+            <li><a class="dropdown-item" href="https://t.me/{{ $managerTelegram }}" target="_blank">
+                <i class="bi bi-telegram me-2"></i> Telegram
+            </a></li>
+            @endif
+            @php
+                $managerPhone = $manager->managerProfile->phone ?? $manager->phone ?? null;
+            @endphp
+            @if($managerPhone)
+            <li><a class="dropdown-item" href="tel:{{ $managerPhone }}">
+                <i class="bi bi-telephone me-2"></i> Позвонить
+            </a></li>
+            @endif
+        </ul>
+    </div>
+</div>
+@endif
 @endsection
 
 @push('scripts')
 <script>
     $(document).ready(function() {
-        // Инициализация данных
-        let limits = {
-            @foreach($ownerLimits as $limit)
-                {{ $limit->id }}: {
-                    available: {{ $limit->quantity }},
-                    name: '{{ $limit->reportType->name ?? "Без типа" }}',
-                    date: '{{ $limit->date_created->format("d.m.Y") }}'
-                },
-            @endforeach
-        };
         
         let employees = {
             @foreach($availableEmployees as $employee)
@@ -639,13 +728,6 @@
                 },
             @endforeach
         };
-        
-        // Кнопки делегирования в таблице лимитов
-        $('.delegate-btn[data-limit-id]').on('click', function() {
-            const limitId = $(this).data('limit-id');
-            $('#limit_id').val(limitId).trigger('change');
-            $('#delegateModal').modal('show');
-        });
         
         // Кнопки делегирования в карточках сотрудников
         $('.delegate-btn[data-employee-id]').on('click', function() {
@@ -667,7 +749,6 @@
                 $('#maxAmount').text(limit.available);
                 $('#quantity').attr('max', limit.available);
                 
-                // Проверка текущего значения количества
                 const current = parseInt($('#quantity').val()) || 1;
                 if (current > limit.available) {
                     $('#quantity').val(Math.min(1, limit.available));
@@ -760,15 +841,5 @@
             $('#user_id').trigger('change');
         });
     });
-     
-    let limits = {
-        @foreach($ownerLimits as $limit)
-            {{ $limit->id }}: {
-                available: {{ $limit->getAvailableQuantity() }}, // Используем новый метод
-                name: '{{ $limit->reportType->name ?? "Без типа" }}',
-                date: '{{ $limit->date_created->format("d.m.Y") }}'
-            },
-        @endforeach
-    };
 </script>
 @endpush

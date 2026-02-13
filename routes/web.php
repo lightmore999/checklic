@@ -54,6 +54,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/dashboard', 'App\Http\Controllers\AdminController@dashboard')->name('dashboard');
     
     // Управление менеджерами
+    Route::get('/managers', 'App\Http\Controllers\ManagerController@index')->name('managers.index');
     Route::get('/managers/create', 'App\Http\Controllers\ManagerController@create')->name('managers.create');
     Route::post('/managers/store', 'App\Http\Controllers\ManagerController@store')->name('managers.store');
     Route::get('/managers/{id}', 'App\Http\Controllers\ManagerController@show')->name('managers.show');
@@ -63,17 +64,15 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::delete('/managers/{id}/delete', 'App\Http\Controllers\ManagerController@destroy')->name('managers.delete');
     
     // Управление организациями
+    Route::get('/organizations', 'App\Http\Controllers\OrganizationController@index')->name('organizations.list');
     Route::get('/organization/create', 'App\Http\Controllers\OrganizationController@create')->name('organization.create');
     Route::post('/organization/store', 'App\Http\Controllers\OrganizationController@store')->name('organization.store');
     Route::get('/organization/{id}', 'App\Http\Controllers\OrganizationController@show')->name('organization.show');
     Route::get('/organization/{id}/edit', 'App\Http\Controllers\OrganizationController@edit')->name('organization.edit');
-    Route::post('/organization/{id}/update', 'App\Http\Controllers\OrganizationController@update')->name('organization.update');
+    Route::put('/organization/{id}', 'App\Http\Controllers\OrganizationController@update')->name('organization.update');
     Route::post('/organization/{id}/toggle-status', 'App\Http\Controllers\OrganizationController@toggleStatus')->name('organization.toggle-status');
     Route::post('/organization/{id}/extend-subscription', 'App\Http\Controllers\OrganizationController@extendSubscription')->name('organization.extend-subscription');
     Route::delete('/organization/{id}/delete', 'App\Http\Controllers\OrganizationController@destroy')->name('organization.delete');
-    
-    // Список организаций
-    Route::get('/organizations', 'App\Http\Controllers\OrganizationController@index')->name('organizations.list');
     
     // Управление сотрудниками организаций
     Route::prefix('organization/{organizationId}/member')->name('org-members.')->group(function () {
@@ -81,7 +80,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
         Route::post('/store', 'App\Http\Controllers\OrgMemberController@store')->name('store');
         Route::get('/{memberId}', 'App\Http\Controllers\OrgMemberController@show')->name('show');
         Route::get('/{memberId}/edit', 'App\Http\Controllers\OrgMemberController@edit')->name('edit');
-        Route::post('/{memberId}/update', 'App\Http\Controllers\OrgMemberController@update')->name('update');
+        Route::put('/{memberId}/update', 'App\Http\Controllers\OrgMemberController@update')->name('update');
         Route::post('/{memberId}/change-password', 'App\Http\Controllers\OrgMemberController@changePassword')->name('change-password');
         Route::post('/{memberId}/toggle-status', 'App\Http\Controllers\OrgMemberController@toggleStatus')->name('toggle-status');
         Route::delete('/{memberId}/delete', 'App\Http\Controllers\OrgMemberController@destroy')->name('delete');
@@ -106,16 +105,14 @@ Route::middleware(['auth'])->prefix('manager')->name('manager.')->group(function
     Route::post('/profile/update', 'App\Http\Controllers\ManagerController@updateProfile')->name('profile.update');
     
     // Организации менеджера
-    Route::prefix('organization')->name('organization.')->group(function () {
-        Route::get('/create', 'App\Http\Controllers\OrganizationController@create')->name('create');
-        Route::post('/store', 'App\Http\Controllers\OrganizationController@store')->name('store');
-        Route::get('/{id}', 'App\Http\Controllers\OrganizationController@show')->name('show');
-        Route::get('/{id}/edit', 'App\Http\Controllers\OrganizationController@edit')->name('edit');
-        Route::post('/{id}/update', 'App\Http\Controllers\OrganizationController@update')->name('update');
-    });
-    
-    // Список организаций менеджера
-    Route::get('/organizations', 'App\Http\Controllers\OrganizationController@managerIndex')->name('organizations.list');
+    Route::get('/organizations', 'App\Http\Controllers\OrganizationController@index')->name('organizations.list');
+    Route::get('/organization/create', 'App\Http\Controllers\OrganizationController@create')->name('organization.create');
+    Route::post('/organization/store', 'App\Http\Controllers\OrganizationController@store')->name('organization.store');
+    Route::get('/organization/{id}', 'App\Http\Controllers\OrganizationController@show')->name('organization.show');
+    Route::get('/organization/{id}/edit', 'App\Http\Controllers\OrganizationController@edit')->name('organization.edit');
+    Route::put('/organization/{id}', 'App\Http\Controllers\OrganizationController@update')->name('organization.update');
+    Route::post('/organization/{id}/toggle-status', 'App\Http\Controllers\OrganizationController@toggleStatus')->name('organization.toggle-status');
+    Route::post('/organization/{id}/extend-subscription', 'App\Http\Controllers\OrganizationController@extendSubscription')->name('organization.extend-subscription');
     
     // Управление сотрудниками организаций менеджера
     Route::prefix('organization/{organizationId}/member')->name('org-members.')->group(function () {
@@ -123,7 +120,7 @@ Route::middleware(['auth'])->prefix('manager')->name('manager.')->group(function
         Route::post('/store', 'App\Http\Controllers\OrgMemberController@store')->name('store');
         Route::get('/{memberId}', 'App\Http\Controllers\OrgMemberController@show')->name('show');
         Route::get('/{memberId}/edit', 'App\Http\Controllers\OrgMemberController@edit')->name('edit');
-        Route::post('/{memberId}/update', 'App\Http\Controllers\OrgMemberController@update')->name('update');
+        Route::put('/{memberId}/update', 'App\Http\Controllers\OrgMemberController@update')->name('update');
         Route::post('/{memberId}/change-password', 'App\Http\Controllers\OrgMemberController@changePassword')->name('change-password');
         Route::post('/{memberId}/toggle-status', 'App\Http\Controllers\OrgMemberController@toggleStatus')->name('toggle-status');
         Route::delete('/{memberId}/delete', 'App\Http\Controllers\OrgMemberController@destroy')->name('delete');
@@ -138,7 +135,8 @@ Route::middleware(['auth'])->prefix('owner')->name('owner.')->group(function () 
     // Дашборд владельца
     Route::get('/dashboard', 'App\Http\Controllers\OrganizationController@ownerDashboard')->name('dashboard');
     
-    // Просмотр организации владельцем
+    // Организация владельца
+    Route::get('/organization', 'App\Http\Controllers\OrganizationController@ownerOrganization')->name('organization');
     Route::get('/organization/{id}', 'App\Http\Controllers\OrganizationController@ownerShow')->name('organization.show');
     
     // Управление сотрудниками организаций (полные права)
@@ -147,7 +145,7 @@ Route::middleware(['auth'])->prefix('owner')->name('owner.')->group(function () 
         Route::post('/store', 'App\Http\Controllers\OrgMemberController@store')->name('store');
         Route::get('/{memberId}', 'App\Http\Controllers\OrgMemberController@show')->name('show');
         Route::get('/{memberId}/edit', 'App\Http\Controllers\OrgMemberController@edit')->name('edit');
-        Route::post('/{memberId}/update', 'App\Http\Controllers\OrgMemberController@update')->name('update');
+        Route::put('/{memberId}/update', 'App\Http\Controllers\OrgMemberController@update')->name('update');
         Route::post('/{memberId}/change-password', 'App\Http\Controllers\OrgMemberController@changePassword')->name('change-password');
         Route::post('/{memberId}/toggle-status', 'App\Http\Controllers\OrgMemberController@toggleStatus')->name('toggle-status');
         Route::delete('/{memberId}/delete', 'App\Http\Controllers\OrgMemberController@destroy')->name('delete');
@@ -181,38 +179,41 @@ Route::middleware('auth')->group(function () {
     Route::post('/reports/preview', [App\Http\Controllers\ReportController::class, 'previewExcel'])->name('reports.preview');
 });
 
-
 // ============================
 // ЛИМИТЫ (с проверкой ролей)
 // ============================
 Route::middleware(['auth'])->group(function () {
-    // Админ и менеджер могут управлять лимитами
-    Route::middleware(['role:admin,manager'])->group(function () {  // ЗДЕСЬ: 'role', а не 'check.role'
-        Route::get('limits', [LimitController::class, 'index'])->name('limits.index');
-        Route::get('limits/create', [LimitController::class, 'create'])->name('limits.create');
-        Route::post('limits', [LimitController::class, 'store'])->name('limits.store');
-        Route::get('limits/bulk-create', [LimitController::class, 'bulkCreate'])->name('limits.bulk-create');
-        Route::post('limits/bulk-store', [LimitController::class, 'bulkStore'])->name('limits.bulk-store');
-        Route::get('users/{user}/limits', [LimitController::class, 'userLimits'])->name('users.limits');
+    
+    // Общие маршруты для лимитов (доступны админу и менеджеру)
+    Route::middleware(['role:admin,manager'])->group(function () {
+        Route::get('/limits', [LimitController::class, 'index'])->name('limits.index');
+        Route::get('/limits/create', [LimitController::class, 'create'])->name('limits.create');
+        Route::post('/limits', [LimitController::class, 'store'])->name('limits.store');
+        Route::get('/limits/bulk-create', [LimitController::class, 'bulkCreate'])->name('limits.bulk-create');
+        Route::post('/limits/bulk-store', [LimitController::class, 'bulkStore'])->name('limits.bulk-store');
+        Route::get('/users/{user}/limits', [LimitController::class, 'userLimits'])->name('users.limits');
     });
     
-    // Только админ может редактировать/удалять
-    Route::middleware(['role:admin'])->group(function () {  // ЗДЕСЬ: 'role', а не 'check.role'
-        Route::get('limits/{limit}/edit', [LimitController::class, 'edit'])->name('limits.edit');
-        Route::put('limits/{limit}', [LimitController::class, 'update'])->name('limits.update');
-        Route::delete('limits/{limit}', [LimitController::class, 'destroy'])->name('limits.destroy');
+    // Только админ может редактировать/удалять лимиты
+    Route::middleware(['role:admin'])->group(function () {
+        Route::get('/limits/{limit}/edit', [LimitController::class, 'edit'])->name('limits.edit');
+        Route::put('/limits/{limit}', [LimitController::class, 'update'])->name('limits.update');
+        Route::delete('/limits/{limit}', [LimitController::class, 'destroy'])->name('limits.destroy');
     });
-    Route::get('/users/search', [UserController::class, 'search'])->name('users.search');
-
+    
+    // Делегирование лимитов (доступно всем аутентифицированным)
+    Route::post('/limits/{limit}/delegate', [LimitController::class, 'delegate'])->name('limits.delegate');
 });
 
-// Делегированные лимиты
+// ============================
+// ДЕЛЕГИРОВАННЫЕ ЛИМИТЫ
+// ============================
 Route::middleware(['auth'])->group(function () {
-    Route::post('delegated-limits', [DelegatedLimitController::class, 'store'])->name('delegated-limits.store');
-    Route::delete('delegated-limits/{delegatedLimit}', [DelegatedLimitController::class, 'destroy'])->name('delegated-limits.destroy');
-    Route::post('limits/{limit}/delegate', [LimitController::class, 'delegate'])
-        ->name('limits.delegate')
-        ->middleware('auth');
+    Route::post('/delegated-limits', [DelegatedLimitController::class, 'store'])->name('delegated-limits.store');
+    Route::delete('/delegated-limits/{delegatedLimit}', [DelegatedLimitController::class, 'destroy'])->name('delegated-limits.destroy');
 });
 
-
+// ============================
+// ПОИСК ПОЛЬЗОВАТЕЛЕЙ
+// ============================
+Route::middleware(['auth'])->get('/users/search', [UserController::class, 'search'])->name('users.search');

@@ -22,7 +22,7 @@ class Limit extends Model
         'report_type_id',
         'quantity',
         'created_by',
-        'used_quantity', // Добавляем
+        'used_quantity', 
         'date_created',
     ];
 

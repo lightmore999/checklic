@@ -12,7 +12,7 @@
                     <div>
                         @if(auth()->user()->isAdmin() || auth()->user()->isManager())
                             <a href="{{ route('limits.create') }}" class="btn btn-primary btn-sm">
-                                <i class="fas fa-plus"></i> Создать лимит
+                                <i class="fas fa-plus"></i> Создать отчет
                             </a>
                             <a href="{{ route('limits.bulk-create') }}" class="btn btn-success btn-sm">
                                 <i class="fas fa-layer-group"></i> Массовое создание
@@ -374,7 +374,7 @@
                         <div>
                             <p class="text-muted mb-0">
                                 Показано {{ $limits->firstItem() ?? 0 }} - {{ $limits->lastItem() ?? 0 }} 
-                                из {{ $limits->total() }} лимитов
+                                из {{ $limits->total() }} отчетов
                             </p>
                         </div>
                         <div class="d-flex justify-content-center">
@@ -398,7 +398,7 @@
                         @csrf
                         <div class="modal-header">
                             <h5 class="modal-title" id="delegateModalLabel{{ $limit->id }}">
-                                <i class="fas fa-share-alt mr-2"></i>Делегировать лимит #{{ $limit->id }}
+                                <i class="fas fa-share-alt mr-2"></i>Делегировать отчет #{{ $limit->id }}
                             </h5>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
@@ -406,7 +406,7 @@
                         </div>
                         <div class="modal-body">
                             <div class="alert alert-info">
-                                <strong>Лимит:</strong> {{ $limit->reportType->name ?? 'Не указан' }}<br>
+                                <strong>Отчет:</strong> {{ $limit->reportType->name ?? 'Не указан' }}<br>
                                 <strong>Доступно для делегирования:</strong> {{ $limit->getAvailableQuantity() }}
                             </div>
                             

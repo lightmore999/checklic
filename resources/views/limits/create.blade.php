@@ -9,7 +9,7 @@
             <div class="card">
                 <div class="card-header bg-primary text-white">
                     <h3 class="card-title mb-0">
-                        <i class="fas fa-plus-circle"></i> Создание нового лимита
+                        <i class="fas fa-plus-circle"></i> Создание нового отчета
                     </h3>
                 </div>
                 
@@ -38,7 +38,7 @@
                                 <!-- Количество -->
                                 <div class="form-group mb-3">
                                     <label for="quantity" class="form-label fw-bold">
-                                        <i class="fas fa-sort-amount-up"></i> Количество лимитов *
+                                        <i class="fas fa-sort-amount-up"></i> Количество отчетов *
                                     </label>
                                     <div class="input-group">
                                         <input type="number" name="quantity" id="quantity" 
@@ -81,7 +81,7 @@
                                 <!-- Дата действия -->
                                 <div class="form-group mb-3">
                                     <label for="date_created" class="form-label fw-bold">
-                                        <i class="fas fa-calendar-alt"></i> Дата действия лимита *
+                                        <i class="fas fa-calendar-alt"></i> Дата действия отчета *
                                     </label>
                                     <input type="date" name="date_created" id="date_created" 
                                            class="form-control @error('date_created') is-invalid @enderror"
@@ -126,7 +126,7 @@
                                 <div class="d-flex justify-content-between">
                                     <div>
                                         <button type="submit" class="btn btn-primary">
-                                            <i class="fas fa-save"></i> Создать лимит
+                                            <i class="fas fa-save"></i> Создать отчет
                                         </button>
                                         <button type="button" class="btn btn-success" onclick="setDefaultValues()">
                                             <i class="fas fa-bolt"></i> Быстрые значения

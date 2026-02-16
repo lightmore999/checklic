@@ -8,7 +8,7 @@
         <h1 class="h2 mb-0">
             <i class="bi bi-person-gear text-warning"></i> Редактирование профиля
         </h1>
-        <a href="{{ route('member.profile') }}" class="btn btn-outline-secondary">
+        <a href="{{ route('member.profile') }}" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Назад к профилю
         </a>
     </div>
@@ -57,7 +57,7 @@
                         </div>
 
                         <div class="d-flex justify-content-between">
-                            <a href="{{ route('member.profile') }}" class="btn btn-outline-secondary">
+                            <a href="{{ route('member.profile') }}" class="btn btn-secondary">
                                 Отмена
                             </a>
                             <button type="submit" class="btn btn-primary">

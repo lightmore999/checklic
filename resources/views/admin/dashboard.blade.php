@@ -7,7 +7,16 @@
     <h2 class="mb-0">
         <i class="bi bi-speedometer2 text-primary"></i> Панель администратора
     </h2>
-
+    <div class="d-flex gap-2">
+        <a href="{{ route('admin.managers.create') }}" class="btn btn-primary">
+            <i class="bi bi-person-plus me-2"></i>
+            Создать менеджера
+        </a>
+        <a href="{{ route('admin.organization.create') }}" class="btn btn-success">
+            <i class="bi bi-building-add me-2"></i>
+            Создать организацию
+        </a>
+    </div>
 </div>
 
 <!-- Статистика -->
@@ -20,6 +29,7 @@
                     <i class="bi bi-person-circle text-danger"></i> Ваш профиль
                 </h5>
             </div>
+            
             <div class="card-body text-center py-4">
                 <div class="rounded-circle bg-danger d-inline-flex align-items-center justify-content-center mb-3" 
                      style="width: 80px; height: 80px; font-size: 2rem; color: white;">
@@ -364,7 +374,7 @@
                             <td class="text-center">
                                 <div class="d-flex justify-content-center gap-1">
                                     <a href="{{ route('admin.organization.show', $organization->id) }}" 
-                                       class="btn btn-sm btn-outline-info rounded-circle d-flex align-items-center justify-content-center"
+                                       class="btn btn-sm btn-info rounded-circle d-flex align-items-center justify-content-center"
                                        style="width: 32px; height: 32px;"
                                        title="Просмотреть"
                                        data-bs-toggle="tooltip">
@@ -372,7 +382,7 @@
                                     </a>
                                     
                                     <a href="{{ route('admin.organization.edit', $organization->id) }}" 
-                                       class="btn btn-sm btn-outline-warning rounded-circle d-flex align-items-center justify-content-center"
+                                       class="btn btn-sm btn-warning rounded-circle d-flex align-items-center justify-content-center"
                                        style="width: 32px; height: 32px;"
                                        title="Редактировать"
                                        data-bs-toggle="tooltip">
@@ -388,7 +398,7 @@
             
             @if($organizations->count() > 5)
                 <div class="text-center mt-3">
-                    <a href="{{ route('admin.organizations.list') }}" class="btn btn-outline-success">
+                    <a href="{{ route('admin.organizations.list') }}" class="btn btn-success">
                         <i class="bi bi-list-ul me-1"></i> Показать все организации ({{ $organizations->count() }})
                     </a>
                 </div>
@@ -431,7 +441,7 @@
                             <th>Создан</th>
                             <th>Кем создан</th>
                             <th width="100">Статус</th>
-                            <th width="150" class="text-center">Действия</th>
+                            <th width="200" class="text-center">Действия</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -491,19 +501,19 @@
                                 <div class="d-flex justify-content-center gap-1">
                                     <!-- Просмотр -->
                                     <a href="{{ route('admin.managers.show', $manager->id) }}" 
-                                    class="btn btn-sm btn-outline-primary rounded-circle d-flex align-items-center justify-content-center"
-                                    style="width: 32px; height: 32px;"
-                                    title="Просмотреть профиль"
-                                    data-bs-toggle="tooltip">
+                                       class="btn btn-sm btn-primary rounded-circle d-flex align-items-center justify-content-center"
+                                       style="width: 32px; height: 32px;"
+                                       title="Просмотреть профиль"
+                                       data-bs-toggle="tooltip">
                                         <i class="bi bi-eye"></i>
                                     </a>
                                     
                                     <!-- Редактирование -->
                                     <a href="{{ route('admin.managers.edit', $manager->id) }}" 
-                                    class="btn btn-sm btn-outline-success rounded-circle d-flex align-items-center justify-content-center"
-                                    style="width: 32px; height: 32px;"
-                                    title="Редактировать"
-                                    data-bs-toggle="tooltip">
+                                       class="btn btn-sm btn-success rounded-circle d-flex align-items-center justify-content-center"
+                                       style="width: 32px; height: 32px;"
+                                       title="Редактировать"
+                                       data-bs-toggle="tooltip">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     
@@ -513,11 +523,27 @@
                                           onsubmit="return confirm('{{ $manager->is_active ? 'Деактивировать' : 'Активировать' }} менеджера {{ $manager->name }}?')">
                                         @csrf
                                         <button type="submit" 
-                                                class="btn btn-sm btn-outline-{{ $manager->is_active ? 'warning' : 'secondary' }} rounded-circle d-flex align-items-center justify-content-center"
+                                                class="btn btn-sm btn-{{ $manager->is_active ? 'warning' : 'secondary' }} rounded-circle d-flex align-items-center justify-content-center"
                                                 style="width: 32px; height: 32px;"
                                                 title="{{ $manager->is_active ? 'Деактивировать' : 'Активировать' }}"
                                                 data-bs-toggle="tooltip">
                                             <i class="bi bi-toggle-{{ $manager->is_active ? 'on' : 'off' }}"></i>
+                                        </button>
+                                    </form>
+                                    
+                                    <!-- Удаление -->
+                                    <form method="POST" action="{{ route('admin.managers.delete', $manager->id) }}" 
+                                          class="m-0" 
+                                          onsubmit="return confirm('⚠️ ВНИМАНИЕ!\n\nВы уверены, что хотите удалить менеджера {{ $manager->name }}?\n\nЭто действие нельзя отменить. Все связанные данные будут безвозвратно удалены.')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" 
+                                                class="btn btn-sm btn-danger rounded-circle d-flex align-items-center justify-content-center"
+                                                style="width: 32px; height: 32px;"
+                                                title="Удалить менеджера"
+                                                data-bs-toggle="tooltip"
+                                                {{ $manager->id === auth()->id() ? 'disabled' : '' }}>
+                                            <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
                                 </div>

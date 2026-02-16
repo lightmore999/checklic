@@ -14,7 +14,7 @@
             <i class="bi bi-person-plus text-success"></i> Добавление сотрудника
         </h1>
         <a href="{{ route($routePrefix . 'organization.show', $organization->id) }}" 
-           class="btn btn-outline-secondary">
+           class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Назад к организации
         </a>
     </div>
@@ -66,7 +66,7 @@
 
                         <div class="d-flex justify-content-between">
                             <a href="{{ route($routePrefix . 'organization.show', $organization->id) }}" 
-                               class="btn btn-outline-secondary">
+                               class="btn btn-secondary">
                                 Отмена
                             </a>
                             <button type="submit" class="btn btn-success">

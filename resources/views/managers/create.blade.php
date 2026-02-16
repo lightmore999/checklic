@@ -58,7 +58,7 @@
                     </div>
                     
                     <div class="d-flex justify-content-between">
-                        <a href="{{ route('admin.dashboard') }}" class="btn btn-outline-secondary">
+                        <a href="{{ route('admin.dashboard') }}" class="btn btn-secondary">
                             <i class="bi bi-arrow-left"></i> Назад
                         </a>
                         <button type="submit" class="btn btn-primary">

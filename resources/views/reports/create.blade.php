@@ -9,7 +9,7 @@
         <i class="bi bi-file-earmark-plus text-primary me-2"></i>
         Создание нового отчета
     </h5>
-    <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ route('reports.index') }}" class="btn btn-secondary btn-sm">
         <i class="bi bi-arrow-left"></i> Назад
     </a>
 </div>
@@ -137,7 +137,7 @@
                             
                             <!-- Кнопки -->
                             <div class="d-flex justify-content-between mt-4 pt-3 border-top">
-                                <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                                <button type="button" class="btn btn-secondary" onclick="resetForm()">
                                     <i class="bi bi-x-circle me-1"></i> Сбросить
                                 </button>
                                 <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
@@ -270,7 +270,7 @@
                             
                             <!-- Кнопки массовой загрузки -->
                             <div class="d-flex justify-content-between mt-4 pt-3 border-top">
-                                <button type="button" class="btn btn-outline-secondary" onclick="resetBulkForm()">
+                                <button type="button" class="btn btn-secondary" onclick="resetBulkForm()">
                                     <i class="bi bi-x-circle me-1"></i> Сбросить
                                 </button>
                                 <button type="submit" class="btn btn-success" id="bulkSubmitBtn" disabled>

@@ -26,7 +26,7 @@
         </h1>
         <div>
             <a href="{{ route($routePrefix . 'org-members.show', [$organization->id, $member->id]) }}" 
-               class="btn btn-outline-secondary">
+               class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Назад к сотруднику
             </a>
         </div>
@@ -52,12 +52,13 @@
         </div>
     @endif
 
+    <!-- ОСНОВНАЯ ФОРМА РЕДАКТИРОВАНИЯ -->
     <form action="{{ route($routePrefix . 'org-members.update', [$organization->id, $member->id]) }}" 
           method="POST"
           id="editForm"
-          data-turbo="false">
+          class="mb-4">
         @csrf
-        @method('POST')
+        @method('PUT') <!-- Исправлено: должен быть PUT -->
         
         <div class="row">
             <!-- Левая колонка: Личные данные -->
@@ -101,7 +102,6 @@
                                 <input class="form-check-input" type="checkbox" id="is_active" 
                                        name="is_active" value="1" 
                                        {{ old('is_active', $member->is_active) ? 'checked' : '' }}>
-                                <input type="hidden" name="is_active" value="0">
                                 <label class="form-check-label" for="is_active">
                                     Активен (может войти в систему)
                                 </label>
@@ -110,42 +110,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Дополнительные действия -->
-                @if($isAdmin || $isManager || $isOwner)
-                    <div class="card">
-                        <div class="card-header bg-danger text-white">
-                            <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Опасные действия</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="d-grid gap-2">
-                                @if($isAdmin || $isManager)
-                                <a href="#" class="btn btn-outline-warning" 
-                                   data-bs-toggle="modal" data-bs-target="#changePasswordModal">
-                                    <i class="bi bi-key"></i> Сменить пароль
-                                </a>
-                                @endif
-
-                                <form action="{{ route($routePrefix . 'org-members.toggle-status', [$organization->id, $member->id]) }}" 
-                                      method="POST"
-                                      class="d-grid"
-                                      data-turbo="false">
-                                    @csrf
-                                    <button type="submit" 
-                                            class="btn btn-outline-{{ $member->is_active ? 'warning' : 'success' }}">
-                                        <i class="bi bi-toggle-{{ $member->is_active ? 'off' : 'on' }}"></i>
-                                        {{ $member->is_active ? 'Деактивировать' : 'Активировать' }}
-                                    </button>
-                                </form>
-
-                                <button type="button" class="btn btn-outline-danger" 
-                                        onclick="confirmDelete()">
-                                    <i class="bi bi-trash"></i> Удалить сотрудника
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                @endif
             </div>
 
             <!-- Правая колонка: Рабочая информация -->
@@ -156,7 +120,7 @@
                     </div>
                     <div class="card-body">
                         <!-- Информация об организации -->
-                        <div class="card border-success">
+                        <div class="card border-success mb-3">
                             <div class="card-header bg-transparent border-success">
                                 <h6 class="mb-0"><i class="bi bi-building me-2"></i> Организация</h6>
                             </div>
@@ -174,18 +138,8 @@
                                 <p class="card-text">
                                     <small class="text-muted">
                                         Менеджер: 
-                                        @if($member->manager && $member->manager->user)
-                                            {{ $member->manager->user->name }}
-                                        @else
-                                            <span class="text-muted">Не назначен</span>
-                                        @endif
-                                    </small>
-                                </p>
-                                <p class="card-text">
-                                    <small class="text-muted">
-                                        Начальник: 
-                                        @if($member->boss && $member->boss->user)
-                                            {{ $member->boss->user->name }}
+                                        @if($organization->manager)
+                                            {{ $organization->manager->name }}
                                         @else
                                             <span class="text-muted">Не назначен</span>
                                         @endif
@@ -193,76 +147,74 @@
                                 </p>
                             </div>
                         </div>
-                    </div>
-                </div>
 
-                <!-- Информация о сотруднике -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Системная информация</h5>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <tbody>
-                                    <tr>
-                                        <td style="width: 40%;" class="border-0">
-                                            <small class="text-muted">Дата добавления:</small>
-                                        </td>
-                                        <td class="border-0 fw-bold">
-                                            {{ $member->created_at->format('d.m.Y H:i') }}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <small class="text-muted">Последнее обновление:</small>
-                                        </td>
-                                        <td class="fw-bold">
-                                            {{ $member->updated_at->format('d.m.Y H:i') }}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <small class="text-muted">Уровень доступа:</small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-info">Сотрудник организации</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <small class="text-muted">Статус аккаунта:</small>
-                                        </td>
-                                        <td>
-                                            @if($member->is_active)
-                                                <span class="badge bg-success">
-                                                    <i class="bi bi-check-circle me-1"></i> Активен
-                                                </span>
-                                            @else
-                                                <span class="badge bg-danger">
-                                                    <i class="bi bi-x-circle me-1"></i> Неактивен
-                                                </span>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>
-                                            <small class="text-muted">ID профиля:</small>
-                                        </td>
-                                        <td class="text-muted">
-                                            #{{ $member->id }}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <!-- Информация о сотруднике -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Системная информация</h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <table class="table table-hover mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <td style="width: 40%;" class="border-0">
+                                                <small class="text-muted">Дата добавления:</small>
+                                            </td>
+                                            <td class="border-0 fw-bold">
+                                                {{ $member->created_at->format('d.m.Y H:i') }}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <small class="text-muted">Последнее обновление:</small>
+                                            </td>
+                                            <td class="fw-bold">
+                                                {{ $member->updated_at->format('d.m.Y H:i') }}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <small class="text-muted">Уровень доступа:</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">Сотрудник организации</span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <small class="text-muted">Статус аккаунта:</small>
+                                            </td>
+                                            <td>
+                                                @if($member->is_active)
+                                                    <span class="badge bg-success">
+                                                        <i class="bi bi-check-circle me-1"></i> Активен
+                                                    </span>
+                                                @else
+                                                    <span class="badge bg-danger">
+                                                        <i class="bi bi-x-circle me-1"></i> Неактивен
+                                                    </span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <small class="text-muted">ID профиля:</small>
+                                            </td>
+                                            <td class="text-muted">
+                                                #{{ $member->id }}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Кнопки сохранения -->
-        <div class="row mt-4">
+        <!-- Кнопки сохранения (внутри основной формы) -->
+        <div class="row">
             <div class="col-12">
                 <div class="card border-primary">
                     <div class="card-body">
@@ -273,10 +225,10 @@
                             </div>
                             <div class="d-flex gap-2">
                                 <a href="{{ route($routePrefix . 'org-members.show', [$organization->id, $member->id]) }}" 
-                                   class="btn btn-outline-secondary btn-lg">
+                                   class="btn btn-secondary btn-lg">
                                     <i class="bi bi-x-circle"></i> Отменить
                                 </a>
-                                <button type="submit" class="btn btn-primary btn-lg">
+                                <button type="submit" class="btn btn-primary btn-lg" id="saveButton">
                                     <i class="bi bi-check-circle"></i> Сохранить изменения
                                 </button>
                             </div>
@@ -286,6 +238,51 @@
             </div>
         </div>
     </form>
+
+    <!-- ОТДЕЛЬНЫЙ БЛОК С ДОПОЛНИТЕЛЬНЫМИ ДЕЙСТВИЯМИ (ВНЕ ОСНОВНОЙ ФОРМЫ) -->
+    @if($isAdmin || $isManager || $isOwner)
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Дополнительные действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        @if($isAdmin || $isManager)
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-warning w-100" 
+                                    data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                                <i class="bi bi-key"></i> Сменить пароль
+                            </button>
+                        </div>
+                        @endif
+
+                        <div class="col-md-4">
+                            <form action="{{ route($routePrefix . 'org-members.toggle-status', [$organization->id, $member->id]) }}" 
+                                  method="POST"
+                                  class="d-inline w-100">
+                                @csrf
+                                <button type="submit" 
+                                        class="btn btn-{{ $member->is_active ? 'warning' : 'success' }} w-100">
+                                    <i class="bi bi-toggle-{{ $member->is_active ? 'off' : 'on' }}"></i>
+                                    {{ $member->is_active ? 'Деактивировать' : 'Активировать' }}
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="col-md-4">
+                            <button type="button" class="btn btn-danger w-100" 
+                                    onclick="confirmDelete()">
+                                <i class="bi bi-trash"></i> Удалить сотрудника
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
 
 <!-- Модальное окно смены пароля -->
@@ -298,20 +295,20 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form action="{{ route($routePrefix . 'org-members.change-password', [$organization->id, $member->id]) }}" 
-                  method="POST"
-                  data-turbo="false">
+                  method="POST">
                 @csrf
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="new_password" class="form-label">Новый пароль *</label>
-                        <input type="password" class="form-control" id="new_password" name="password" required>
+                        <input type="password" class="form-control" id="new_password" name="password" required minlength="6">
+                        <small class="text-muted">Минимум 6 символов</small>
                     </div>
                     <div class="mb-3">
                         <label for="new_password_confirmation" class="form-label">Подтверждение пароля *</label>
                         <input type="password" class="form-control" id="new_password_confirmation" name="password_confirmation" required>
                     </div>
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i>
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
                         После смены пароля сотруднику потребуется войти в систему заново.
                     </div>
                 </div>
@@ -325,31 +322,79 @@
 </div>
 @endif
 
-<!-- Форма для удаления -->
-<form id="delete-form" method="POST" action="{{ route($routePrefix . 'org-members.delete', [$organization->id, $member->id]) }}" style="display: none;" data-turbo="false">
+<!-- Отдельная форма для удаления (скрытая) -->
+<form id="delete-form" method="POST" style="display: none;">
     @csrf
     @method('DELETE')
 </form>
 
 <script>
+// Функция подтверждения удаления
 function confirmDelete() {
     const memberName = "{{ $member->user->name }}";
-    if (confirm(`Вы уверены, что хотите удалить сотрудника "${memberName}"? Это действие удалит его учетную запись и все связанные данные.`)) {
-        document.getElementById('delete-form').submit();
+    if (confirm(`Вы уверены, что хотите удалить сотрудника "${memberName}"?\n\nЭто действие:\n• Удалит учетную запись сотрудника\n• Удалит все связанные данные\n• Действие нельзя отменить!`)) {
+        const form = document.getElementById('delete-form');
+        form.action = "{{ route($routePrefix . 'org-members.delete', [$organization->id, $member->id]) }}";
+        form.submit();
     }
 }
 
-// Исправление работы чекбокса
+// Защита от двойной отправки основной формы
+document.getElementById('editForm')?.addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('saveButton');
+    if (submitBtn.disabled) {
+        e.preventDefault();
+        return;
+    }
+    
+    // Блокируем кнопку после первого нажатия
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
+    
+    // Добавляем небольшую задержку для визуального отклика
+    setTimeout(() => {
+        // Форма все равно отправится, но кнопка останется заблокированной
+    }, 100);
+});
+
+// Обработка чекбокса is_active
 document.addEventListener('DOMContentLoaded', function() {
     const checkbox = document.getElementById('is_active');
-    const hiddenInput = checkbox.previousElementSibling;
+    if (checkbox) {
+        // Убедимся, что чекбокс работает правильно
+        checkbox.addEventListener('change', function() {
+            console.log('Checkbox changed to:', this.checked);
+        });
+    }
     
-    checkbox.addEventListener('change', function() {
-        hiddenInput.value = this.checked ? '1' : '0';
+    // Инициализация всех тултипов Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
     });
-    
-    // Установим начальное значение
-    hiddenInput.value = checkbox.checked ? '1' : '0';
 });
 </script>
+
+<style>
+/* Стили для улучшения внешнего вида */
+.card {
+    border-radius: 10px;
+    overflow: hidden;
+}
+.card-header {
+    border-bottom: none;
+    padding: 1rem 1.25rem;
+}
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+}
+.table td {
+    padding: 0.75rem 1rem;
+}
+/* Анимация для кнопки сохранения */
+#saveButton:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+</style>
 @endsection

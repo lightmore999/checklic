@@ -9,7 +9,7 @@
             <div class="card">
                 <div class="card-header bg-warning text-dark">
                     <h3 class="card-title mb-0">
-                        <i class="fas fa-edit"></i> Редактирование лимита #{{ $limit->id }}
+                        <i class="fas fa-edit"></i> Редактирование отчета #{{ $limit->id }}
                     </h3>
                 </div>
                 
@@ -156,7 +156,7 @@
                                 <!-- Количество -->
                                 <div class="form-group">
                                     <label for="quantity" class="font-weight-bold">
-                                        <i class="fas fa-sort-amount-up"></i> Количество лимитов *
+                                        <i class="fas fa-sort-amount-up"></i> Количество отчетов *
                                     </label>
                                     <div class="input-group">
                                         <input type="number" name="quantity" id="quantity" 
@@ -173,13 +173,13 @@
                                         <span class="invalid-feedback">{{ $message }}</span>
                                     @enderror
                                     <div class="mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-primary mr-2" onclick="adjustQuantity(5)">
+                                        <button type="button" class="btn btn-sm btn-primary mr-2" onclick="adjustQuantity(5)">
                                             +5
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-primary mr-2" onclick="adjustQuantity(10)">
+                                        <button type="button" class="btn btn-sm btn-primary mr-2" onclick="adjustQuantity(10)">
                                             +10
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="adjustQuantity(-5)">
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="adjustQuantity(-5)">
                                             -5
                                         </button>
                                     </div>
@@ -218,7 +218,7 @@
                                 <!-- Дата действия -->
                                 <div class="form-group">
                                     <label for="date_created" class="font-weight-bold">
-                                        <i class="fas fa-calendar-alt"></i> Дата действия лимита *
+                                        <i class="fas fa-calendar-alt"></i> Дата действия отчета *
                                     </label>
                                     <input type="date" name="date_created" id="date_created" 
                                            class="form-control @error('date_created') is-invalid @enderror"
@@ -229,13 +229,13 @@
                                         <span class="invalid-feedback">{{ $message }}</span>
                                     @enderror
                                     <div class="mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary mr-2" onclick="setDate('today')">
+                                        <button type="button" class="btn btn-sm btn-secondary mr-2" onclick="setDate('today')">
                                             Сегодня
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary mr-2" onclick="setDate('tomorrow')">
+                                        <button type="button" class="btn btn-sm btn-secondary mr-2" onclick="setDate('tomorrow')">
                                             Завтра
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setDate('week')">
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="setDate('week')">
                                             Через неделю
                                         </button>
                                     </div>
@@ -254,13 +254,13 @@
                                         <div class="form-check">
                                             <input type="checkbox" class="form-check-input" id="reset_usage" name="reset_usage">
                                             <label class="form-check-label" for="reset_usage">
-                                                <strong>Сбросить использование лимита</strong> - установить использованное количество в 0
+                                                <strong>Сбросить использование отчета</strong> - установить использованное количество в 0
                                             </label>
                                         </div>
                                         <div class="form-check mt-2">
                                             <input type="checkbox" class="form-check-input" id="extend_all" name="extend_all">
                                             <label class="form-check-label" for="extend_all">
-                                                <strong>Применить ко всем лимитам пользователя</strong> - обновить все отчеты этого пользователя на эту дату
+                                                <strong>Применить ко всем отчетам пользователя</strong> - обновить все отчеты этого пользователя на эту дату
                                             </label>
                                         </div>
                                     </div>
@@ -305,7 +305,7 @@
                 <div class="card-footer text-muted">
                     <small>
                         <i class="fas fa-exclamation-triangle text-danger"></i> 
-                        <strong>Внимание!</strong> Редактирование лимита может повлиять на работу пользователя. 
+                        <strong>Внимание!</strong> Редактирование отчета может повлиять на работу пользователя. 
                         Изменения вступят в силу немедленно.
                     </small>
                 </div>

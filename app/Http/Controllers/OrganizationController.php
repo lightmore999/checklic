@@ -45,11 +45,12 @@ class OrganizationController extends Controller
         
         // ПРИМЕНЯЕМ ФИЛЬТРЫ
         
-        // 1. Поиск по названию организации
+        // 1. Поиск по названию организации или ИНН
         if ($request->filled('search')) {
             $searchTerm = $request->search;
             $query->where(function($q) use ($searchTerm) {
-                $q->where('name', 'ILIKE', "%{$searchTerm}%");
+                $q->where('name', 'ILIKE', "%{$searchTerm}%")
+                  ->orWhere('inn', 'ILIKE', "%{$searchTerm}%"); // Добавлен поиск по ИНН
             });
         }
         
@@ -133,9 +134,9 @@ class OrganizationController extends Controller
         } else {
             $managers = collect([$user]); // Только текущий менеджер
         }
-        
-        // Определяем шаблон в зависимости от роли
-        $view = $user->isAdmin() ? 'organizations.index' : 'manager.organizations.index';
+       
+
+        $view = 'organizations.index';
         
         return view($view, compact('user', 'organizations', 'managers'));
     }
@@ -179,9 +180,11 @@ class OrganizationController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
-        // Базовые правила валидации
+        // Базовые правила валидации с новыми полями
         $validationRules = [
             'organization.name' => 'required|string|max:255|unique:organizations,name',
+            'organization.inn' => 'nullable|string|max:12|unique:organizations,inn', // Добавлено
+            'organization.max_employees' => 'nullable|integer|min:1|max:999999', // Добавлено
             'organization.subscription_ends_at' => 'nullable|date|after:today',
             'user.name' => 'required|string|max:255',
             'user.email' => 'required|email|unique:users,email',
@@ -243,9 +246,11 @@ class OrganizationController extends Controller
                 'is_active' => true,
             ]);
             
-            // 3. Создаем организацию
+            // 3. Создаем организацию с новыми полями
             $organization = Organization::create([
                 'name' => $validated['organization']['name'],
+                'inn' => $validated['organization']['inn'] ?? null, // Добавлено
+                'max_employees' => $validated['organization']['max_employees'] ?? null, // Добавлено
                 'manager_id' => $managerUserId,
                 'subscription_ends_at' => $validated['organization']['subscription_ends_at'] ?? null,
                 'status' => $validated['organization']['status'],
@@ -308,6 +313,10 @@ class OrganizationController extends Controller
                 ->with(['manager', 'owner.user', 'members.user'])
                 ->firstOrFail();
         }
+        
+        // Получаем статистику по сотрудникам для новых полей
+        $currentEmployeesCount = $organization->members()->count();
+        $availableEmployeeSlots = $organization->getAvailableEmployeeSlots();
         
         // === ЛИМИТЫ ВЛАДЕЛЬЦА ОРГАНИЗАЦИИ ===
         $ownerLimits = [];
@@ -373,7 +382,9 @@ class OrganizationController extends Controller
             'routePrefix',
             'ownerLimits',
             'delegatedLimits',
-            'availableEmployees'
+            'availableEmployees',
+            'currentEmployeesCount', // Добавлено
+            'availableEmployeeSlots' // Добавлено
         ));
     }
     
@@ -457,9 +468,11 @@ class OrganizationController extends Controller
         
         $owner = $organization->owner;
         
-        // Правила валидации
+        // Правила валидации с новыми полями
         $validationRules = [
             'organization.name' => 'required|string|max:255|unique:organizations,name,' . $organization->id,
+            'organization.inn' => 'nullable|string|max:12|unique:organizations,inn,' . $organization->id, // Добавлено
+            'organization.max_employees' => 'nullable|integer|min:1|max:999999', // Добавлено
             'organization.subscription_ends_at' => 'nullable|date',
             'organization.status' => 'required|in:active,suspended,expired',
         ];
@@ -503,6 +516,8 @@ class OrganizationController extends Controller
         try {
             $organizationData = [
                 'name' => $validated['organization']['name'],
+                'inn' => $validated['organization']['inn'] ?? null, // Добавлено
+                'max_employees' => $validated['organization']['max_employees'] ?? null, // Добавлено
                 'subscription_ends_at' => $validated['organization']['subscription_ends_at'] ?? null,
                 'status' => $validated['organization']['status'],
             ];
@@ -802,7 +817,12 @@ class OrganizationController extends Controller
             ->where('is_active', true)
             ->count();
         
-        // Получаем лимиты владельца (БЕЗ map и вычисления used_quantity)
+        // Получаем статистику по сотрудникам для новых полей
+        $currentEmployeesCount = $organization->members()->count();
+        $availableEmployeeSlots = $organization->getAvailableEmployeeSlots();
+        $canAddMoreEmployees = $organization->canAddMoreEmployees();
+        
+        // Получаем лимиты владельца
         $ownerLimits = Limit::where('user_id', $user->id)
             ->with('reportType')
             ->orderBy('date_created', 'desc')
@@ -834,7 +854,10 @@ class OrganizationController extends Controller
             'activeMembersCount',
             'ownerLimits',
             'delegatedLimits',
-            'availableEmployees'
+            'availableEmployees',
+            'currentEmployeesCount', // Добавлено
+            'availableEmployeeSlots', // Добавлено
+            'canAddMoreEmployees' // Добавлено
         ));
     }
     

@@ -10,10 +10,10 @@
         Профиль менеджера: {{ $manager->name }}
     </h5>
     <div>
-        <a href="{{ route('admin.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ route('admin.dashboard') }}" class="btn btn-secondary btn-sm">
             <i class="bi bi-arrow-left"></i> Назад
         </a>
-        <a href="{{ route('admin.managers.edit', $manager->id) }}" class="btn btn-outline-success btn-sm ms-2">
+        <a href="{{ route('admin.managers.edit', $manager->id) }}" class="btn btn-success btn-sm ms-2">
             <i class="bi bi-pencil"></i> Редактировать
         </a>
     </div>
@@ -182,7 +182,7 @@
                             $totalQuantity = array_sum(array_column($limits, 'quantity'));
                         @endphp
                         <i class="bi bi-info-circle"></i>
-                        Всего лимитов: {{ count($limits) }} | 
+                        Всего отчетов: {{ count($limits) }} | 
                         Исчерпано: <span class="{{ $exhaustedCount > 0 ? 'text-danger fw-bold' : 'text-success' }}">{{ $exhaustedCount }}</span> |
                         Всего запросов: {{ $totalQuantity }} | 
                         Использовано: {{ $totalUsed }} | 

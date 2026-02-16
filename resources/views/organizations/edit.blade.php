@@ -8,6 +8,7 @@
         $isAdmin = Auth::user()->isAdmin();
         $owner = $organization->owner;
         $ownerUser = $owner ? $owner->user : null;
+        $currentEmployeesCount = $organization->members ? $organization->members->count() : 0;
     @endphp
 
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -16,7 +17,7 @@
         </h1>
         <div>
             <a href="{{ route($routePrefix . 'organization.show', $organization->id) }}" 
-               class="btn btn-outline-secondary">
+               class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Назад к организации
             </a>
         </div>
@@ -46,6 +47,7 @@
     <!-- ОСНОВНАЯ ФОРМА РЕДАКТИРОВАНИЯ -->
     <form action="{{ route($routePrefix . 'organization.update', $organization->id) }}" method="POST">
         @csrf
+        @method('PUT')
         
         <div class="row">
             <!-- Левая колонка: Организация -->
@@ -63,6 +65,37 @@
                             @error('organization.name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="organization_inn" class="form-label">ИНН</label>
+                                <input type="text" class="form-control @error('organization.inn') is-invalid @enderror" 
+                                       id="organization_inn" name="organization[inn]" 
+                                       value="{{ old('organization.inn', $organization->inn) }}"
+                                       maxlength="12"
+                                       pattern="[0-9]{10,12}"
+                                       placeholder="Введите ИНН"
+                                       title="ИНН должен содержать от 10 до 12 цифр">
+                                @error('organization.inn')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text">ИНН организации (10 цифр для юрлиц, 12 для ИП)</div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="organization_max_employees" class="form-label">Макс. сотрудников</label>
+                                <input type="number" class="form-control @error('organization.max_employees') is-invalid @enderror" 
+                                       id="organization_max_employees" name="organization[max_employees]" 
+                                       value="{{ old('organization.max_employees', $organization->max_employees) }}"
+                                       min="1"
+                                       step="1"
+                                       placeholder="Например: 50">
+                                @error('organization.max_employees')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text">Оставьте пустым для безлимита</div>
+                            </div>
                         </div>
 
                         <div class="row">
@@ -111,6 +144,18 @@
                                 @enderror
                                 <div class="form-text">Выберите менеджера из списка</div>
                             </div>
+                        @endif
+
+                        <!-- Информация о текущем лимите сотрудников -->
+                        @if($organization->max_employees)
+                        <div class="alert alert-info mt-3 py-2">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Текущая статистика:</strong>
+                            Сотрудников: {{ $currentEmployeesCount }} / {{ $organization->max_employees }}
+                            @if($currentEmployeesCount > $organization->max_employees)
+                                <span class="badge bg-danger ms-2">Превышен!</span>
+                            @endif
+                        </div>
                         @endif
                     </div>
                 </div>
@@ -166,7 +211,7 @@
                                        id="owner_password" name="owner[password]" 
                                        placeholder="Введите пароль"
                                        {{ $ownerUser ? '' : 'required' }}>
-                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <button class="btn btn-secondary" type="button" id="togglePassword">
                                     <i class="bi bi-eye"></i>
                                 </button>
                             </div>
@@ -217,7 +262,7 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between">
                             <a href="{{ route($routePrefix . 'organization.show', $organization->id) }}" 
-                               class="btn btn-outline-secondary btn-lg">
+                               class="btn btn-secondary btn-lg">
                                 <i class="bi bi-x-circle"></i> Отменить изменения
                             </a>
                             <button type="submit" class="btn btn-primary btn-lg">
@@ -246,7 +291,7 @@
                             <form action="{{ route('admin.organization.toggle-status', $organization->id) }}" method="POST">
                                 @csrf
                                 <button type="submit" 
-                                        class="btn btn-outline-{{ $organization->status == 'active' ? 'warning' : 'success' }} w-100">
+                                        class="btn btn-{{ $organization->status == 'active' ? 'warning' : 'success' }} w-100">
                                     <i class="bi bi-toggle-{{ $organization->status == 'active' ? 'off' : 'on' }}"></i>
                                     {{ $organization->status == 'active' ? 'Деактивировать' : 'Активировать' }}
                                 </button>
@@ -255,7 +300,7 @@
 
                         <!-- Кнопка продления подписки -->
                         <div class="col-md-4 mb-2">
-                            <button type="button" class="btn btn-outline-info w-100" 
+                            <button type="button" class="btn btn-info w-100" 
                                     data-bs-toggle="modal" data-bs-target="#extendSubscriptionModal">
                                 <i class="bi bi-calendar-plus"></i> Продлить подписку
                             </button>
@@ -263,7 +308,7 @@
 
                         <!-- Кнопка удаления -->
                         <div class="col-md-4 mb-2">
-                            <button type="button" class="btn btn-outline-danger w-100"
+                            <button type="button" class="btn btn-danger w-100"
                                     onclick="confirmDelete({{ $organization->id }}, '{{ $organization->name }}')">
                                 <i class="bi bi-trash"></i> Удалить организацию
                             </button>
@@ -323,7 +368,7 @@
 function confirmDelete(id, name) {
     if (confirm(`ВНИМАНИЕ! Вы собираетесь удалить организацию "${name}".\n\nЭто действие: \n• Удалит организацию \n• Удалит владельца организации \n• Удалит всех сотрудников \n• Удалит все данные связанные с организацией\n\nЭто действие нельзя отменить!`)) {
         const form = document.getElementById('delete-form');
-        form.action = '/admin/organization/' + id + '/delete';
+        form.action = '{{ url("/admin/organization") }}/' + id + '/delete';
         form.submit();
     }
 }
@@ -345,9 +390,41 @@ document.getElementById('togglePassword')?.addEventListener('click', function() 
     this.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
 });
 
+// Валидация ИНН (только цифры)
+document.getElementById('organization_inn')?.addEventListener('input', function(e) {
+    this.value = this.value.replace(/[^0-9]/g, '');
+});
+
+// Валидация максимального количества сотрудников
+document.getElementById('organization_max_employees')?.addEventListener('input', function(e) {
+    let value = parseInt(this.value);
+    if (value < 1) {
+        this.value = '';
+    }
+});
+
 // Предотвращаем двойную отправку формы
 document.querySelector('form[action*="update"]')?.addEventListener('submit', function(e) {
     const submitBtn = this.querySelector('button[type="submit"]');
+    
+    // Проверка ИНН
+    const inn = document.getElementById('organization_inn')?.value;
+    if (inn && (inn.length < 10 || inn.length > 12)) {
+        e.preventDefault();
+        alert('ИНН должен содержать от 10 до 12 цифр');
+        document.getElementById('organization_inn')?.focus();
+        return false;
+    }
+    
+    // Проверка максимального количества сотрудников
+    const maxEmployees = document.getElementById('organization_max_employees')?.value;
+    if (maxEmployees && parseInt(maxEmployees) < 1) {
+        e.preventDefault();
+        alert('Максимальное количество сотрудников должно быть не менее 1');
+        document.getElementById('organization_max_employees')?.focus();
+        return false;
+    }
+    
     if (submitBtn.disabled) {
         e.preventDefault();
         return;

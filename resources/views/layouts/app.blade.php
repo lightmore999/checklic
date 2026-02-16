@@ -159,26 +159,7 @@
                         class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-speedometer2"></i>
                             Панель админа
-                        </a>
-                        
-                        <a href="{{ route('admin.managers.create') }}" 
-                        class="nav-link {{ request()->routeIs('admin.managers.create') ? 'active' : '' }}">
-                            <i class="nav-icon bi bi-person-plus"></i>
-                            Создать менеджера
-                        </a>
-                        
-                        <!-- ДОБАВЛЕНО: Список менеджеров -->
-                        <a href="{{ route('admin.managers.index') }}" 
-                        class="nav-link {{ request()->routeIs('admin.managers.index') ? 'active' : '' }}">
-                            <i class="nav-icon bi bi-people"></i>
-                            Список менеджеров
-                        </a>
-                        
-                        <a href="{{ route('admin.organization.create') }}" 
-                        class="nav-link {{ request()->routeIs('admin.organization.create') ? 'active' : '' }}">
-                            <i class="nav-icon bi bi-building-add"></i>
-                            Создать организацию
-                        </a>
+                        </a>   
                         
                         <!-- ДОБАВЛЕНО: Список организаций -->
                         <a href="{{ route('admin.organizations.list') }}" 
@@ -190,7 +171,7 @@
                         <a href="{{ route('limits.index') }}" 
                         class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-pie-chart"></i>
-                            Управление лимитами
+                            Управление отчетами
                         </a>
                     @endif
 
@@ -203,12 +184,6 @@
                             Панель менеджера
                         </a>
                         
-                        <a href="{{ route('manager.organization.create') }}" 
-                        class="nav-link {{ request()->routeIs('manager.organization.create') ? 'active' : '' }}">
-                            <i class="nav-icon bi bi-building-add"></i>
-                            Создать организацию
-                        </a>
-                        
                         <!-- ДОБАВЛЕНО: Мои организации -->
                         <a href="{{ route('manager.organizations.list') }}" 
                         class="nav-link {{ request()->routeIs('manager.organizations.list') ? 'active' : '' }}">
@@ -219,15 +194,9 @@
                         <a href="{{ route('limits.index') }}" 
                         class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-pie-chart"></i>
-                            Управление лимитами
+                            Управление отчетами
                         </a>
                         
-                        <!-- ДОБАВЛЕНО: Профиль менеджера -->
-                        <a href="{{ route('manager.profile') }}" 
-                        class="nav-link {{ request()->routeIs('manager.profile') ? 'active' : '' }}">
-                            <i class="nav-icon bi bi-person-circle"></i>
-                            Мой профиль
-                        </a>
                     @endif
                         <!-- Owner Section -->
                         @if(Auth::user()->role === 'org_owner')
@@ -268,7 +237,7 @@
                         <div class="mt-4 pt-3 border-top">
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
-                                <button type="submit" class="btn btn-outline-danger btn-sm w-100 logout-btn">
+                                <button type="submit" class="btn btn-danger btn-sm w-100 logout-btn">
                                     <i class="bi bi-box-arrow-right"></i> Выйти из системы
                                 </button>
                             </form>

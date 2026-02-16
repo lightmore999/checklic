@@ -13,13 +13,16 @@ class Organization extends Model
 
     protected $fillable = [
         'name',
+        'inn', 
         'manager_id',
         'subscription_ends_at',
         'status',
+        'max_employees', 
     ];
 
     protected $casts = [
         'subscription_ends_at' => 'datetime',
+        'max_employees' => 'integer', 
     ];
 
     /**
@@ -104,5 +107,40 @@ class Organization extends Model
     public function members()
     {
         return $this->hasMany(OrgMemberProfile::class, 'organization_id');
+    }
+
+    /**
+     * Проверка, можно ли добавить еще сотрудников
+     */
+    public function canAddMoreEmployees(): bool
+    {
+        // Если лимит не установлен (null), то можно добавлять без ограничений
+        if ($this->max_employees === null) {
+            return true;
+        }
+        
+        $currentCount = $this->members()->count();
+        return $currentCount < $this->max_employees;
+    }
+
+    /**
+     * Получить количество доступных мест для сотрудников
+     */
+    public function getAvailableEmployeeSlots(): ?int
+    {
+        if ($this->max_employees === null) {
+            return null; // Безлимитно
+        }
+        
+        $currentCount = $this->members()->count();
+        return max(0, $this->max_employees - $currentCount);
+    }
+
+    /**
+     * Проверка, заполнен ли ИНН
+     */
+    public function hasInn(): bool
+    {
+        return !empty($this->inn);
     }
 }

@@ -138,7 +138,7 @@
                                 <button type="submit" class="btn btn-primary">
                                     <i class="bi bi-search me-1"></i> Применить
                                 </button>
-                                <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary ms-2">
+                                <a href="{{ route('reports.index') }}" class="btn btn-secondary ms-2">
                                     <i class="bi bi-x-circle me-1"></i> Сбросить
                                 </a>
                             </div>
@@ -280,7 +280,7 @@
                                 <td class="text-center">
                                     <div class="d-flex justify-content-center gap-1">
                                         <a href="{{ route('reports.show', $report) }}" 
-                                           class="btn btn-sm btn-outline-info rounded-circle d-flex align-items-center justify-content-center"
+                                           class="btn btn-sm btn-info rounded-circle d-flex align-items-center justify-content-center"
                                            style="width: 32px; height: 32px;"
                                            title="Просмотр отчета"
                                            data-bs-toggle="tooltip">
@@ -293,7 +293,7 @@
                                                 @csrf
                                                 @method('PATCH')
                                                 <button type="submit" 
-                                                        class="btn btn-sm btn-outline-warning rounded-circle d-flex align-items-center justify-content-center"
+                                                        class="btn btn-sm btn-warning rounded-circle d-flex align-items-center justify-content-center"
                                                         style="width: 32px; height: 32px;"
                                                         title="Отменить отчет"
                                                         data-bs-toggle="tooltip"

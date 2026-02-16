@@ -10,7 +10,7 @@
         Профиль сотрудника
     </h5>
     <div>
-        <a href="{{ route('admin.organization.show', $organization->id) }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ route('admin.organization.show', $organization->id) }}" class="btn btn-secondary btn-sm">
             <i class="bi bi-arrow-left"></i> Назад к организации
         </a>
     </div>
@@ -104,7 +104,7 @@
                           onsubmit="return confirm('Удалить сотрудника {{ $member->user->name }}?')">
                         @csrf
                         @method('DELETE')
-                        <button type="submit" class="btn btn-outline-danger w-100">
+                        <button type="submit" class="btn btn-danger w-100">
                             <i class="bi bi-trash me-1"></i> Удалить сотрудника
                         </button>
                     </form>

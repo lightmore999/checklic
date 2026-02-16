@@ -12,7 +12,7 @@
                     <div>
                         @if(auth()->user()->isAdmin() || auth()->user()->isManager() || auth()->user()->isOrgOwner())
                             <a href="{{ route('delegated-limits.create') }}" class="btn btn-primary btn-sm">
-                                <i class="fas fa-share-alt"></i> Делегировать лимит
+                                <i class="fas fa-share-alt"></i> Делегировать отчет
                             </a>
                         @endif
                     </div>
@@ -35,7 +35,7 @@
                             </div>
                             
                             <div class="col-md-3">
-                                <label>Владелец лимита</label>
+                                <label>Владелец отычета</label>
                                 <select name="owner_id" class="form-control">
                                     <option value="">Все владельцы</option>
                                     @foreach($users->whereIn('role', ['org_owner']) as $owner)
@@ -81,7 +81,7 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Получатель</th>
-                                    <th>Владелец лимита</th>
+                                    <th>Владелец отчета</th>
                                     <th>Тип отчета</th>
                                     <th>Количество</th>
                                     <th>Дата делегирования</th>
@@ -168,11 +168,11 @@
                                         <td colspan="8" class="text-center">
                                             <div class="py-5">
                                                 <i class="fas fa-share-alt fa-3x text-muted mb-3"></i>
-                                                <h4 class="text-muted">Делегированных лимитов нет</h4>
-                                                <p class="text-muted mb-4">Начните делегирование лимитов своим сотрудникам</p>
+                                                <h4 class="text-muted">Делегированных отчетов нет</h4>
+                                                <p class="text-muted mb-4">Начните делегирование отчетов своим сотрудникам</p>
                                                 @if(auth()->user()->isAdmin() || auth()->user()->isManager() || auth()->user()->isOrgOwner())
                                                     <a href="{{ route('delegated-limits.create') }}" class="btn btn-primary">
-                                                        <i class="fas fa-share-alt"></i> Делегировать лимит
+                                                        <i class="fas fa-share-alt"></i> Делегировать отчет
                                                     </a>
                                                 @endif
                                             </div>

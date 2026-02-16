@@ -9,6 +9,12 @@
         <i class="bi bi-speedometer text-primary me-2"></i>
         Панель менеджера
     </h5>
+    <div>
+        <a href="{{ route('manager.organization.create') }}" class="btn btn-success">
+            <i class="bi bi-building-add me-2"></i>
+            Создать организацию
+        </a>
+    </div>
 </div>
 
 <!-- Информация о менеджере -->
@@ -204,7 +210,7 @@
                             $totalQuantity = array_sum(array_column($limits, 'quantity'));
                         @endphp
                         <i class="bi bi-info-circle"></i>
-                        Всего лимитов: {{ count($limits) }} | 
+                        Всего отчетов: {{ count($limits) }} | 
                         UI: {{ $interfaceCount }} | 
                         API: {{ $apiCount }} | 
                         Исчерпано: <span class="{{ $exhaustedCount > 0 ? 'text-danger fw-bold' : 'text-success' }}">{{ $exhaustedCount }}</span>
@@ -223,13 +229,13 @@
             @if($exhaustedCount > 0)
                 <div class="alert alert-danger py-2 mt-2 mb-0">
                     <i class="bi bi-exclamation-triangle me-1"></i>
-                    <small>{{ $exhaustedCount }} лимит(ов) исчерпано. Обратитесь к администратору для пополнения.</small>
+                    <small>{{ $exhaustedCount }} отчет(ов) исчерпано. Обратитесь к администратору для пополнения.</small>
                 </div>
             @endif
             
             <div class="text-end mt-3">
                 <a href="{{ route('limits.index') }}" class="btn btn-sm btn-info">
-                    <i class="bi bi-gear me-1"></i> Управление лимитами
+                    <i class="bi bi-gear me-1"></i> Управление отчетами
                 </a>
             </div>
         </div>
@@ -251,7 +257,7 @@
         <h4 class="text-muted mb-3">Отчеты не настроены</h4>
         <p class="text-muted mb-4">Настройте отчеты для ваших организаций</p>
         <a href="{{ route('limits.create') }}" class="btn btn-info">
-            <i class="bi bi-plus-circle me-1"></i> Создать лимит
+            <i class="bi bi-plus-circle me-1"></i> Создать отчет
         </a>
     </div>
 </div>
@@ -358,7 +364,7 @@
                             <td class="text-center">
                                 <div class="d-flex justify-content-center gap-1">
                                     <a href="{{ route('manager.organization.show', $organization->id) }}" 
-                                       class="btn btn-sm btn-outline-info rounded-circle d-flex align-items-center justify-content-center"
+                                       class="btn btn-sm btn-info rounded-circle d-flex align-items-center justify-content-center"
                                        style="width: 32px; height: 32px;"
                                        title="Просмотреть организацию"
                                        data-bs-toggle="tooltip">
@@ -366,7 +372,7 @@
                                     </a>
 
                                     <a href="{{ route('manager.organization.edit', $organization->id) }}" 
-                                       class="btn btn-sm btn-outline-warning rounded-circle d-flex align-items-center justify-content-center"
+                                       class="btn btn-sm btn-warning rounded-circle d-flex align-items-center justify-content-center"
                                        style="width: 32px; height: 32px;"
                                        title="Редактировать организацию"
                                        data-bs-toggle="tooltip">
@@ -375,7 +381,7 @@
                                     
                                     <!-- ДОБАВЛЕНА КНОПКА СОЗДАНИЯ ЛИМИТА ДЛЯ ОРГАНИЗАЦИИ -->
                                     <a href="{{ route('limits.create') }}?user_id={{ $organization->owner?->user_id ?? '' }}" 
-                                       class="btn btn-sm btn-outline-success rounded-circle d-flex align-items-center justify-content-center"
+                                       class="btn btn-sm btn-success rounded-circle d-flex align-items-center justify-content-center"
                                        style="width: 32px; height: 32px;"
                                        title="Создать лимит для владельца"
                                        data-bs-toggle="tooltip">
@@ -391,7 +397,7 @@
             
             @if($organizations->count() > 5)
                 <div class="text-center mt-3">
-                    <a href="{{ route('manager.organizations.list') }}" class="btn btn-outline-success">
+                    <a href="{{ route('manager.organizations.list') }}" class="btn btn-success">
                         <i class="bi bi-list-ul me-1"></i> Показать все организации ({{ $organizations->count() }})
                     </a>
                 </div>

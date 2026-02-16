@@ -26,12 +26,12 @@
         <div>
             @if($isAdmin || $isManager)
                 <a href="{{ route($routePrefix . 'organization.show', $organization->id) }}" 
-                   class="btn btn-outline-secondary">
+                   class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Назад к организации
                 </a>
             @else
                 <a href="{{ route('owner.dashboard') }}" 
-                   class="btn btn-outline-secondary">
+                   class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Назад в панель
                 </a>
             @endif
@@ -87,7 +87,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="bi bi-speedometer text-primary me-2"></i>
-                        Статистика лимитов
+                        Статистика отчетов
                     </h5>
                     @if(isset($totalAll) && $totalAll > 0)
                         <span class="badge bg-primary">{{ $delegatedLimits->count() + $personalLimits->count() }}</span>
@@ -98,7 +98,7 @@
                         <!-- Общая статистика -->
                         <div class="mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <small>Всего лимитов:</small>
+                                <small>Всего отчетов:</small>
                                 <span class="badge bg-primary">{{ $totalAll }} шт.</span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -122,7 +122,7 @@
                                 </div>
                             </div>
                             <small class="text-muted d-block text-center">
-                                Использовано {{ $allPercentage }}% от всех лимитов
+                                Использовано {{ $allPercentage }}% от всех отчетов
                             </small>
                         </div>
 
@@ -218,7 +218,7 @@
                     @else
                         <div class="text-center py-3">
                             <i class="bi bi-speedometer text-muted fs-1 mb-3 d-block"></i>
-                            <p class="text-muted mb-0">У сотрудника нет лимитов</p>
+                            <p class="text-muted mb-0">У сотрудника нет отчетов</p>
                         </div>
                     @endif
                 </div>
@@ -256,7 +256,7 @@
                     <div class="card-body">
                         <div class="d-grid gap-2">
                             <a href="{{ route($routePrefix . 'org-members.edit', [$organization->id, $member->id]) }}" 
-                               class="btn btn-outline-primary">
+                               class="btn btn-primary">
                                 <i class="bi bi-pencil"></i> Редактировать данные
                             </a>
 
@@ -264,21 +264,21 @@
                                   method="POST">
                                 @csrf
                                 <button type="submit" 
-                                        class="btn btn-outline-{{ $member->is_active ? 'warning' : 'success' }} w-100">
+                                        class="btn btn-{{ $member->is_active ? 'warning' : 'success' }} w-100">
                                     <i class="bi bi-toggle-{{ $member->is_active ? 'off' : 'on' }}"></i>
                                     {{ $member->is_active ? 'Деактивировать' : 'Активировать' }}
                                 </button>
                             </form>
 
                             @if($isOwner)
-                                <button type="button" class="btn btn-outline-warning delegate-btn"
+                                <button type="button" class="btn btn-warning delegate-btn"
                                         data-employee-id="{{ $member->user->id }}"
                                         data-employee-name="{{ $member->user->name }}">
-                                    <i class="bi bi-share"></i> Делегировать лимит
+                                    <i class="bi bi-share"></i> Делегировать отчет
                                 </button>
                             @endif
 
-                            <button type="button" class="btn btn-outline-danger" 
+                            <button type="button" class="btn btn-danger" 
                                     onclick="confirmDelete()">
                                 <i class="bi bi-trash"></i> Удалить сотрудника
                             </button>
@@ -375,9 +375,9 @@
                         @if($personalLimits->count() > 0)
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link active" id="personal-tab" data-bs-toggle="tab" 
-                                        data-bs-target="#personal" type="button" role="tab">
+                                        data-bs-target="#personal" type="button" role="tab" aria-controls="personal" aria-selected="true">
                                     <i class="bi bi-person-check me-1"></i>
-                                    Собственные отчеты
+                                    Собственные
                                     <span class="badge bg-success ms-1">{{ $personalLimits->count() }}</span>
                                 </button>
                             </li>
@@ -386,9 +386,10 @@
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link {{ $personalLimits->count() == 0 ? 'active' : '' }}" 
                                         id="delegated-tab" data-bs-toggle="tab" 
-                                        data-bs-target="#delegated" type="button" role="tab">
+                                        data-bs-target="#delegated" type="button" role="tab" 
+                                        aria-controls="delegated" aria-selected="{{ $personalLimits->count() == 0 ? 'true' : 'false' }}">
                                     <i class="bi bi-share me-1"></i>
-                                    Делегированные отчеты
+                                    Делегированные
                                     <span class="badge bg-warning ms-1">{{ $delegatedLimits->count() }}</span>
                                 </button>
                             </li>
@@ -399,13 +400,13 @@
                     <div class="tab-content" id="limitsTabContent">
                         <!-- Собственные лимиты -->
                         @if($personalLimits->count() > 0)
-                            <div class="tab-pane fade show active" id="personal" role="tabpanel">
+                            <div class="tab-pane fade show active" id="personal" role="tabpanel" aria-labelledby="personal-tab">
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover">
                                         <thead>
                                             <tr>
                                                 <th>Тип отчета</th>
-                                                <th>Общий лимит</th>
+                                                <th>Общий отчет</th>
                                                 <th>Использовано</th>
                                                 <th>Доступно</th>
                                                 <th>Дата создания</th>
@@ -454,7 +455,7 @@
                         <!-- Делегированные лимиты -->
                         @if($delegatedLimits->count() > 0)
                             <div class="tab-pane fade {{ $personalLimits->count() == 0 ? 'show active' : '' }}" 
-                                 id="delegated" role="tabpanel">
+                                 id="delegated" role="tabpanel" aria-labelledby="delegated-tab">
                                 <div class="table-responsive">
                                     <table class="table table-sm table-hover">
                                         <thead>
@@ -523,7 +524,7 @@
                         @if($personalLimits->count() == 0 && $delegatedLimits->count() == 0)
                             <div class="text-center py-3">
                                 <i class="bi bi-clipboard-x text-muted fs-1 mb-3 d-block"></i>
-                                <p class="text-muted mb-0">У сотрудника нет доступных лимитов</p>
+                                <p class="text-muted mb-0">У сотрудника нет доступных отчетов</p>
                             </div>
                         @endif
                     </div>
@@ -648,48 +649,6 @@
     </div>
 </div>
 
-<!-- Модальное окно делегирования (если есть доступные лимиты) -->
-@if($isOwner)
-<div class="modal fade" id="delegateModal" tabindex="-1" aria-labelledby="delegateModalLabel" aria-hidden="true">
-    <!-- Содержимое модального окна для делегирования -->
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ route('owner.org-members.delegate-limit', [$organization->id, $member->id]) }}" method="POST">
-                @csrf
-                <div class="modal-header">
-                    <h5 class="modal-title" id="delegateModalLabel">
-                        <i class="bi bi-share me-2"></i>
-                        Делегировать лимит сотруднику
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Выберите тип лимита:</label>
-                        <select name="limit_type" class="form-select" id="limitTypeSelect">
-                            <option value="">Выберите тип отчета</option>
-                            <!-- Можно добавить опции через JS или PHP -->
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Количество:</label>
-                        <input type="number" name="quantity" class="form-control" min="1" value="1" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Дополнительная информация:</label>
-                        <textarea name="notes" class="form-control" rows="3" placeholder="При необходимости добавьте комментарий..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Делегировать</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-@endif
-
 @if($isAdmin || $isManager || $isOwner)
 <!-- Форма для удаления -->
 <form id="delete-form" method="POST" 
@@ -706,28 +665,15 @@ function confirmDelete() {
         document.getElementById('delete-form').submit();
     }
 }
-
-// Инициализация табов
-document.addEventListener('DOMContentLoaded', function() {
-    const triggerTabList = [].slice.call(document.querySelectorAll('#limitsTab button'))
-    triggerTabList.forEach(function (triggerEl) {
-        const tabTrigger = new bootstrap.Tab(triggerEl)
-        
-        triggerEl.addEventListener('click', function (event) {
-            event.preventDefault()
-            tabTrigger.show()
-        })
-    })
-    
-    // Обработка кнопки делегирования
-    const delegateBtn = document.querySelector('.delegate-btn');
-    if (delegateBtn) {
-        delegateBtn.addEventListener('click', function() {
-            const modal = new bootstrap.Modal(document.getElementById('delegateModal'));
-            modal.show();
-        });
-    }
-});
 </script>
+
+<style>
+/* Исправление для активных табов */
+.nav-tabs .nav-link.active {
+    color: #0d6efd !important;
+    font-weight: 500 !important;
+}
+</style>
+
 @endif
 @endsection

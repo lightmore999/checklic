@@ -8,7 +8,7 @@
         <h1 class="h2 mb-0">
             <i class="bi bi-person-circle text-primary"></i> Мой профиль
         </h1>
-        <a href="{{ route('member.profile.edit') }}" class="btn btn-outline-primary">
+        <a href="{{ route('member.profile.edit') }}" class="btn btn-primary">
             <i class="bi bi-pencil"></i> Редактировать
         </a>
     </div>
@@ -62,7 +62,7 @@
                     <!-- Общая статистика -->
                     <div class="mb-4">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <small>Всего лимитов:</small>
+                            <small>Всего отчетов:</small>
                             <span class="badge bg-primary">{{ $totalAll }} шт.</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -86,7 +86,7 @@
                             </div>
                         </div>
                         <small class="text-muted d-block text-center">
-                            Использовано {{ $allPercentage }}% от всех лимитов
+                            Использовано {{ $allPercentage }}% от всех отчетов
                         </small>
                     </div>
 
@@ -323,7 +323,7 @@
                                         <thead>
                                             <tr>
                                                 <th>Тип отчета</th>
-                                                <th>Общий лимит</th>
+                                                <th>Общий отчет</th>
                                                 <th>Использовано</th>
                                                 <th>Доступно</th>
                                                 <th>Дата создания</th>
@@ -441,7 +441,7 @@
                         @if($personalLimits->count() == 0 && $delegatedLimits->count() == 0)
                             <div class="text-center py-5">
                                 <i class="bi bi-clipboard-x text-muted fs-1 mb-3 d-block"></i>
-                                <p class="text-muted mb-2">У вас нет доступных лимитов</p>
+                                <p class="text-muted mb-2">У вас нет доступных отчетов</p>
                                 <small class="text-muted">Обратитесь к администратору или руководителю</small>
                             </div>
                         @endif

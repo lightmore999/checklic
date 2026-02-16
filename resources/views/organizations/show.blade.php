@@ -27,6 +27,10 @@
                 $canDelegateAny = $organization->manager && $organization->manager->id == $currentUserId;
             }
         }
+        
+        // Статистика по сотрудникам для новых полей
+        $currentEmployeesCount = $organization->members->count();
+        $availableEmployeeSlots = $organization->max_employees ? max(0, $organization->max_employees - $currentEmployeesCount) : null;
     @endphp
 
     <!-- Заголовок -->
@@ -58,7 +62,7 @@
                 </a>
             @endif
             <a href="{{ $isAdmin ? route('admin.dashboard') : route('manager.dashboard') }}" 
-               class="btn btn-outline-secondary">
+               class="btn btn-secondary">
                 <i class="bi bi-arrow-left me-1"></i> Назад
             </a>
         </div>
@@ -84,8 +88,11 @@
         <div class="col-md-3 col-sm-6 mb-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body text-center py-4">
-                    <div class="display-4 text-primary mb-2">{{ $organization->members->count() }}</div>
+                    <div class="display-4 text-primary mb-2">{{ $currentEmployeesCount }}</div>
                     <div class="text-muted">Сотрудников</div>
+                    @if($organization->max_employees)
+                        <small class="text-muted">из {{ $organization->max_employees }}</small>
+                    @endif
                 </div>
             </div>
         </div>
@@ -156,6 +163,11 @@
                                     <span class="text-muted">Создана:</span>
                                     <span class="ms-2">{{ $organization->created_at->format('d.m.Y H:i') }}</span>
                                 </div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-file-text text-muted me-2" style="width: 20px;"></i>
+                                    <span class="text-muted">ИНН:</span>
+                                    <span class="ms-2">{{ $organization->inn ?? 'Не указан' }}</span>
+                                </div>
                             </div>
                         </div>
                         
@@ -187,7 +199,37 @@
                                     </div>
                                 </div>
                                 
-                                <!-- ИСПРАВЛЕНО: Отображение менеджера -->
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-people text-muted me-2" style="width: 20px;"></i>
+                                    <span class="text-muted">Лимит сотрудников:</span>
+                                    <div class="ms-2">
+                                        @if($organization->max_employees)
+                                            <span class="badge bg-info">{{ $organization->max_employees }} чел.</span>
+                                            <small class="text-muted ms-1">({{ $currentEmployeesCount }} / {{ $organization->max_employees }})</small>
+                                        @else
+                                            <span class="badge bg-secondary">Не ограничен</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-person-badge text-muted me-2" style="width: 20px;"></i>
+                                    <span class="text-muted">Свободных мест:</span>
+                                    <div class="ms-2">
+                                        @if($organization->max_employees)
+                                            @php
+                                                $freeSlots = max(0, $organization->max_employees - $currentEmployeesCount);
+                                            @endphp
+                                            <span class="badge bg-{{ $freeSlots > 0 ? 'success' : 'danger' }}">
+                                                {{ $freeSlots }} из {{ $organization->max_employees }}
+                                            </span>
+                                        @else
+                                            <span class="badge bg-success">∞</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                
+                                <!-- Менеджер -->
                                 <div class="d-flex align-items-center">
                                     <i class="bi bi-person-badge text-muted me-2" style="width: 20px;"></i>
                                     <span class="text-muted">Менеджер:</span>
@@ -208,6 +250,14 @@
                             </div>
                         </div>
                     </div>
+                    
+                    @if($organization->max_employees && $currentEmployeesCount >= $organization->max_employees)
+                        <div class="alert alert-warning mt-3 mb-0">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Достигнут лимит сотрудников ({{ $currentEmployeesCount }}/{{ $organization->max_employees }}).
+                            Для добавления новых сотрудников необходимо увеличить лимит.
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -220,7 +270,7 @@
                     </h5>
                     @if($isAdmin && $organization->owner && $organization->owner->user)
                         <a href="{{ route($routePrefix . 'organization.edit', $organization->id) }}" 
-                           class="btn btn-outline-primary btn-sm">
+                           class="btn btn-primary btn-sm">
                             <i class="bi bi-pencil me-1"></i> Редактировать
                         </a>
                     @endif
@@ -283,7 +333,7 @@
                         </h5>
                         <div class="d-flex gap-2">
                             @if($canDelegateAny && isset($availableEmployees) && $availableEmployees->count() > 0 && count(array_filter($ownerLimits, fn($l) => $l['available_amount'] > 0)) > 0)
-                                <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#delegateModal">
+                                <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#delegateModal">
                                     <i class="bi bi-share"></i> Делегировать
                                 </button>
                             @endif
@@ -374,7 +424,7 @@
                     <div class="d-grid gap-2">
                         @if($organization->owner && $organization->owner->user)
                             <a href="{{ route($routePrefix . 'organization.edit', $organization->id) }}" 
-                               class="btn btn-outline-primary">
+                               class="btn btn-primary">
                                 <i class="bi bi-pencil me-1"></i> Редактировать организацию
                             </a>
                         @endif
@@ -383,13 +433,13 @@
                               method="POST" class="d-grid">
                             @csrf
                             <button type="submit" 
-                                    class="btn btn-outline-{{ $organization->status == 'active' ? 'warning' : 'success' }}">
+                                    class="btn btn-{{ $organization->status == 'active' ? 'warning' : 'success' }}">
                                 <i class="bi bi-toggle-{{ $organization->status == 'active' ? 'off' : 'on' }} me-1"></i>
                                 {{ $organization->status == 'active' ? 'Деактивировать' : 'Активировать' }}
                             </button>
                         </form>
 
-                        <button type="button" class="btn btn-outline-danger" 
+                        <button type="button" class="btn btn-danger" 
                                 onclick="confirmDelete({{ $organization->id }}, '{{ $organization->name }}')">
                             <i class="bi bi-trash me-1"></i> Удалить организацию
                         </button>
@@ -398,7 +448,7 @@
             </div>
             @endif
 
-            <!-- ИСПРАВЛЕНО: Ответственный менеджер -->
+            <!-- Ответственный менеджер -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white border-bottom">
                     <h5 class="mb-0">
@@ -429,6 +479,60 @@
                 </div>
             </div>
 
+            <!-- Информация о лимитах сотрудников -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">
+                        <i class="bi bi-people text-info me-2"></i>
+                        Лимит сотрудников
+                    </h5>
+                </div>
+                <div class="card-body">
+                    @if($organization->max_employees)
+                        <div class="text-center mb-3">
+                            <div class="display-4 text-info mb-2">{{ $currentEmployeesCount }} / {{ $organization->max_employees }}</div>
+                            <div class="text-muted">текущее / максимум</div>
+                        </div>
+                        
+                        <!-- Прогресс-бар -->
+                        @php
+                            $employeePercentage = $organization->max_employees > 0 
+                                ? min(100, round(($currentEmployeesCount / $organization->max_employees) * 100)) 
+                                : 0;
+                        @endphp
+                        <div class="progress mb-3" style="height: 10px;">
+                            <div class="progress-bar bg-{{ $employeePercentage >= 90 ? 'danger' : ($employeePercentage >= 70 ? 'warning' : 'success') }}" 
+                                 style="width: {{ $employeePercentage }}%">
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between text-center">
+                            <div>
+                                <span class="badge bg-success">{{ $organization->members->where('is_active', true)->count() }}</span>
+                                <small class="d-block text-muted">активных</small>
+                            </div>
+                            <div>
+                                <span class="badge bg-danger">{{ $organization->members->where('is_active', false)->count() }}</span>
+                                <small class="d-block text-muted">неактивных</small>
+                            </div>
+                            <div>
+                                <span class="badge bg-info">{{ $availableEmployeeSlots ?? '∞' }}</span>
+                                <small class="d-block text-muted">свободно</small>
+                            </div>
+                        </div>
+                    @else
+                        <div class="text-center py-3">
+                            <div class="display-4 text-success mb-2">∞</div>
+                            <div class="text-muted">Лимит не ограничен</div>
+                            <div class="mt-3">
+                                <span class="badge bg-success">{{ $currentEmployeesCount }}</span>
+                                <small class="d-block text-muted">текущее количество</small>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            </div>
+
             <!-- Быстрые действия -->
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white border-bottom">
@@ -439,13 +543,20 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <a href="{{ route($routePrefix . 'org-members.create', $organization->id) }}" 
-                           class="btn btn-outline-primary">
-                            <i class="bi bi-person-plus me-1"></i> Добавить сотрудника
-                        </a>
+                        @if(!$organization->max_employees || $currentEmployeesCount < $organization->max_employees)
+                            <a href="{{ route($routePrefix . 'org-members.create', $organization->id) }}" 
+                               class="btn btn-primary">
+                                <i class="bi bi-person-plus me-1"></i> Добавить сотрудника
+                            </a>
+                        @else
+                            <button class="btn btn-secondary" disabled 
+                                    title="Достигнут лимит сотрудников ({{ $currentEmployeesCount }}/{{ $organization->max_employees }})">
+                                <i class="bi bi-person-plus me-1"></i> Добавить сотрудника
+                            </button>
+                        @endif
                         
                         @if($organization->members->count() > 0)
-                            <a href="{{ route('reports.create') }}" class="btn btn-outline-success">
+                            <a href="{{ route('reports.create') }}" class="btn btn-success">
                                 <i class="bi bi-file-earmark-plus me-1"></i> Создать отчет
                             </a>
                         @endif
@@ -475,7 +586,7 @@
                         <tr>
                             <th>Сотрудник</th>
                             <th>Тип отчета</th>
-                            <th>Дата лимита</th>
+                            <th>Дата отчета</th>
                             <th>Делегировано/Использовано</th>
                             <th>Дата делегирования</th>
                             <th>Статус</th>
@@ -533,7 +644,7 @@
                                     @csrf
                                     @method('DELETE')
                                     <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                    <button type="submit" class="btn btn-sm btn-danger" 
                                             onclick="return confirm('Возвратить лимит? Лимит вернется владельцу.')"
                                             title="Возвратить лимит">
                                         <i class="bi bi-arrow-return-left"></i>
@@ -557,14 +668,24 @@
                 <h5 class="mb-0">
                     <i class="bi bi-people text-primary me-2"></i>
                     Сотрудники организации
-                    <span class="badge bg-primary ms-2">{{ $organization->members->count() }}</span>
+                    <span class="badge bg-primary ms-2">{{ $currentEmployeesCount }}</span>
+                    @if($organization->max_employees)
+                        <span class="badge bg-info ms-2">лимит: {{ $organization->max_employees }}</span>
+                    @endif
                 </h5>
                 <small class="text-muted">Все сотрудники вашей организации</small>
             </div>
             @if($isAdmin || $isManager)
-                <a href="{{ route($routePrefix . 'org-members.create', $organization->id) }}" class="btn btn-primary">
-                    <i class="bi bi-person-plus me-1"></i> Добавить сотрудника
-                </a>
+                @if(!$organization->max_employees || $currentEmployeesCount < $organization->max_employees)
+                    <a href="{{ route($routePrefix . 'org-members.create', $organization->id) }}" class="btn btn-primary">
+                        <i class="bi bi-person-plus me-1"></i> Добавить сотрудника
+                    </a>
+                @else
+                    <button class="btn btn-secondary" disabled 
+                            title="Достигнут лимит сотрудников ({{ $currentEmployeesCount }}/{{ $organization->max_employees }})">
+                        <i class="bi bi-person-plus me-1"></i> Добавить сотрудника
+                    </button>
+                @endif
             @endif
         </div>
         <div class="card-body">
@@ -608,7 +729,7 @@
                                 <!-- Статистика по лимитам -->
                                 @if($hasDelegated)
                                     <div class="mb-3 border-top pt-2">
-                                        <small class="text-muted d-block mb-2">Статистика по лимитам:</small>
+                                        <small class="text-muted d-block mb-2">Статистика по отчетам:</small>
                                         <div class="d-flex justify-content-between mb-1">
                                             <small>Делегировано:</small>
                                             <span class="badge bg-warning bg-opacity-25 text-dark">{{ $memberTotalDelegated }} шт.</span>
@@ -626,7 +747,7 @@
                                         
                                         <!-- Виды лимитов -->
                                         @if($memberDelegated->count() > 0)
-                                            <small class="text-muted d-block mb-1">Виды лимитов:</small>
+                                            <small class="text-muted d-block mb-1">Виды отчетов:</small>
                                             <div class="mt-1">
                                                 @foreach($memberDelegated->take(2) as $delegated)
                                                     @php
@@ -634,8 +755,8 @@
                                                         $percentage = $delegated->quantity > 0 ? round(($delegatedAvailable / $delegated->quantity) * 100) : 0;
                                                     @endphp
                                                     <div class="mb-2">
-                                                        <small class="d-block text-truncate" title="{{ $delegated->limit->reportType->name ?? 'Лимит' }}">
-                                                            {{ $delegated->limit->reportType->name ?? 'Лимит' }}
+                                                        <small class="d-block text-truncate" title="{{ $delegated->limit->reportType->name ?? 'Отчет' }}">
+                                                            {{ $delegated->limit->reportType->name ?? 'Отчет' }}
                                                         </small>
                                                         <div class="progress" style="height: 4px;">
                                                             <div class="progress-bar bg-{{ $percentage > 20 ? 'success' : ($percentage > 0 ? 'warning' : 'danger') }}" 
@@ -651,7 +772,7 @@
                                                 @if($memberDelegated->count() > 2)
                                                     <div class="text-center">
                                                         <small class="text-muted">
-                                                            + еще {{ $memberDelegated->count() - 2 }} видов лимитов
+                                                            + еще {{ $memberDelegated->count() - 2 }} видов отчетов
                                                         </small>
                                                     </div>
                                                 @endif
@@ -661,7 +782,7 @@
                                 @else
                                     <div class="border-top pt-3 text-center">
                                         <i class="bi bi-share fs-4 text-muted mb-2 d-block"></i>
-                                        <small class="text-muted">Нет делегированных лимитов</small>
+                                        <small class="text-muted">Нет делегированных отчетов</small>
                                     </div>
                                 @endif
                                 
@@ -670,22 +791,23 @@
                                     <div class="d-flex justify-content-between">
                                         <div class="d-flex gap-1">
                                             <a href="{{ route($routePrefix . 'org-members.show', [$organization->id, $member->id]) }}" 
-                                               class="btn btn-sm btn-outline-info" title="Просмотр">
+                                               class="btn btn-sm btn-info" title="Просмотр">
                                                 <i class="bi bi-eye"></i>
                                             </a>
                                             @if($isAdmin || $isManager)
                                                 <a href="{{ route($routePrefix . 'org-members.edit', [$organization->id, $member->id]) }}" 
-                                                   class="btn btn-sm btn-outline-secondary" title="Редактировать">
+                                                   class="btn btn-sm btn-secondary" title="Редактировать">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
                                             @endif
                                         </div>
                                         @if($canDelegateAny && isset($ownerLimits) && count($ownerLimits) > 0)
-                                            <button type="button" class="btn btn-sm btn-outline-warning delegate-btn"
+                                            <button type="button" class="btn btn-sm btn-warning delegate-btn"
                                                     data-employee-id="{{ $member->user->id }}"
                                                     data-employee-name="{{ $member->user->name }}"
                                                     data-owner-id="{{ $organization->owner->user_id ?? '' }}"
-                                                    title="Делегировать лимит">
+                                                    title="Делегировать лимит"
+                                                    {{ $organization->max_employees && $currentEmployeesCount >= $organization->max_employees ? 'disabled' : '' }}>
                                                 <i class="bi bi-share"></i>
                                             </button>
                                         @endif
@@ -702,11 +824,22 @@
                         <i class="bi bi-people display-1 text-muted"></i>
                     </div>
                     <h4 class="text-muted mb-3">Сотрудников пока нет</h4>
-                    <p class="text-muted mb-4">Добавьте первого сотрудника в вашу организацию</p>
+                    <p class="text-muted mb-4">
+                        Добавьте первого сотрудника в вашу организацию
+                        @if($organization->max_employees)
+                            <br><small class="text-info">Лимит сотрудников: {{ $organization->max_employees }} чел.</small>
+                        @endif
+                    </p>
                     @if($isAdmin || $isManager)
-                        <a href="{{ route($routePrefix . 'org-members.create', $organization->id) }}" class="btn btn-primary">
-                            <i class="bi bi-person-plus me-1"></i> Добавить сотрудника
-                        </a>
+                        @if(!$organization->max_employees || $currentEmployeesCount < $organization->max_employees)
+                            <a href="{{ route($routePrefix . 'org-members.create', $organization->id) }}" class="btn btn-primary">
+                                <i class="bi bi-person-plus me-1"></i> Добавить сотрудника
+                            </a>
+                        @else
+                            <button class="btn btn-secondary" disabled>
+                                <i class="bi bi-person-plus me-1"></i> Лимит сотрудников исчерпан
+                            </button>
+                        @endif
                     @endif
                 </div>
             @endif
@@ -727,7 +860,7 @@
                 @endif
                 <div class="modal-header bg-warning text-white">
                     <h5 class="modal-title" id="delegateModalLabel">
-                        <i class="bi bi-share"></i> Делегирование лимита
+                        <i class="bi bi-share"></i> Делегирование отчета
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -736,10 +869,10 @@
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label for="limit_id" class="form-label">
-                                    <i class="bi bi-tachometer"></i> Лимит владельца *
+                                    <i class="bi bi-tachometer"></i> Отчет владельца *
                                 </label>
                                 <select name="limit_id" id="limit_id" class="form-select" required>
-                                    <option value="">Выберите лимит</option>
+                                    <option value="">Выберите отчет</option>
                                     @foreach($ownerLimits as $limit)
                                         @if($limit['available_amount'] > 0 && $limit['id'])
                                             <option value="{{ $limit['id'] }}" 
@@ -805,13 +938,13 @@
                             <span class="input-group-text">шт.</span>
                         </div>
                         <div class="mb-2">
-                            <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="setDelegateAmount(5)">
+                            <button type="button" class="btn btn-sm btn-primary me-2" onclick="setDelegateAmount(5)">
                                 +5
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="setDelegateAmount(10)">
+                            <button type="button" class="btn btn-sm btn-primary me-2" onclick="setDelegateAmount(10)">
                                 +10
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="setMaxDelegateAmount()">
+                            <button type="button" class="btn btn-sm btn-primary" onclick="setMaxDelegateAmount()">
                                 Максимум
                             </button>
                         </div>

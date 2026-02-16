@@ -10,7 +10,7 @@
         Создание новой организации
     </h5>
     <a href="{{ $user->isAdmin() ? route('admin.dashboard') : route('manager.dashboard') }}" 
-       class="btn btn-outline-secondary btn-sm">
+       class="btn btn-secondary btn-sm">
         <i class="bi bi-arrow-left"></i> Назад
     </a>
 </div>
@@ -70,6 +70,25 @@
                             </div>
                             
                             <div class="col-md-6 mb-3">
+                                <label for="organization_inn" class="form-label">
+                                    ИНН
+                                </label>
+                                <input type="text" class="form-control @error('organization.inn') is-invalid @enderror" 
+                                       id="organization_inn" name="organization[inn]" 
+                                       value="{{ old('organization.inn') }}" 
+                                       placeholder="Введите ИНН" 
+                                       maxlength="12"
+                                       pattern="[0-9]{10,12}"
+                                       title="ИНН должен содержать от 10 до 12 цифр">
+                                @error('organization.inn')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text text-muted">ИНН организации (10 цифр для юрлиц, 12 для ИП)</div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
                                 <label for="status" class="form-label">
                                     Статус *
                                 </label>
@@ -92,6 +111,22 @@
                                 @error('organization.status')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="organization_max_employees" class="form-label">
+                                    Максимальное количество сотрудников
+                                </label>
+                                <input type="number" class="form-control @error('organization.max_employees') is-invalid @enderror" 
+                                       id="organization_max_employees" name="organization[max_employees]" 
+                                       value="{{ old('organization.max_employees') }}" 
+                                       placeholder="Например: 50"
+                                       min="1"
+                                       step="1">
+                                @error('organization.max_employees')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text text-muted">Оставьте пустым для безлимитного количества сотрудников</div>
                             </div>
                         </div>
                         
@@ -202,10 +237,21 @@
                         </div>
                     </div>
                     
+                    <!-- Информационные подсказки для новых полей -->
+                    <div class="alert alert-info small py-2 mb-4">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Обратите внимание:</strong>
+                        <ul class="mb-0 mt-1 ps-3">
+                            <li>ИНН должен содержать 10 цифр для юридических лиц или 12 для ИП</li>
+                            <li>Лимит сотрудников можно указать для ограничения количества добавляемых сотрудников</li>
+                            <li>Если лимит не указан, сотрудников можно добавлять без ограничений</li>
+                        </ul>
+                    </div>
+                    
                     <!-- Кнопки -->
                     <div class="d-flex justify-content-between pt-3 border-top">
                         <a href="{{ $user->isAdmin() ? route('admin.dashboard') : route('manager.dashboard') }}" 
-                           class="btn btn-outline-secondary">
+                           class="btn btn-secondary">
                             <i class="bi bi-x-circle me-1"></i> Отмена
                         </a>
                         
@@ -230,6 +276,25 @@
             subscriptionField.min = tomorrow.toISOString().split('T')[0];
         }
         
+        // Валидация ИНН (только цифры)
+        const innField = document.getElementById('organization_inn');
+        if (innField) {
+            innField.addEventListener('input', function(e) {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+        }
+        
+        // Валидация максимального количества сотрудников (только положительные числа)
+        const maxEmployeesField = document.getElementById('organization_max_employees');
+        if (maxEmployeesField) {
+            maxEmployeesField.addEventListener('input', function(e) {
+                let value = parseInt(this.value);
+                if (value < 1) {
+                    this.value = '';
+                }
+            });
+        }
+        
         // Валидация формы
         const form = document.getElementById('createOrganizationForm');
         const submitBtn = document.getElementById('submitBtn');
@@ -242,6 +307,24 @@
                 e.preventDefault();
                 alert('Пароли не совпадают!');
                 document.getElementById('user_password').focus();
+                return false;
+            }
+            
+            // Проверка ИНН если он заполнен
+            const inn = document.getElementById('organization_inn').value;
+            if (inn && (inn.length < 10 || inn.length > 12)) {
+                e.preventDefault();
+                alert('ИНН должен содержать от 10 до 12 цифр');
+                document.getElementById('organization_inn').focus();
+                return false;
+            }
+            
+            // Проверка максимального количества сотрудников
+            const maxEmployees = document.getElementById('organization_max_employees').value;
+            if (maxEmployees && parseInt(maxEmployees) < 1) {
+                e.preventDefault();
+                alert('Максимальное количество сотрудников должно быть не менее 1');
+                document.getElementById('organization_max_employees').focus();
                 return false;
             }
             

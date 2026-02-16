@@ -10,7 +10,7 @@
         Добавление сотрудника в организацию: {{ $organization->name }}
     </h5>
     <div>
-        <a href="{{ route('admin.organization.show', $organization->id) }}" class="btn btn-outline-secondary btn-sm">
+        <a href="{{ route('admin.organization.show', $organization->id) }}" class="btn btn-secondary btn-sm">
             <i class="bi bi-arrow-left"></i> Назад
         </a>
     </div>
@@ -91,7 +91,7 @@
                     </div>
                     
                     <div class="d-flex justify-content-between">
-                        <a href="{{ route('admin.organization.show', $organization->id) }}" class="btn btn-outline-secondary">
+                        <a href="{{ route('admin.organization.show', $organization->id) }}" class="btn btn-secondary">
                             <i class="bi bi-x-circle me-1"></i> Отмена
                         </a>
                         

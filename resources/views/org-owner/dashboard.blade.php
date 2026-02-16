@@ -47,11 +47,14 @@
     <!-- Информация об организации -->
     <div class="col-md-8">
         <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white border-bottom">
+            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">
                     <i class="bi bi-building text-success me-2"></i>
                     Организация: <strong class="ms-1">{{ $organization->name }}</strong>
                 </h6>
+                @if($organization->inn)
+                    <span class="badge bg-info">ИНН: {{ $organization->inn }}</span>
+                @endif
             </div>
             <div class="card-body">
                 <div class="row">
@@ -68,12 +71,36 @@
                                 @case('pending')
                                     <span class="badge bg-warning ms-2">Ожидает</span>
                                     @break
+                                @case('suspended')
+                                    <span class="badge bg-warning ms-2">Приостановлена</span>
+                                    @break
+                                @case('expired')
+                                    <span class="badge bg-danger ms-2">Истекла</span>
+                                    @break
                             @endswitch
                         </div>
                         
                         <div class="mb-3">
                             <strong>Сотрудников:</strong>
                             <span class="ms-2">{{ $membersCount }} / {{ $activeMembersCount }} активных</span>
+                            @if($organization->max_employees)
+                                <span class="badge bg-info ms-2" title="Максимальное количество сотрудников">
+                                    лимит: {{ $organization->max_employees }}
+                                </span>
+                                <div class="mt-2" style="max-width: 200px;">
+                                    <div class="progress" style="height: 6px;">
+                                        @php
+                                            $employeePercentage = $organization->max_employees > 0 
+                                                ? min(100, round(($membersCount / $organization->max_employees) * 100)) 
+                                                : 0;
+                                        @endphp
+                                        <div class="progress-bar bg-{{ $employeePercentage >= 90 ? 'danger' : ($employeePercentage >= 70 ? 'warning' : 'success') }}" 
+                                             style="width: {{ $employeePercentage }}%">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">{{ $employeePercentage }}% от лимита</small>
+                                </div>
+                            @endif
                         </div>
                         
                         <div class="mb-3">
@@ -82,8 +109,8 @@
                         </div>
                         
                         <div class="mb-3">
-                            <strong>ИНН/КПП:</strong>
-                            <span class="ms-2">{{ $organization->inn ?? 'Не указан' }} / {{ $organization->kpp ?? 'Не указан' }}</span>
+                            <strong>ИНН:</strong>
+                            <span class="ms-2">{{ $organization->inn ?? 'Не указан' }}</span>
                         </div>
                     </div>
                     
@@ -109,13 +136,30 @@
                         @endif
                         
                         <div class="mb-3">
-                            <strong>Адрес:</strong>
-                            <span class="ms-2">{{ $organization->address ?? 'Не указан' }}</span>
+                            <strong>Макс. сотрудников:</strong>
+                            <span class="ms-2">
+                                @if($organization->max_employees)
+                                    {{ $organization->max_employees }} чел.
+                                @else
+                                    <span class="text-muted">Не ограничено</span>
+                                @endif
+                            </span>
                         </div>
                         
                         <div class="mb-3">
-                            <strong>Телефон:</strong>
-                            <span class="ms-2">{{ $organization->phone ?? 'Не указан' }}</span>
+                            <strong>Свободных мест:</strong>
+                            <span class="ms-2">
+                                @if($organization->max_employees)
+                                    @php
+                                        $availableSlots = max(0, $organization->max_employees - $membersCount);
+                                    @endphp
+                                    <span class="badge bg-{{ $availableSlots > 0 ? 'success' : 'danger' }}">
+                                        {{ $availableSlots }} из {{ $organization->max_employees }}
+                                    </span>
+                                @else
+                                    <span class="badge bg-success">∞</span>
+                                @endif
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -133,12 +177,19 @@
                         Подписка истекла! Обратитесь к менеджеру
                     </div>
                 @endif
+                
+                @if($organization->max_employees && $membersCount >= $organization->max_employees)
+                    <div class="alert alert-warning mt-2 mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Достигнут лимит сотрудников ({{ $membersCount }}/{{ $organization->max_employees }}). 
+                        Для добавления новых сотрудников обратитесь к менеджеру.
+                    </div>
+                @endif
             </div>
         </div>
     </div>
 </div>
 
-<!-- Информация о менеджере -->
 <!-- Информация о менеджере -->
 @if($manager)
 <div class="row mb-4">
@@ -216,7 +267,7 @@
         </h6>
         <div class="d-flex gap-2">
             @if($availableEmployees->count() > 0 && $ownerLimits->where('quantity', '>', 0)->count() > 0)
-                <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#delegateModal">
+                <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#delegateModal">
                     <i class="bi bi-share"></i> Делегировать
                 </button>
             @endif
@@ -284,7 +335,7 @@
             <div class="text-center py-4">
                 <i class="bi bi-speedometer fs-1 text-muted mb-3"></i>
                 <h5 class="text-muted">Отчеты не назначены</h5>
-                <p class="text-muted mb-3">Обратитесь к менеджеру для получения лимитов</p>
+                <p class="text-muted mb-3">Обратитесь к менеджеру для получения отчетов</p>
                 @if($manager)
                 <a href="mailto:{{ $manager->email }}" class="btn btn-primary">
                     <i class="bi bi-envelope"></i> Связаться с менеджером
@@ -319,7 +370,7 @@
                         <tr>
                             <th>Сотрудник</th>
                             <th>Тип отчета</th>
-                            <th>Дата лимита</th>
+                            <th>Дата отчета</th>
                             <th>Делегировано/Использовано</th>
                             <th>Дата делегирования</th>
                             <th>Статус</th>
@@ -370,7 +421,7 @@
                                 <form action="{{ route('delegated-limits.destroy', $delegated) }}" method="POST" class="d-inline">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                    <button type="submit" class="btn btn-sm btnы-danger" 
                                             onclick="return confirm('Возвратить лимит? Лимит вернется вам.')"
                                             title="Возвратить лимит">
                                         <i class="bi bi-arrow-return-left"></i>
@@ -385,10 +436,10 @@
         @else
             <div class="text-center py-4">
                 <i class="bi bi-share fs-1 text-muted mb-3"></i>
-                <h5 class="text-muted">Делегированных лимитов нет</h5>
+                <h5 class="text-muted">Делегированных отчетов нет</h5>
                 <p class="text-muted mb-3">
                     @if($ownerLimits->where('quantity', '>', 0)->count() == 0)
-                        У вас нет доступных лимитов для делегирования
+                        У вас нет доступных отчетов для делегирования
                     @elseif($availableEmployees->count() == 0)
                         У вас нет активных сотрудников
                     @else
@@ -397,7 +448,7 @@
                 </p>
                 @if($ownerLimits->where('quantity', '>', 0)->count() > 0 && $availableEmployees->count() > 0)
                     <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#delegateModal">
-                        <i class="bi bi-share"></i> Делегировать лимит
+                        <i class="bi bi-share"></i> Делегировать отчет
                     </button>
                 @endif
             </div>
@@ -415,11 +466,35 @@
                 <span class="badge bg-primary ms-2">{{ $membersCount }}</span>
             @endif
         </h6>
-        @if($organization && $organization->owner && $organization->owner->user_id == Auth::id())
-            <a href="{{ route('owner.org-members.create', $organization->id) }}" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-person-plus"></i> Добавить сотрудника
-            </a>
-        @endif
+        <div class="d-flex gap-2 align-items-center">
+            @if($organization->max_employees)
+                <span class="badge bg-info">
+                    Лимит: {{ $organization->max_employees }} чел.
+                </span>
+                @if($organization->max_employees > $membersCount)
+                    <span class="badge bg-success">
+                        Свободно: {{ $organization->max_employees - $membersCount }}
+                    </span>
+                @else
+                    <span class="badge bg-danger">
+                        Лимит исчерпан
+                    </span>
+                @endif
+            @endif
+            
+            @if($organization && $organization->owner && $organization->owner->user_id == Auth::id())
+                @if(!$organization->max_employees || $organization->max_employees > $membersCount)
+                    <a href="{{ route('owner.org-members.create', $organization->id) }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-person-plus"></i> Добавить сотрудника
+                    </a>
+                @else
+                    <button class="btn btn-secondary btn-sm" disabled 
+                            title="Достигнут лимит сотрудников ({{ $membersCount }}/{{ $organization->max_employees }})">
+                        <i class="bi bi-person-plus"></i> Добавить сотрудника
+                    </button>
+                @endif
+            @endif
+        </div>
     </div>
     <div class="card-body">
         @if($membersCount > 0)
@@ -460,7 +535,7 @@
                             
                             @if($hasDelegated)
                                 <div class="mb-3 border-top pt-2">
-                                    <small class="text-muted d-block mb-2">Статистика по лимитам:</small>
+                                    <small class="text-muted d-block mb-2">Статистика по отчетам:</small>
                                     <div class="d-flex justify-content-between mb-1">
                                         <small>Делегировано:</small>
                                         <span class="badge bg-warning bg-opacity-25 text-dark">{{ $memberTotalDelegated }} шт.</span>
@@ -477,7 +552,7 @@
                                     </div>
                                     
                                     @if($memberDelegated->count() > 0)
-                                        <small class="text-muted d-block mb-1">Виды лимитов:</small>
+                                        <small class="text-muted d-block mb-1">Виды отчетов:</small>
                                         <div class="mt-1">
                                             @foreach($memberDelegated->take(2) as $delegated)
                                                 @php
@@ -485,8 +560,8 @@
                                                     $percentage = $delegated->quantity > 0 ? round(($delegatedAvailable / $delegated->quantity) * 100) : 0;
                                                 @endphp
                                                 <div class="mb-2">
-                                                    <small class="d-block text-truncate" title="{{ $delegated->limit->reportType->name ?? 'Лимит' }}">
-                                                        {{ $delegated->limit->reportType->name ?? 'Лимит' }}
+                                                    <small class="d-block text-truncate" title="{{ $delegated->limit->reportType->name ?? 'Отчет' }}">
+                                                        {{ $delegated->limit->reportType->name ?? 'Отчет' }}
                                                     </small>
                                                     <div class="progress" style="height: 4px;">
                                                         <div class="progress-bar bg-{{ $percentage > 20 ? 'success' : ($percentage > 0 ? 'warning' : 'danger') }}" 
@@ -502,7 +577,7 @@
                                             @if($memberDelegated->count() > 2)
                                                 <div class="text-center">
                                                     <small class="text-muted">
-                                                        + еще {{ $memberDelegated->count() - 2 }} видов лимитов
+                                                        + еще {{ $memberDelegated->count() - 2 }} видов отчетов
                                                     </small>
                                                 </div>
                                             @endif
@@ -512,7 +587,7 @@
                             @else
                                 <div class="border-top pt-3 text-center">
                                     <i class="bi bi-share fs-4 text-muted mb-2 d-block"></i>
-                                    <small class="text-muted">Нет делегированных лимитов</small>
+                                    <small class="text-muted">Нет делегированных отчетов</small>
                                 </div>
                             @endif
                             
@@ -520,19 +595,20 @@
                                 <div class="d-flex justify-content-between">
                                     <div class="d-flex gap-1">
                                         <a href="{{ route('owner.org-members.show', [$organization->id, $member->id]) }}" 
-                                           class="btn btn-sm btn-outline-info" title="Просмотр">
+                                           class="btn btn-sm btn-info" title="Просмотр">
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         <a href="{{ route('owner.org-members.edit', [$organization->id, $member->id]) }}" 
-                                           class="btn btn-sm btn-outline-secondary" title="Редактировать">
+                                           class="btn btn-sm btn-secondary" title="Редактировать">
                                             <i class="bi bi-pencil"></i>
                                         </a>
                                     </div>
                                     @if($organization && $organization->owner && $organization->owner->user_id == Auth::id())
-                                        <button type="button" class="btn btn-sm btn-outline-warning delegate-btn"
+                                        <button type="button" class="btn btn-sm btn-warning delegate-btn"
                                                 data-employee-id="{{ $member->user->id }}"
                                                 data-employee-name="{{ $member->user->name }}"
-                                                title="Делегировать лимит">
+                                                title="Делегировать лимит"
+                                                {{ !$organization->canAddMoreEmployees() && $ownerLimits->where('quantity', '>', 0)->count() == 0 ? 'disabled' : '' }}>
                                             <i class="bi bi-share"></i>
                                         </button>
                                     @endif
@@ -553,11 +629,22 @@
             <div class="text-center py-5">
                 <i class="bi bi-people fs-1 text-muted mb-3"></i>
                 <h5 class="text-muted">Сотрудников пока нет</h5>
-                <p class="text-muted mb-4">Добавьте первого сотрудника в вашу организацию</p>
+                <p class="text-muted mb-4">
+                    Добавьте первого сотрудника в вашу организацию
+                    @if($organization->max_employees)
+                        <br><small class="text-info">Лимит сотрудников: {{ $organization->max_employees }} чел.</small>
+                    @endif
+                </p>
                 @if($organization && $organization->owner && $organization->owner->user_id == Auth::id())
-                    <a href="{{ route('owner.org-members.create', $organization->id) }}" class="btn btn-primary">
-                        <i class="bi bi-person-plus"></i> Добавить сотрудника
-                    </a>
+                    @if(!$organization->max_employees || $organization->max_employees > 0)
+                        <a href="{{ route('owner.org-members.create', $organization->id) }}" class="btn btn-primary">
+                            <i class="bi bi-person-plus"></i> Добавить сотрудника
+                        </a>
+                    @else
+                        <button class="btn btn-secondary disabled">
+                            <i class="bi bi-person-plus"></i> Лимит сотрудников исчерпан
+                        </button>
+                    @endif
                 @else
                     <button class="btn btn-primary disabled">
                         <i class="bi bi-person-plus"></i> Добавить сотрудника
@@ -577,7 +664,7 @@
                 @csrf
                 <div class="modal-header bg-warning text-white">
                     <h5 class="modal-title" id="delegateModalLabel">
-                        <i class="bi bi-share"></i> Делегирование лимита
+                        <i class="bi bi-share"></i> Делегирование отчета
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -586,10 +673,10 @@
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label for="limit_id" class="form-label">
-                                    <i class="bi bi-tachometer"></i> Ваш лимит *
+                                    <i class="bi bi-tachometer"></i> Ваш отчет *
                                 </label>
                                 <select name="limit_id" id="limit_id" class="form-select" required>
-                                    <option value="">Выберите лимит</option>
+                                    <option value="">Выберите отчет</option>
                                     @foreach($ownerLimits as $limit)
                                         @if($limit->getAvailableQuantity() > 0)
                                             <option value="{{ $limit->id }}" 
@@ -655,13 +742,13 @@
                             <span class="input-group-text">шт.</span>
                         </div>
                         <div class="mb-2">
-                            <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="setDelegateAmount(5)">
+                            <button type="button" class="btn btn-sm btn-primary me-2" onclick="setDelegateAmount(5)">
                                 +5
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="setDelegateAmount(10)">
+                            <button type="button" class="btn btn-sm btn-primary me-2" onclick="setDelegateAmount(10)">
                                 +10
                             </button>
-                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="setMaxDelegateAmount()">
+                            <button type="button" class="btn btn-sm btn-primary" onclick="setMaxDelegateAmount()">
                                 Максимум
                             </button>
                         </div>
@@ -681,38 +768,7 @@
     </div>
 </div>
 
-<!-- Кнопка быстрой связи с менеджером (плавающая) -->
-@if($manager)
-<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-    <div class="dropdown">
-        <button class="btn btn-primary rounded-circle p-3 shadow" type="button" data-bs-toggle="dropdown" style="width: 60px; height: 60px;">
-            <i class="bi bi-chat-dots-fill fs-4"></i>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end">
-            <li><h6 class="dropdown-header">Связаться с менеджером</h6></li>
-            <li><a class="dropdown-item" href="mailto:{{ $manager->email }}">
-                <i class="bi bi-envelope me-2"></i> Email
-            </a></li>
-            @php
-                $managerTelegram = $manager->managerProfile->telegram ?? $manager->telegram ?? null;
-            @endphp
-            @if($managerTelegram)
-            <li><a class="dropdown-item" href="https://t.me/{{ $managerTelegram }}" target="_blank">
-                <i class="bi bi-telegram me-2"></i> Telegram
-            </a></li>
-            @endif
-            @php
-                $managerPhone = $manager->managerProfile->phone ?? $manager->phone ?? null;
-            @endphp
-            @if($managerPhone)
-            <li><a class="dropdown-item" href="tel:{{ $managerPhone }}">
-                <i class="bi bi-telephone me-2"></i> Позвонить
-            </a></li>
-            @endif
-        </ul>
-    </div>
-</div>
-@endif
+
 @endsection
 
 @push('scripts')

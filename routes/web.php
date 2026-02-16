@@ -63,7 +63,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::post('/managers/{id}/toggle-status', 'App\Http\Controllers\ManagerController@toggleStatus')->name('managers.toggle-status');
     Route::delete('/managers/{id}/delete', 'App\Http\Controllers\ManagerController@destroy')->name('managers.delete');
     
-    // Управление организациями
+    // Управление организациями (использует общий метод)
     Route::get('/organizations', 'App\Http\Controllers\OrganizationController@index')->name('organizations.list');
     Route::get('/organization/create', 'App\Http\Controllers\OrganizationController@create')->name('organization.create');
     Route::post('/organization/store', 'App\Http\Controllers\OrganizationController@store')->name('organization.store');
@@ -104,7 +104,7 @@ Route::middleware(['auth'])->prefix('manager')->name('manager.')->group(function
     Route::get('/profile/edit', 'App\Http\Controllers\ManagerController@editProfile')->name('profile.edit');
     Route::post('/profile/update', 'App\Http\Controllers\ManagerController@updateProfile')->name('profile.update');
     
-    // Организации менеджера
+    // Организации менеджера (использует ТОТ ЖЕ общий метод)
     Route::get('/organizations', 'App\Http\Controllers\OrganizationController@index')->name('organizations.list');
     Route::get('/organization/create', 'App\Http\Controllers\OrganizationController@create')->name('organization.create');
     Route::post('/organization/store', 'App\Http\Controllers\OrganizationController@store')->name('organization.store');

@@ -10,7 +10,7 @@
                 <h5 class="mb-0">
                     <i class="bi bi-pencil-square"></i> Редактирование менеджера
                 </h5>
-                <a href="{{ route('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+                <a href="{{ route('admin.dashboard') }}" class="btn btn-sm btn-secondary">
                     <i class="bi bi-arrow-left"></i> Назад
                 </a>
             </div>
@@ -64,20 +64,8 @@
                     
                     <hr class="my-4">
                     
-                    <h6 class="mb-3">
-                        <i class="bi bi-toggle2-on"></i> Статус аккаунта
-                    </h6>
-                    
                     <div class="row mb-4">
                         <div class="col-md-6">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" role="switch" 
-                                       id="is_active" name="is_active" 
-                                       value="1" {{ $manager->is_active ? 'checked' : '' }}>
-                                <label class="form-check-label" for="is_active">
-                                    Активный аккаунт
-                                </label>
-                            </div>
                             <div class="form-text">
                                 @if($manager->is_active)
                                     <span class="text-success">Менеджер активен и может работать</span>
@@ -104,7 +92,7 @@
                     
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <a href="{{ route('admin.dashboard') }}" class="btn btn-outline-secondary">
+                            <a href="{{ route('admin.dashboard') }}" class="btn btn-secondary">
                                 Отмена
                             </a>
                         </div>

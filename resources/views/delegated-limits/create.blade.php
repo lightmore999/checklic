@@ -63,7 +63,7 @@
                                 <!-- Информация о выбранном лимите -->
                                 <div class="card border-info mb-3" id="limitInfo" style="display: none;">
                                     <div class="card-header bg-info text-white py-2">
-                                        <h6 class="mb-0"><i class="fas fa-info-circle"></i> Информация о лимите</h6>
+                                        <h6 class="mb-0"><i class="fas fa-info-circle"></i> Информация о отчете</h6>
                                     </div>
                                     <div class="card-body">
                                         <div class="row">
@@ -92,7 +92,7 @@
                                 <!-- Выбор получателя -->
                                 <div class="form-group">
                                     <label for="user_id" class="font-weight-bold">
-                                        <i class="fas fa-user"></i> Получатель лимита *
+                                        <i class="fas fa-user"></i> Получатель отчета *
                                     </label>
                                     <select name="user_id" id="user_id" 
                                             class="form-control select2 @error('user_id') is-invalid @enderror" 
@@ -141,13 +141,13 @@
                                         Максимально доступно: <span id="maxQuantity">0</span> шт.
                                     </small>
                                     <div class="mt-2">
-                                        <button type="button" class="btn btn-sm btn-outline-primary mr-2" onclick="setQuantity(5)">
+                                        <button type="button" class="btn btn-sm btn-primary mr-2" onclick="setQuantity(5)">
                                             +5
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-primary mr-2" onclick="setQuantity(10)">
+                                        <button type="button" class="btn btn-sm btn-primary mr-2" onclick="setQuantity(10)">
                                             +10
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="setMaxQuantity()">
+                                        <button type="button" class="btn btn-sm btn-primary" onclick="setMaxQuantity()">
                                             Максимум
                                         </button>
                                     </div>

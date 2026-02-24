@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\Models\Subscription;
 
 class OrganizationController extends Controller
 {
@@ -22,8 +23,8 @@ class OrganizationController extends Controller
      */
     public function index(Request $request)
     {
-        $user = Auth::user();
-        
+        $ $user = Auth::user();
+    
         if (!$user->isAdmin() && !$user->isManager()) {
             abort(403, 'Доступ запрещен');
         }
@@ -121,6 +122,14 @@ class OrganizationController extends Controller
         
         // Получаем организации с пагинацией
         $organizations = $query->paginate(15)->withQueryString();
+    
+        // Для каждой организации добавляем информацию о подписках владельца
+        foreach ($organizations as $org) {
+            if ($org->owner && $org->owner->user) {
+                $org->owner->user->active_subscription = $org->owner->user->activeSubscription();
+                $org->owner->user->subscriptions_count = Subscription::where('user_id', $org->owner->user->id)->count();
+            }
+        }
         
         // Получаем список менеджеров для фильтра
         if ($user->isAdmin()) {
@@ -134,8 +143,7 @@ class OrganizationController extends Controller
         } else {
             $managers = collect([$user]); // Только текущий менеджер
         }
-       
-
+        
         $view = 'organizations.index';
         
         return view($view, compact('user', 'organizations', 'managers'));
@@ -318,6 +326,15 @@ class OrganizationController extends Controller
         $currentEmployeesCount = $organization->members()->count();
         $availableEmployeeSlots = $organization->getAvailableEmployeeSlots();
         
+        // === ПОДПИСКИ ВЛАДЕЛЬЦА ОРГАНИЗАЦИИ ===
+        $subscriptions = collect();
+        if ($organization->owner && $organization->owner->user) {
+            $owner = $organization->owner->user;
+            $subscriptions = Subscription::where('user_id', $owner->id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+        }
+        
         // === ЛИМИТЫ ВЛАДЕЛЬЦА ОРГАНИЗАЦИИ ===
         $ownerLimits = [];
         $delegatedLimits = collect();
@@ -380,11 +397,12 @@ class OrganizationController extends Controller
             'user', 
             'organization', 
             'routePrefix',
+            'subscriptions', // Добавлено
             'ownerLimits',
             'delegatedLimits',
             'availableEmployees',
-            'currentEmployeesCount', // Добавлено
-            'availableEmployeeSlots' // Добавлено
+            'currentEmployeesCount',
+            'availableEmployeeSlots'
         ));
     }
     
@@ -822,6 +840,11 @@ class OrganizationController extends Controller
         $availableEmployeeSlots = $organization->getAvailableEmployeeSlots();
         $canAddMoreEmployees = $organization->canAddMoreEmployees();
         
+        // === ПОДПИСКИ ВЛАДЕЛЬЦА ===
+        $subscriptions = Subscription::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
         // Получаем лимиты владельца
         $ownerLimits = Limit::where('user_id', $user->id)
             ->with('reportType')
@@ -852,12 +875,13 @@ class OrganizationController extends Controller
             'members', 
             'membersCount', 
             'activeMembersCount',
+            'subscriptions', // Добавлено
             'ownerLimits',
             'delegatedLimits',
             'availableEmployees',
-            'currentEmployeesCount', // Добавлено
-            'availableEmployeeSlots', // Добавлено
-            'canAddMoreEmployees' // Добавлено
+            'currentEmployeesCount',
+            'availableEmployeeSlots',
+            'canAddMoreEmployees'
         ));
     }
     

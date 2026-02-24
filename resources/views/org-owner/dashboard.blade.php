@@ -255,6 +255,107 @@
 </div>
 @endif
 
+<!-- ===== НОВЫЙ БЛОК: ПОДПИСКИ ВЛАДЕЛЬЦА ===== -->
+@if(isset($subscriptions))
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <i class="bi bi-stars text-info me-2"></i>
+            Ваши подписки
+            @if($subscriptions->count() > 0)
+                <span class="badge bg-info ms-2">{{ $subscriptions->count() }}</span>
+            @endif
+        </h6>
+        @if(Auth::user()->isOrgOwner() && $manager)
+            <a href="{{ route('limits.create') }}?user_id={{ Auth::id() }}" class="btn btn-success btn-sm">
+                <i class="bi bi-plus-lg me-1"></i> Создать отчет
+            </a>
+        @endif
+    </div>
+    <div class="card-body">
+        @if($subscriptions->count() > 0)
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Дата начала</th>
+                            <th>Дата окончания</th>
+                            <th>Статус</th>
+                            <th>Осталось дней</th>
+                            <th class="text-center">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($subscriptions as $subscription)
+                        @php
+                            $remainingDays = $subscription->getRemainingDays();
+                            $statusClass = $subscription->status === 'active' ? 'success' : 
+                                          ($subscription->status === 'expired' ? 'danger' : 
+                                          ($subscription->status === 'pending' ? 'warning' : 'secondary'));
+                        @endphp
+                        <tr>
+                            <td>{{ $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : '—' }}</td>
+                            <td>
+                                @if($subscription->ends_at)
+                                    {{ $subscription->ends_at->format('d.m.Y') }}
+                                    @if($subscription->isExpiringSoon() && $subscription->isActive())
+                                        <span class="badge bg-warning ms-1">скоро</span>
+                                    @endif
+                                @else
+                                    <span class="text-muted">Бессрочно</span>
+                                @endif
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ $statusClass }}">
+                                    {{ $subscription->getStatusTextAttribute() }}
+                                </span>
+                            </td>
+                            <td>
+                                @if($remainingDays !== null)
+                                    @if($subscription->isActive())
+                                        <span class="badge bg-{{ $remainingDays <= 7 ? 'warning' : 'success' }}">
+                                            {{ $remainingDays }} дн.
+                                        </span>
+                                    @elseif($subscription->status === 'expired' || ($subscription->ends_at && $subscription->ends_at->isPast()))
+                                        <span class="badge bg-danger">Истекла</span>
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
+                                @else
+                                    <span class="text-muted">∞</span>
+                                @endif
+                            </td>
+                            <td class="text-center">
+                                <div class="d-flex justify-content-center gap-1">
+                                    <button type="button" 
+                                            class="btn btn-sm btn-outline-info"
+                                            onclick="viewSubscription({{ $subscription->id }})"
+                                            title="Просмотр">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @else
+            <div class="text-center py-4">
+                <i class="bi bi-stars fs-1 text-muted mb-3 d-block"></i>
+                <p class="text-muted mb-3">У вас пока нет подписок</p>
+                @if($manager)
+                    <p class="text-muted small">Обратитесь к менеджеру для получения подписки</p>
+                    <a href="mailto:{{ $manager->email }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-envelope me-1"></i> Связаться с менеджером
+                    </a>
+                @endif
+            </div>
+        @endif
+    </div>
+</div>
+@endif
+
 <!-- Лимиты владельца -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
@@ -421,7 +522,7 @@
                                 <form action="{{ route('delegated-limits.destroy', $delegated) }}" method="POST" class="d-inline">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btnы-danger" 
+                                    <button type="submit" class="btn btn-sm btn-danger" 
                                             onclick="return confirm('Возвратить лимит? Лимит вернется вам.')"
                                             title="Возвратить лимит">
                                         <i class="bi bi-arrow-return-left"></i>
@@ -768,12 +869,106 @@
     </div>
 </div>
 
+<!-- Модальное окно просмотра подписки -->
+<div class="modal fade" id="viewSubscriptionModal" tabindex="-1" aria-labelledby="viewSubscriptionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="viewSubscriptionModalLabel">
+                    <i class="bi bi-eye me-2"></i>
+                    Детали подписки
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="viewSubscriptionContent">
+                <!-- Заполняется через JavaScript -->
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @endsection
 
 @push('scripts')
 <script>
     $(document).ready(function() {
+        
+        // Данные подписок для модального окна просмотра
+        let subscriptions = {
+            @if(isset($subscriptions))
+                @foreach($subscriptions as $sub)
+                    {{ $sub->id }}: {
+                        starts_at: '{{ $sub->starts_at ? $sub->starts_at->format('Y-m-d') : '' }}',
+                        ends_at: '{{ $sub->ends_at ? $sub->ends_at->format('Y-m-d') : '' }}',
+                        status: '{{ $sub->status }}',
+                        status_text: '{{ $sub->getStatusTextAttribute() }}',
+                        status_class: '{{ $sub->status === "active" ? "success" : ($sub->status === "expired" ? "danger" : ($sub->status === "pending" ? "warning" : "secondary")) }}',
+                        remaining_days: {{ $sub->getRemainingDays() ?? 'null' }},
+                        user_name: '{{ Auth::user()->name }}',
+                        user_email: '{{ Auth::user()->email }}'
+                    },
+                @endforeach
+            @endif
+        };
+        
+        // Функция для открытия модалки просмотра подписки
+        window.viewSubscription = function(id) {
+            const sub = subscriptions[id];
+            if (!sub) return;
+            
+            let html = `
+                <div class="text-center mb-4">
+                    <div class="rounded-circle bg-info d-inline-flex align-items-center justify-content-center mb-3" 
+                         style="width: 70px; height: 70px; color: white; font-size: 1.8rem;">
+                        ${sub.user_name ? sub.user_name.charAt(0).toUpperCase() : '?'}
+                    </div>
+                    <h5>${sub.user_name || 'Неизвестно'}</h5>
+                    <p class="text-muted small">${sub.user_email || ''}</p>
+                </div>
+                <table class="table table-sm">
+                    <tr>
+                        <th>Дата начала:</th>
+                        <td>${sub.starts_at ? sub.starts_at : '—'}</td>
+                    </tr>
+                    <tr>
+                        <th>Дата окончания:</th>
+                        <td>${sub.ends_at ? sub.ends_at : 'Бессрочно'}</td>
+                    </tr>
+                    <tr>
+                        <th>Статус:</th>
+                        <td><span class="badge bg-${sub.status_class}">${sub.status_text}</span></td>
+                    </tr>
+                    <tr>
+                        <th>Осталось дней:</th>
+                        <td>${sub.remaining_days !== null ? sub.remaining_days + ' дн.' : '∞'}</td>
+                    </tr>
+                </table>
+            `;
+            
+            document.getElementById('viewSubscriptionContent').innerHTML = html;
+            new bootstrap.Modal(document.getElementById('viewSubscriptionModal')).show();
+        };
+        
+        // Данные для делегирования
+        let limits = {
+            @foreach($ownerLimits as $limit)
+                @if($limit->getAvailableQuantity() > 0)
+                    {{ $limit->id }}: {
+                        available: {{ $limit->getAvailableQuantity() }},
+                        name: '{{ $limit->reportType->name ?? 'Без типа' }}',
+                        date: '{{ $limit->date_created->format('d.m.Y') }}'
+                    },
+                @endif
+            @endforeach
+        };
         
         let employees = {
             @foreach($availableEmployees as $employee)

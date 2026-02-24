@@ -18,7 +18,7 @@ class Limit extends Model
      * Поля, которые можно массово назначать
      */
     protected $fillable = [
-        'user_id',
+        'subscription_id',   // FK на подписку
         'report_type_id',
         'quantity',
         'created_by',
@@ -41,15 +41,15 @@ class Limit extends Model
     protected $casts = [
         'date_created' => 'date',
         'quantity' => 'integer',
-        'used_quantity' => 'integer', // Добавляем
+        'used_quantity' => 'integer',
     ];
 
     /**
-     * Отношение к пользователю
+     * Отношение к подписке
      */
-    public function user()
+    public function subscription()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Subscription::class);
     }
 
     /**
@@ -126,28 +126,28 @@ class Limit extends Model
     }
 
     /**
-     * Получение лимита пользователя по типу отчета и дате
+     * Получение лимита подписки по типу отчета и дате
      */
-    public static function getUserLimit(int $userId, int $reportTypeId, string $date = null): ?self
+    public static function getSubscriptionLimit(int $subscriptionId, int $reportTypeId, string $date = null): ?self
     {
         $date = $date ?: now()->format('Y-m-d');
         
-        return self::where('user_id', $userId)
+        return self::where('subscription_id', $subscriptionId)
             ->where('report_type_id', $reportTypeId)
             ->where('date_created', $date)
             ->first();
     }
 
     /**
-     * Создание или обновление лимита
+     * Создание или обновление лимита для подписки
      */
-    public static function createOrUpdateLimit(int $userId, int $reportTypeId, int $quantity, string $date = null): self
+    public static function createOrUpdateLimit(int $subscriptionId, int $reportTypeId, int $quantity, string $date = null): self
     {
         $date = $date ?: now()->format('Y-m-d');
         
         $limit = self::updateOrCreate(
             [
-                'user_id' => $userId,
+                'subscription_id' => $subscriptionId,
                 'report_type_id' => $reportTypeId,
                 'date_created' => $date,
             ],
@@ -167,11 +167,11 @@ class Limit extends Model
     }
 
     /**
-     * Проверка доступности лимита
+     * Проверка доступности лимита для подписки
      */
-    public static function checkLimit(int $userId, int $reportTypeId, int $requiredAmount = 1, string $date = null): bool
+    public static function checkLimit(int $subscriptionId, int $reportTypeId, int $requiredAmount = 1, string $date = null): bool
     {
-        $limit = self::getUserLimit($userId, $reportTypeId, $date);
+        $limit = self::getSubscriptionLimit($subscriptionId, $reportTypeId, $date);
         
         if (!$limit) {
             return false; // Лимит не установлен
@@ -189,11 +189,11 @@ class Limit extends Model
     }
 
     /**
-     * Scope для лимитов пользователя
+     * Scope для лимитов подписки
      */
-    public function scopeForUser($query, int $userId)
+    public function scopeForSubscription($query, int $subscriptionId)
     {
-        return $query->where('user_id', $userId);
+        return $query->where('subscription_id', $subscriptionId);
     }
 
     /**
@@ -220,9 +220,20 @@ class Limit extends Model
         return $this->hasMany(DelegatedLimit::class, 'limit_id');
     }
 
+    /**
+     * Кто создал лимит
+     */
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Получить пользователя через подписку
+     */
+    public function getUserAttribute()
+    {
+        return $this->subscription->user ?? null;
     }
 
     /**

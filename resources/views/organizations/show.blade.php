@@ -321,6 +321,122 @@
                 </div>
             </div>
 
+            <!-- Подписки владельца -->
+            @if($organization->owner && $organization->owner->user)
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-stars text-info me-2"></i>
+                        Подписки владельца
+                        @if(isset($subscriptions) && $subscriptions->count() > 0)
+                            <span class="badge bg-info ms-2">{{ $subscriptions->count() }}</span>
+                        @endif
+                    </h5>
+                    @if($isAdmin || $isManager)
+                        <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#createSubscriptionModal">
+                            <i class="bi bi-plus-lg me-1"></i> Добавить подписку
+                        </button>
+                    @endif
+                </div>
+                <div class="card-body">
+                    @if(isset($subscriptions) && $subscriptions->count() > 0)
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Дата начала</th>
+                                        <th>Дата окончания</th>
+                                        <th>Статус</th>
+                                        <th>Осталось дней</th>
+                                        <th class="text-center">Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($subscriptions as $subscription)
+                                    @php
+                                        $remainingDays = $subscription->getRemainingDays();
+                                        $statusClass = $subscription->status === 'active' ? 'success' : 
+                                                      ($subscription->status === 'expired' ? 'danger' : 
+                                                      ($subscription->status === 'pending' ? 'warning' : 'secondary'));
+                                    @endphp
+                                    <tr>
+                                        <td>{{ $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : '—' }}</td>
+                                        <td>
+                                            @if($subscription->ends_at)
+                                                {{ $subscription->ends_at->format('d.m.Y') }}
+                                                @if($subscription->isExpiringSoon() && $subscription->isActive())
+                                                    <span class="badge bg-warning ms-1">скоро</span>
+                                                @endif
+                                            @else
+                                                <span class="text-muted">Бессрочно</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{{ $statusClass }}">
+                                                {{ $subscription->getStatusTextAttribute() }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if($remainingDays !== null)
+                                                @if($subscription->isActive())
+                                                    <span class="badge bg-{{ $remainingDays <= 7 ? 'warning' : 'success' }}">
+                                                        {{ $remainingDays }} дн.
+                                                    </span>
+                                                @elseif($subscription->status === 'expired' || ($subscription->ends_at && $subscription->ends_at->isPast()))
+                                                    <span class="badge bg-danger">Истекла</span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            @else
+                                                <span class="text-muted">∞</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="d-flex justify-content-center gap-1">
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-outline-info"
+                                                        onclick="viewSubscription({{ $subscription->id }})"
+                                                        title="Просмотр">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-outline-warning"
+                                                        onclick="editSubscription({{ $subscription->id }})"
+                                                        title="Редактировать"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#editSubscriptionModal">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                @if($isAdmin)
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-outline-danger"
+                                                        onclick="deleteSubscription({{ $subscription->id }})"
+                                                        title="Удалить">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <div class="text-center py-4">
+                            <i class="bi bi-stars fs-1 text-muted mb-3 d-block"></i>
+                            <p class="text-muted mb-3">У владельца пока нет подписок</p>
+                            @if($isAdmin || $isManager)
+                                <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#createSubscriptionModal">
+                                    <i class="bi bi-plus-lg me-1"></i> Создать первую подписку
+                                </button>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+            </div>
+            @endif
+
             <!-- Лимиты владельца -->
             @if(isset($ownerLimits) && count($ownerLimits) > 0)
             <div class="card border-0 shadow-sm mb-4">
@@ -847,7 +963,182 @@
     </div>
 </div>
 
-<!-- Модальное окно делегирования -->
+<!-- Модальное окно создания подписки -->
+@if(($isAdmin || $isManager) && $organization->owner && $organization->owner->user)
+<div class="modal fade" id="createSubscriptionModal" tabindex="-1" aria-labelledby="createSubscriptionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ route('subscriptions.store') }}" method="POST" id="createSubscriptionForm">
+                @csrf
+                <input type="hidden" name="user_id" value="{{ $organization->owner->user->id }}">
+                <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
+                
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="createSubscriptionModalLabel">
+                        <i class="bi bi-plus-circle me-2"></i>
+                        Новая подписка для {{ $organization->owner->user->name }}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="starts_at" class="form-label">Дата начала</label>
+                        <input type="date" class="form-control" id="starts_at" name="starts_at" 
+                               value="{{ old('starts_at', now()->format('Y-m-d')) }}">
+                        <div class="form-text">Оставьте пустым для автоматической установки на сегодня</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="ends_at" class="form-label">Дата окончания</label>
+                        <input type="date" class="form-control" id="ends_at" name="ends_at" 
+                               value="{{ old('ends_at') }}"
+                               min="{{ now()->addDay()->format('Y-m-d') }}">
+                        <div class="form-text">Оставьте пустым для бессрочной подписки</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Статус подписки</label>
+                        <select class="form-select" id="status" name="status" required>
+                            <option value="active" selected>Активна</option>
+                            <option value="pending">Ожидает</option>
+                            <option value="suspended">Приостановлена</option>
+                            <option value="expired">Истекла</option>
+                            <option value="cancelled">Отменена</option>
+                        </select>
+                    </div>
+                    
+                    <div class="alert alert-info" id="subscriptionWarning" style="display: none;">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <span id="subscriptionWarningText"></span>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success" id="createSubscriptionBtn">
+                        <i class="bi bi-check-circle me-1"></i> Создать подписку
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
+<!-- Модальное окно редактирования подписки -->
+@if($isAdmin || $isManager)
+<div class="modal fade" id="editSubscriptionModal" tabindex="-1" aria-labelledby="editSubscriptionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="" method="POST" id="editSubscriptionForm">
+                @csrf
+                @method('PUT')
+                <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
+                
+                <div class="modal-header bg-warning text-white">
+                    <h5 class="modal-title" id="editSubscriptionModalLabel">
+                        <i class="bi bi-pencil me-2"></i>
+                        Редактирование подписки
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_starts_at" class="form-label">Дата начала</label>
+                        <input type="date" class="form-control" id="edit_starts_at" name="starts_at">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit_ends_at" class="form-label">Дата окончания</label>
+                        <input type="date" class="form-control" id="edit_ends_at" name="ends_at">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit_status" class="form-label">Статус подписки</label>
+                        <select class="form-select" id="edit_status" name="status" required>
+                            <option value="active">Активна</option>
+                            <option value="pending">Ожидает</option>
+                            <option value="suspended">Приостановлена</option>
+                            <option value="expired">Истекла</option>
+                            <option value="cancelled">Отменена</option>
+                        </select>
+                    </div>
+                    
+                    <div class="alert alert-warning" id="editSubscriptionWarning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <span id="editSubscriptionWarningText"></span>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-warning" id="editSubscriptionBtn">
+                        <i class="bi bi-save me-1"></i> Сохранить изменения
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
+<!-- Модальное окно просмотра подписки -->
+<div class="modal fade" id="viewSubscriptionModal" tabindex="-1" aria-labelledby="viewSubscriptionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="viewSubscriptionModalLabel">
+                    <i class="bi bi-eye me-2"></i>
+                    Детали подписки
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="viewSubscriptionContent">
+                <!-- Заполняется через JavaScript -->
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно удаления подписки -->
+<div class="modal fade" id="deleteSubscriptionModal" tabindex="-1" aria-labelledby="deleteSubscriptionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteSubscriptionModalLabel">
+                    <i class="bi bi-trash me-2"></i>
+                    Удаление подписки
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите удалить эту подписку?</p>
+                <p class="text-danger"><strong>Внимание!</strong> Это действие также удалит все лимиты, связанные с этой подпиской.</p>
+            </div>
+            <div class="modal-footer">
+                <form action="" method="POST" id="deleteSubscriptionForm">
+                    @csrf
+                    @method('DELETE')
+                    <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-danger">Удалить подписку</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно делегирования (оставляем как есть) -->
 @if($canDelegateAny && isset($ownerLimits) && count($ownerLimits) > 0 && isset($availableEmployees) && $availableEmployees->count() > 0)
 <div class="modal fade" id="delegateModal" tabindex="-1" aria-labelledby="delegateModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -966,7 +1257,7 @@
 @endif
 
 @if($isAdmin)
-<!-- Форма для удаления -->
+<!-- Форма для удаления организации -->
 <form id="delete-form" method="POST" action="{{ route('admin.organization.delete', $organization->id) }}" style="display: none;">
     @csrf
     @method('DELETE')
@@ -989,6 +1280,88 @@ function confirmDelete(id, name) {
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
+        
+        // Данные подписок для модальных окон
+        let subscriptions = {
+            @if(isset($subscriptions))
+                @foreach($subscriptions as $sub)
+                    {{ $sub->id }}: {
+                        starts_at: '{{ $sub->starts_at ? $sub->starts_at->format('Y-m-d') : '' }}',
+                        ends_at: '{{ $sub->ends_at ? $sub->ends_at->format('Y-m-d') : '' }}',
+                        status: '{{ $sub->status }}',
+                        status_text: '{{ $sub->getStatusTextAttribute() }}',
+                        status_class: '{{ $sub->status === "active" ? "success" : ($sub->status === "expired" ? "danger" : ($sub->status === "pending" ? "warning" : "secondary")) }}',
+                        remaining_days: {{ $sub->getRemainingDays() ?? 'null' }},
+                        user_name: '{{ $sub->user->name ?? '' }}',
+                        user_email: '{{ $sub->user->email ?? '' }}'
+                    },
+                @endforeach
+            @endif
+        };
+        
+        // Функция для открытия модалки просмотра
+        window.viewSubscription = function(id) {
+            const sub = subscriptions[id];
+            if (!sub) return;
+            
+            let html = `
+                <div class="text-center mb-4">
+                    <div class="rounded-circle bg-info d-inline-flex align-items-center justify-content-center mb-3" 
+                         style="width: 70px; height: 70px; color: white; font-size: 1.8rem;">
+                        ${sub.user_name ? sub.user_name.charAt(0).toUpperCase() : '?'}
+                    </div>
+                    <h5>${sub.user_name || 'Неизвестно'}</h5>
+                    <p class="text-muted small">${sub.user_email || ''}</p>
+                </div>
+                <table class="table table-sm">
+                    <tr>
+                        <th>Дата начала:</th>
+                        <td>${sub.starts_at ? sub.starts_at : '—'}</td>
+                    </tr>
+                    <tr>
+                        <th>Дата окончания:</th>
+                        <td>${sub.ends_at ? sub.ends_at : 'Бессрочно'}</td>
+                    </tr>
+                    <tr>
+                        <th>Статус:</th>
+                        <td><span class="badge bg-${sub.status_class}">${sub.status_text}</span></td>
+                    </tr>
+                    <tr>
+                        <th>Осталось дней:</th>
+                        <td>${sub.remaining_days !== null ? sub.remaining_days + ' дн.' : '∞'}</td>
+                    </tr>
+                </table>
+            `;
+            
+            document.getElementById('viewSubscriptionContent').innerHTML = html;
+            new bootstrap.Modal(document.getElementById('viewSubscriptionModal')).show();
+        };
+        
+        // Функция для открытия модалки редактирования
+        window.editSubscription = function(id) {
+            const sub = subscriptions[id];
+            if (!sub) return;
+            
+            document.getElementById('edit_starts_at').value = sub.starts_at || '';
+            document.getElementById('edit_ends_at').value = sub.ends_at || '';
+            document.getElementById('edit_status').value = sub.status;
+            document.getElementById('editSubscriptionForm').action = `/subscriptions/${id}`;
+            
+            // Проверка на активную подписку
+            if (sub.status === 'active') {
+                document.getElementById('editSubscriptionWarning').style.display = 'block';
+                document.getElementById('editSubscriptionWarningText').innerHTML = 
+                    'Редактирование активной подписки может повлиять на доступные лимиты.';
+            } else {
+                document.getElementById('editSubscriptionWarning').style.display = 'none';
+            }
+        };
+        
+        // Функция для открытия модалки удаления
+        window.deleteSubscription = function(id) {
+            document.getElementById('deleteSubscriptionForm').action = `/subscriptions/${id}`;
+            new bootstrap.Modal(document.getElementById('deleteSubscriptionModal')).show();
+        };
         
         // Инициализация данных для делегирования
         @if(isset($ownerLimits) && count($ownerLimits) > 0)
@@ -1125,6 +1498,26 @@ function confirmDelete(id, name) {
         $('#delegateModal').on('shown.bs.modal', function() {
             $('#limit_id').trigger('change');
             $('#user_id').trigger('change');
+        });
+        @endif
+        
+        // Проверка активной подписки при создании
+        @if(($isAdmin || $isManager) && $organization->owner && $organization->owner->user)
+        $('#createSubscriptionForm').on('submit', function(e) {
+            const status = $('#status').val();
+            
+            if (status === 'active') {
+                // Проверяем, есть ли уже активная подписка
+                fetch(`/api/users/{{ $organization->owner->user->id }}/subscription/check`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.has_active_subscription) {
+                            if (!confirm('У пользователя уже есть активная подписка. Продолжить создание новой?')) {
+                                e.preventDefault();
+                            }
+                        }
+                    });
+            }
         });
         @endif
     });

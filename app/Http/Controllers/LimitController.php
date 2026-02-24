@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Limit;
 use App\Models\User;
+use App\Models\Subscription;
 use App\Models\ReportType;
 use App\Models\Organization;
 use App\Models\DelegatedLimit;
@@ -22,8 +23,8 @@ class LimitController extends Controller
         
         // Начинаем запрос с подгрузкой связей
         $query = Limit::with([
-            'user.orgOwnerProfile', 
-            'user.orgMemberProfile',
+            'subscription.user.orgOwnerProfile', 
+            'subscription.user.orgMemberProfile',
             'creator',
             'creator.orgOwnerProfile',
             'creator.orgMemberProfile',
@@ -36,7 +37,6 @@ class LimitController extends Controller
         
         // Если пользователь - менеджер, показываем только лимиты его организаций
         if ($user->isManager()) {
-            // ИСПРАВЛЕНО:直接用 where('manager_id')
             $organizationIds = Organization::where('manager_id', $user->id)
                 ->pluck('id');
             
@@ -49,8 +49,11 @@ class LimitController extends Controller
                         $q->whereIn('organization_id', $organizationIds);
                     })
                     ->pluck('id');
+                
+                // Получаем ID подписок этих пользователей
+                $subscriptionIds = Subscription::whereIn('user_id', $userIds)->pluck('id');
                     
-                $query->whereIn('user_id', $userIds);
+                $query->whereIn('subscription_id', $subscriptionIds);
             }
         }
         
@@ -64,12 +67,14 @@ class LimitController extends Controller
                 })
                 ->pluck('id');
                 
-            $query->whereIn('user_id', $orgUserIds);
+            $subscriptionIds = Subscription::whereIn('user_id', $orgUserIds)->pluck('id');
+            $query->whereIn('subscription_id', $subscriptionIds);
         }
         
         // Фильтрация по пользователю
         if ($request->filled('user_id')) {
-            $query->where('user_id', $request->user_id);
+            $subscriptionIds = Subscription::where('user_id', $request->user_id)->pluck('id');
+            $query->whereIn('subscription_id', $subscriptionIds);
         }
         
         // Фильтрация по типу отчета
@@ -101,7 +106,6 @@ class LimitController extends Controller
         if ($user->isAdmin()) {
             $organizations = Organization::orderBy('name')->get();
         } elseif ($user->isManager()) {
-            // ИСПРАВЛЕНО:直接用 where('manager_id')
             $organizations = Organization::where('manager_id', $user->id)
                 ->orderBy('name')
                 ->get();
@@ -152,10 +156,20 @@ class LimitController extends Controller
                 ->withInput();
         }
         
+        // Получаем активную подписку пользователя
+        $targetUser = User::find($request->user_id);
+        $subscription = $targetUser->activeSubscription();
+        
+        if (!$subscription) {
+            return redirect()->back()
+                ->with('error', 'У пользователя нет активной подписки')
+                ->withInput();
+        }
+        
         // Создаем или обновляем лимит
         try {
             $limit = Limit::createOrUpdateLimit(
-                $request->user_id,
+                $subscription->id,
                 $request->report_type_id,
                 $request->quantity,
                 $request->date_created
@@ -217,8 +231,18 @@ class LimitController extends Controller
         }
         
         try {
+            // Получаем подписку пользователя
+            $targetUser = User::find($request->user_id);
+            $subscription = $targetUser->activeSubscription();
+            
+            if (!$subscription) {
+                return redirect()->back()
+                    ->with('error', 'У пользователя нет активной подписки')
+                    ->withInput();
+            }
+            
             $limit->update([
-                'user_id' => $request->user_id,
+                'subscription_id' => $subscription->id,
                 'report_type_id' => $request->report_type_id,
                 'quantity' => $request->quantity,
                 'date_created' => $request->date_created,
@@ -306,8 +330,16 @@ class LimitController extends Controller
         
         foreach ($request->user_ids as $userId) {
             try {
+                $targetUser = User::find($userId);
+                $subscription = $targetUser->activeSubscription();
+                
+                if (!$subscription) {
+                    $errorCount++;
+                    continue;
+                }
+                
                 $limit = Limit::createOrUpdateLimit(
-                    $userId,
+                    $subscription->id,
                     $request->report_type_id,
                     $request->quantity,
                     $request->date_created
@@ -346,8 +378,11 @@ class LimitController extends Controller
             }
         }
         
-        $query = Limit::where('user_id', $targetUser->id)
-            ->with(['reportType'])
+        // Получаем подписки пользователя
+        $subscriptionIds = Subscription::where('user_id', $targetUser->id)->pluck('id');
+        
+        $query = Limit::whereIn('subscription_id', $subscriptionIds)
+            ->with(['reportType', 'subscription'])
             ->orderBy('date_created', 'desc');
             
         if ($request->filled('report_type_id')) {
@@ -384,8 +419,18 @@ class LimitController extends Controller
             ], 422);
         }
         
+        $targetUser = User::find($request->user_id);
+        $subscription = $targetUser->activeSubscription();
+        
+        if (!$subscription) {
+            return response()->json([
+                'success' => false,
+                'message' => 'У пользователя нет активной подписки'
+            ], 404);
+        }
+        
         $hasLimit = Limit::checkLimit(
-            $request->user_id,
+            $subscription->id,
             $request->report_type_id,
             $request->required_amount ?? 1,
             $request->date
@@ -418,8 +463,18 @@ class LimitController extends Controller
             ], 422);
         }
         
-        $limit = Limit::getUserLimit(
-            $request->user_id,
+        $targetUser = User::find($request->user_id);
+        $subscription = $targetUser->activeSubscription();
+        
+        if (!$subscription) {
+            return response()->json([
+                'success' => false,
+                'message' => 'У пользователя нет активной подписки'
+            ], 404);
+        }
+        
+        $limit = Limit::getSubscriptionLimit(
+            $subscription->id,
             $request->report_type_id,
             $request->date
         );
@@ -436,7 +491,7 @@ class LimitController extends Controller
         return response()->json([
             'success' => $result,
             'message' => $result ? 'Лимит уменьшен' : 'Недостаточно лимита',
-            'remaining' => $limit->quantity
+            'remaining' => $limit->quantity - $limit->used_quantity
         ]);
     }
     
@@ -460,8 +515,18 @@ class LimitController extends Controller
             ], 422);
         }
         
-        $limit = Limit::getUserLimit(
-            $request->user_id,
+        $targetUser = User::find($request->user_id);
+        $subscription = $targetUser->activeSubscription();
+        
+        if (!$subscription) {
+            return response()->json([
+                'success' => false,
+                'message' => 'У пользователя нет активной подписки'
+            ], 404);
+        }
+        
+        $limit = Limit::getSubscriptionLimit(
+            $subscription->id,
             $request->report_type_id,
             $request->date
         );
@@ -469,7 +534,7 @@ class LimitController extends Controller
         if (!$limit) {
             // Создаем новый лимит
             $limit = Limit::createOrUpdateLimit(
-                $request->user_id,
+                $subscription->id,
                 $request->report_type_id,
                 $request->amount ?? 1,
                 $request->date
@@ -502,8 +567,15 @@ class LimitController extends Controller
             return back()->with('error', 'Недостаточно доступного лимита для делегирования');
         }
 
+        // Получаем пользователя-владельца лимита через подписку
+        $limitOwner = $limit->subscription->user ?? null;
+        
+        if (!$limitOwner) {
+            return back()->with('error', 'Не удалось определить владельца лимита');
+        }
+
         // Проверяем, не делегируем ли самому себе
-        if ($limit->user_id == $request->user_id) {
+        if ($limitOwner->id == $request->user_id) {
             return back()->with('error', 'Нельзя делегировать лимит самому себе');
         }
 
@@ -532,7 +604,17 @@ class LimitController extends Controller
     {
         if ($currentUser->isAdmin()) {
             // Админ может выдавать лимиты всем: менеджерам, владельцам, сотрудникам и себе
-            return User::whereIn('role', ['manager', 'org_owner', 'org_member'])
+            // Но только тем, у кого есть активная подписка
+            $usersWithSubscriptions = Subscription::where('status', 'active')
+                ->where(function($q) {
+                    $q->whereNull('ends_at')
+                      ->orWhere('ends_at', '>', now());
+                })
+                ->pluck('user_id')
+                ->toArray();
+            
+            return User::whereIn('id', $usersWithSubscriptions)
+                ->whereIn('role', ['manager', 'org_owner', 'org_member'])
                 ->orWhere('id', $currentUser->id)
                 ->where('is_active', true)
                 ->orderByRaw("
@@ -548,7 +630,6 @@ class LimitController extends Controller
         }
         
         if ($currentUser->isManager()) {
-            // ИСПРАВЛЕНО:直接用 where('manager_id')
             $organizations = Organization::where('manager_id', $currentUser->id)->get();
             
             if ($organizations->isEmpty()) {
@@ -557,8 +638,8 @@ class LimitController extends Controller
             
             $organizationIds = $organizations->pluck('id')->toArray();
             
-            // Ищем владельцев и сотрудников этих организаций
-            return User::where(function($query) use ($organizationIds) {
+            // Ищем владельцев и сотрудников этих организаций, у которых есть активная подписка
+            $userIds = User::where(function($query) use ($organizationIds) {
                     $query->whereHas('orgOwnerProfile', function($q) use ($organizationIds) {
                         $q->whereIn('organization_id', $organizationIds);
                     })
@@ -567,6 +648,19 @@ class LimitController extends Controller
                     });
                 })
                 ->where('is_active', true)
+                ->pluck('id')
+                ->toArray();
+            
+            $usersWithSubscriptions = Subscription::where('status', 'active')
+                ->where(function($q) {
+                    $q->whereNull('ends_at')
+                      ->orWhere('ends_at', '>', now());
+                })
+                ->whereIn('user_id', $userIds)
+                ->pluck('user_id')
+                ->toArray();
+            
+            return User::whereIn('id', $usersWithSubscriptions)
                 ->orderBy('name')
                 ->get();
         }
@@ -588,7 +682,8 @@ class LimitController extends Controller
         
         // Админ может выдавать лимиты кому угодно
         if ($currentUser->isAdmin()) {
-            return $targetUser->is_active;
+            // Проверяем наличие активной подписки
+            return $targetUser->is_active && $targetUser->hasActiveSubscription();
         }
         
         // Менеджер может выдавать лимиты только владельцам и сотрудникам своих организаций
@@ -597,7 +692,11 @@ class LimitController extends Controller
                 return false;
             }
             
-            // ИСПРАВЛЕНО:直接用 where('manager_id')
+            // Проверяем наличие активной подписки
+            if (!$targetUser->hasActiveSubscription()) {
+                return false;
+            }
+            
             $organizations = Organization::where('manager_id', $currentUserId)->get();
             
             if ($organizations->isEmpty()) {

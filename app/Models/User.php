@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
@@ -308,13 +309,41 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasManyThrough(
             DelegatedLimit::class,
             Limit::class,
-            'user_id', // Foreign key on limits table
-            'limit_id', // Foreign key on delegated_limits table
-            'id', // Local key on users table
-            'id' // Local key on limits table
+            'user_id',
+            'limit_id',
+            'id',
+            'id'
         );
     }
 
+    /**
+     * Подписки пользователя
+     */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
 
+    /**
+     * Получить активную подписку пользователя
+     */
+    public function activeSubscription()
+    {
+        return $this->subscriptions()
+                    ->where('status', 'active')
+                    ->where(function($q) {
+                        $q->whereNull('ends_at')
+                          ->orWhere('ends_at', '>', now());
+                    })
+                    ->latest()
+                    ->first();
+    }
 
+    /**
+     * Проверка наличия активной подписки у пользователя
+     */
+    public function hasActiveSubscription(): bool
+    {
+        return $this->activeSubscription() !== null;
+    }
 }

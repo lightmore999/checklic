@@ -217,3 +217,34 @@ Route::middleware(['auth'])->group(function () {
 // ПОИСК ПОЛЬЗОВАТЕЛЕЙ
 // ============================
 Route::middleware(['auth'])->get('/users/search', [UserController::class, 'search'])->name('users.search');
+
+// ============================
+// ПОДПИСКИ
+// ============================
+Route::middleware(['auth'])->group(function () {
+    
+    // Общие маршруты для подписок (доступны админу и менеджеру)
+    Route::middleware(['role:admin,manager'])->group(function () {
+        Route::get('/subscriptions', [App\Http\Controllers\SubscriptionController::class, 'index'])->name('subscriptions.index');
+        Route::get('/subscriptions/create', [App\Http\Controllers\SubscriptionController::class, 'create'])->name('subscriptions.create');
+        Route::post('/subscriptions', [App\Http\Controllers\SubscriptionController::class, 'store'])->name('subscriptions.store');
+        Route::get('/subscriptions/{subscription}', [App\Http\Controllers\SubscriptionController::class, 'show'])->name('subscriptions.show');
+        Route::get('/subscriptions/{subscription}/edit', [App\Http\Controllers\SubscriptionController::class, 'edit'])->name('subscriptions.edit');
+        Route::put('/subscriptions/{subscription}', [App\Http\Controllers\SubscriptionController::class, 'update'])->name('subscriptions.update');
+        
+        // Действия с подписками
+        Route::post('/subscriptions/{subscription}/extend', [App\Http\Controllers\SubscriptionController::class, 'extend'])->name('subscriptions.extend');
+        Route::post('/subscriptions/{subscription}/activate', [App\Http\Controllers\SubscriptionController::class, 'activate'])->name('subscriptions.activate');
+        Route::post('/subscriptions/{subscription}/suspend', [App\Http\Controllers\SubscriptionController::class, 'suspend'])->name('subscriptions.suspend');
+        Route::post('/subscriptions/{subscription}/cancel', [App\Http\Controllers\SubscriptionController::class, 'cancel'])->name('subscriptions.cancel');
+    });
+    
+    // Только админ может удалять подписки
+    Route::middleware(['role:admin'])->group(function () {
+        Route::delete('/subscriptions/{subscription}', [App\Http\Controllers\SubscriptionController::class, 'destroy'])->name('subscriptions.destroy');
+    });
+    
+    // API маршруты для проверки подписок (доступны всем аутентифицированным)
+    Route::get('/api/users/{user}/subscription/check', [App\Http\Controllers\SubscriptionController::class, 'checkUserSubscription'])->name('api.users.subscription.check');
+    Route::get('/api/subscriptions/stats', [App\Http\Controllers\SubscriptionController::class, 'stats'])->name('api.subscriptions.stats');
+});

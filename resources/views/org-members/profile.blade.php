@@ -50,86 +50,205 @@
                 </div>
             </div>
 
-            <!-- Статистика всех лимитов -->
+            <!-- ===== НОВЫЙ БЛОК: МОИ ПОДПИСКИ ===== -->
+            @if(isset($subscriptions))
             <div class="card mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="bi bi-speedometer text-primary me-2"></i>
-                        Все мои отчеты
+                        <i class="bi bi-stars text-info me-2"></i>
+                        Мои подписки
+                        @if($subscriptions->count() > 0)
+                            <span class="badge bg-info float-end">{{ $subscriptions->count() }}</span>
+                        @endif
                     </h5>
                 </div>
                 <div class="card-body">
-                    <!-- Общая статистика -->
-                    <div class="mb-4">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <small>Всего отчетов:</small>
-                            <span class="badge bg-primary">{{ $totalAll }} шт.</span>
+                    @if($subscriptions->count() > 0)
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Дата начала</th>
+                                        <th>Дата окончания</th>
+                                        <th>Статус</th>
+                                        <th>Осталось дней</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($subscriptions as $subscription)
+                                    @php
+                                        $remainingDays = $subscription->getRemainingDays();
+                                        $statusClass = $subscription->status === 'active' ? 'success' : 
+                                                      ($subscription->status === 'expired' ? 'danger' : 
+                                                      ($subscription->status === 'pending' ? 'warning' : 'secondary'));
+                                    @endphp
+                                    <tr>
+                                        <td>{{ $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : '—' }}</td>
+                                        <td>
+                                            @if($subscription->ends_at)
+                                                {{ $subscription->ends_at->format('d.m.Y') }}
+                                                @if($subscription->isExpiringSoon() && $subscription->isActive())
+                                                    <span class="badge bg-warning ms-1">скоро</span>
+                                                @endif
+                                            @else
+                                                <span class="text-muted">Бессрочно</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-{{ $statusClass }}">
+                                                {{ $subscription->getStatusTextAttribute() }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if($remainingDays !== null)
+                                                @if($subscription->isActive())
+                                                    <span class="badge bg-{{ $remainingDays <= 7 ? 'warning' : 'success' }}">
+                                                        {{ $remainingDays }} дн.
+                                                    </span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            @else
+                                                <span class="text-muted">∞</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <small>Использовано:</small>
-                            <span class="badge bg-info">{{ $totalAllUsed }} шт.</span>
+                    @else
+                        <div class="text-center py-3">
+                            <i class="bi bi-stars text-muted fs-1 mb-2 d-block"></i>
+                            <p class="text-muted mb-0">У вас нет подписок</p>
+                            <small class="text-muted">Подписки выдаются через администратора</small>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <small>Доступно всего:</small>
-                            <span class="badge bg-{{ $totalAllAvailable > 0 ? 'success' : 'danger' }}">
-                                {{ $totalAllAvailable }} шт.
-                            </span>
-                        </div>
-                        
-                        <!-- Прогресс бар общий -->
-                        <div class="progress mb-2" style="height: 8px;">
-                            @php
-                                $allPercentage = $totalAll > 0 ? round(($totalAllUsed / $totalAll) * 100) : 0;
-                            @endphp
-                            <div class="progress-bar bg-{{ $allPercentage > 80 ? 'danger' : ($allPercentage > 50 ? 'warning' : 'success') }}" 
-                                 style="width: {{ $allPercentage }}%">
-                            </div>
-                        </div>
-                        <small class="text-muted d-block text-center">
-                            Использовано {{ $allPercentage }}% от всех отчетов
-                        </small>
-                    </div>
+                    @endif
+                </div>
+            </div>
+            @endif
 
-                    <!-- Разделение на собственные и делегированные -->
-                    <div class="row">
-                        <!-- Собственные лимиты -->
-                        <div class="col-6">
-                            <div class="border p-2 rounded bg-light">
-                                <h6 class="text-center mb-2">
-                                    <i class="bi bi-person-check"></i>
-                                    <small>Собственные</small>
-                                </h6>
-                                <div class="text-center mb-1">
-                                    <span class="badge bg-success">{{ $totalPersonalAvailable }}</span>
-                                    <small class="d-block text-muted">доступно</small>
-                                </div>
-                                <div class="text-center">
-                                    <span class="badge bg-secondary">{{ $totalPersonal }}</span>
-                                    <small class="d-block text-muted">всего</small>
+            <!-- ИСПРАВЛЕНО: Статистика отчетов -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-pie-chart text-primary me-2"></i>
+                        Статистика отчетов
+                    </h5>
+                </div>
+                <div class="card-body">
+                    @if($personalLimits->count() > 0 || $delegatedLimits->count() > 0)
+                        <!-- Собственные отчеты -->
+                        @if($personalLimits->count() > 0)
+                        <div class="mb-4">
+                            <h6 class="text-success mb-3">
+                                <i class="bi bi-person-check me-2"></i>
+                                Собственные отчеты
+                                <span class="badge bg-success float-end">{{ $personalLimits->count() }}</span>
+                            </h6>
+                            
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small>Всего выделено:</small>
+                                <span class="badge bg-primary">{{ $totalPersonal }} шт.</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small>Использовано:</small>
+                                <span class="badge bg-info">{{ $totalPersonalUsed }} шт.</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <small>Доступно:</small>
+                                <span class="badge bg-{{ $totalPersonalAvailable > 0 ? 'success' : 'danger' }}">
+                                    {{ $totalPersonalAvailable }} шт.
+                                </span>
+                            </div>
+                            
+                            @if($totalPersonal > 0)
+                            <div class="progress mb-1" style="height: 6px;">
+                                @php
+                                    $personalPercentage = round(($totalPersonalUsed / $totalPersonal) * 100);
+                                @endphp
+                                <div class="progress-bar bg-{{ $personalPercentage > 80 ? 'danger' : ($personalPercentage > 50 ? 'warning' : 'success') }}" 
+                                     style="width: {{ $personalPercentage }}%">
                                 </div>
                             </div>
+                            <small class="text-muted d-block text-center">
+                                использовано {{ $personalPercentage }}%
+                            </small>
+                            @endif
                         </div>
+                        @endif
                         
-                        <!-- Делегированные лимиты -->
-                        <div class="col-6">
-                            <div class="border p-2 rounded bg-light">
-                                <h6 class="text-center mb-2">
-                                    <i class="bi bi-share"></i>
-                                    <small>Делегированные</small>
-                                </h6>
-                                <div class="text-center mb-1">
-                                    <span class="badge bg-{{ $totalDelegatedAvailable > 0 ? 'success' : 'danger' }}">
-                                        {{ $totalDelegatedAvailable }}
-                                    </span>
-                                    <small class="d-block text-muted">доступно</small>
-                                </div>
-                                <div class="text-center">
-                                    <span class="badge bg-warning">{{ $totalDelegated }}</span>
-                                    <small class="d-block text-muted">всего</small>
+                        <!-- Делегированные отчеты -->
+                        @if($delegatedLimits->count() > 0)
+                        <div class="{{ $personalLimits->count() > 0 ? 'border-top pt-3' : '' }}">
+                            <h6 class="text-warning mb-3">
+                                <i class="bi bi-share me-2"></i>
+                                Делегированные отчеты
+                                <span class="badge bg-warning float-end">{{ $delegatedLimits->count() }}</span>
+                            </h6>
+                            
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small>Всего делегировано:</small>
+                                <span class="badge bg-warning">{{ $totalDelegated }} шт.</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small>Использовано:</small>
+                                <span class="badge bg-info">{{ $totalDelegatedUsed }} шт.</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <small>Доступно:</small>
+                                <span class="badge bg-{{ $totalDelegatedAvailable > 0 ? 'success' : 'danger' }}">
+                                    {{ $totalDelegatedAvailable }} шт.
+                                </span>
+                            </div>
+                            
+                            @if($totalDelegated > 0)
+                            <div class="progress mb-1" style="height: 6px;">
+                                @php
+                                    $delegatedPercentage = round(($totalDelegatedUsed / $totalDelegated) * 100);
+                                @endphp
+                                <div class="progress-bar bg-{{ $delegatedPercentage > 80 ? 'danger' : ($delegatedPercentage > 50 ? 'warning' : 'success') }}" 
+                                     style="width: {{ $delegatedPercentage }}%">
                                 </div>
                             </div>
+                            <small class="text-muted d-block text-center">
+                                использовано {{ $delegatedPercentage }}%
+                            </small>
+                            @endif
                         </div>
-                    </div>
+                        @endif
+                        
+                        <!-- Общая статистика (если есть и те и другие) -->
+                        @if($personalLimits->count() > 0 && $delegatedLimits->count() > 0)
+                        <div class="border-top pt-3 mt-3">
+                            <h6 class="mb-3">
+                                <i class="bi bi-bar-chart me-2"></i>
+                                Общая статистика
+                            </h6>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small>Всего отчетов:</small>
+                                <span class="badge bg-primary">{{ $totalAll }} шт.</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small>Всего использовано:</small>
+                                <span class="badge bg-info">{{ $totalAllUsed }} шт.</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small>Всего доступно:</small>
+                                <span class="badge bg-{{ $totalAllAvailable > 0 ? 'success' : 'danger' }}">
+                                    {{ $totalAllAvailable }} шт.
+                                </span>
+                            </div>
+                        </div>
+                        @endif
+                        
+                    @else
+                        <div class="text-center py-4">
+                            <i class="bi bi-clipboard-x text-muted fs-1 mb-3 d-block"></i>
+                            <p class="text-muted mb-0">У вас нет отчетов</p>
+                            <small class="text-muted">Обратитесь к руководителю для получения отчетов</small>
+                        </div>
+                    @endif
                 </div>
             </div>
 
@@ -311,6 +430,14 @@
                                 </button>
                             </li>
                         @endif
+                        @if($personalLimits->count() == 0 && $delegatedLimits->count() == 0)
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" disabled>
+                                    <i class="bi bi-clipboard-x me-1"></i>
+                                    Нет отчетов
+                                </button>
+                            </li>
+                        @endif
                     </ul>
                 </div>
                 <div class="card-body">
@@ -323,7 +450,7 @@
                                         <thead>
                                             <tr>
                                                 <th>Тип отчета</th>
-                                                <th>Общий отчет</th>
+                                                <th>Всего</th>
                                                 <th>Использовано</th>
                                                 <th>Доступно</th>
                                                 <th>Дата создания</th>
@@ -351,8 +478,7 @@
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    {{ $limit->date_created->format('d.m.Y') }}<br>
-                                                    <small class="text-muted">{{ $limit->created_at->format('H:i') }}</small>
+                                                    {{ $limit->date_created->format('d.m.Y') }}
                                                 </td>
                                                 <td>
                                                     @if($limit->isExhausted())
@@ -390,7 +516,8 @@
                                             @foreach($delegatedLimits as $delegated)
                                             @php
                                                 $available = $delegated->quantity - $delegated->used_quantity;
-                                                $originalUser = $delegated->limit->user ?? null;
+                                                // ИСПРАВЛЕНО: получаем владельца через subscription->user
+                                                $originalUser = $delegated->limit->subscription->user ?? null;
                                             @endphp
                                             <tr>
                                                 <td>
@@ -398,10 +525,13 @@
                                                 </td>
                                                 <td>
                                                     @if($originalUser)
-                                                        <small>
-                                                            <i class="bi bi-person-up"></i>
-                                                            {{ $originalUser->name }}
-                                                        </small>
+                                                        <div class="d-flex align-items-center">
+                                                            <div class="rounded-circle bg-success d-flex align-items-center justify-content-center me-1" 
+                                                                 style="width: 24px; height: 24px; color: white; font-size: 0.7rem;">
+                                                                {{ strtoupper(substr($originalUser->name, 0, 1)) }}
+                                                            </div>
+                                                            <small>{{ $originalUser->name }}</small>
+                                                        </div>
                                                     @else
                                                         <span class="text-muted">Неизвестно</span>
                                                     @endif
@@ -417,7 +547,7 @@
                                                         {{ $available }} шт.
                                                     </span>
                                                 </td>
-                                                <td>{{ $delegated->created_at->format('d.m.Y H:i') }}</td>
+                                                <td>{{ $delegated->created_at->format('d.m.Y') }}</td>
                                                 <td>
                                                     @if($delegated->is_active)
                                                         @if($available <= 0)
@@ -442,7 +572,7 @@
                             <div class="text-center py-5">
                                 <i class="bi bi-clipboard-x text-muted fs-1 mb-3 d-block"></i>
                                 <p class="text-muted mb-2">У вас нет доступных отчетов</p>
-                                <small class="text-muted">Обратитесь к администратору или руководителю</small>
+                                <small class="text-muted">Обратитесь к руководителю для получения отчетов</small>
                             </div>
                         @endif
                     </div>
@@ -452,8 +582,89 @@
     </div>
 </div>
 
+<!-- Модальное окно просмотра подписки (опционально) -->
+<div class="modal fade" id="viewSubscriptionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-eye me-2"></i>
+                    Детали подписки
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="viewSubscriptionContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
+    // Данные подписок для модального окна просмотра
+    let subscriptions = {
+        @if(isset($subscriptions))
+            @foreach($subscriptions as $sub)
+                {{ $sub->id }}: {
+                    starts_at: '{{ $sub->starts_at ? $sub->starts_at->format('Y-m-d') : '' }}',
+                    ends_at: '{{ $sub->ends_at ? $sub->ends_at->format('Y-m-d') : '' }}',
+                    status: '{{ $sub->status }}',
+                    status_text: '{{ $sub->getStatusTextAttribute() }}',
+                    status_class: '{{ $sub->status === "active" ? "success" : ($sub->status === "expired" ? "danger" : ($sub->status === "pending" ? "warning" : "secondary")) }}',
+                    remaining_days: {{ $sub->getRemainingDays() ?? 'null' }},
+                    user_name: '{{ $user->name }}',
+                    user_email: '{{ $user->email }}'
+                },
+            @endforeach
+        @endif
+    };
+
+    // Функция для просмотра подписки
+    window.viewSubscription = function(id) {
+        const sub = subscriptions[id];
+        if (!sub) return;
+        
+        let html = `
+            <div class="text-center mb-4">
+                <div class="rounded-circle bg-info d-inline-flex align-items-center justify-content-center mb-3" 
+                     style="width: 70px; height: 70px; color: white; font-size: 1.8rem;">
+                    ${sub.user_name ? sub.user_name.charAt(0).toUpperCase() : '?'}
+                </div>
+                <h5>${sub.user_name || 'Неизвестно'}</h5>
+                <p class="text-muted small">${sub.user_email || ''}</p>
+            </div>
+            <table class="table table-sm">
+                <tr>
+                    <th>Дата начала:</th>
+                    <td>${sub.starts_at ? sub.starts_at : '—'}</td>
+                </tr>
+                <tr>
+                    <th>Дата окончания:</th>
+                    <td>${sub.ends_at ? sub.ends_at : 'Бессрочно'}</td>
+                </tr>
+                <tr>
+                    <th>Статус:</th>
+                    <td><span class="badge bg-${sub.status_class}">${sub.status_text}</span></td>
+                </tr>
+                <tr>
+                    <th>Осталось дней:</th>
+                    <td>${sub.remaining_days !== null ? sub.remaining_days + ' дн.' : '∞'}</td>
+                </tr>
+            </table>
+        `;
+        
+        document.getElementById('viewSubscriptionContent').innerHTML = html;
+        new bootstrap.Modal(document.getElementById('viewSubscriptionModal')).show();
+    };
+
     // Активация табов
     document.addEventListener('DOMContentLoaded', function() {
         const triggerTabList = [].slice.call(document.querySelectorAll('#limitsTab button'))
@@ -468,4 +679,14 @@
     })
 </script>
 @endpush
+
+<style>
+/* Исправление для активных табов */
+.nav-tabs .nav-link.active {
+    color: #0d6efd !important;
+    font-weight: 500 !important;
+    background-color: #e7f1ff !important;
+    border-color: #dee2e6 #dee2e6 #fff !important;
+}
+</style>
 @endsection

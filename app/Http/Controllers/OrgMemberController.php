@@ -9,6 +9,7 @@ use App\Models\Limit;
 use App\Models\Report;
 use App\Models\ReportType;
 use App\Models\DelegatedLimit; 
+use App\Models\Subscription; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -30,16 +31,21 @@ class OrgMemberController extends Controller
         
         $organization = $memberProfile->organization;
         
+        // ===== ДОБАВЛЕНО: Получаем подписки сотрудника =====
+        $subscriptions = Subscription::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
         // Получаем делегированные лимиты сотрудника
         $delegatedLimits = DelegatedLimit::where('user_id', $user->id)
             ->where('is_active', true)
-            ->with(['limit.reportType'])
+            ->with(['limit.reportType', 'limit.subscription.user'])
             ->orderBy('created_at', 'desc')
             ->get();
         
         // Получаем собственные лимиты сотрудника
         $personalLimits = Limit::where('user_id', $user->id)
-            ->with(['reportType'])
+            ->with(['reportType', 'subscription.user'])
             ->orderBy('date_created', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -101,6 +107,7 @@ class OrgMemberController extends Controller
             'user',
             'memberProfile',
             'organization',
+            'subscriptions', // ДОБАВЛЕНО
             'delegatedLimits',
             'personalLimits',
             'totalDelegated',
@@ -251,16 +258,24 @@ class OrgMemberController extends Controller
             ->with(['user', 'boss', 'manager']) // manager теперь User
             ->firstOrFail();
         
+        // ===== ДОБАВЛЕНО: Получаем подписки сотрудника =====
+        $subscriptions = Subscription::where('user_id', $member->user_id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
         // Получаем делегированные лимиты сотрудника
         $delegatedLimits = DelegatedLimit::where('user_id', $member->user_id)
             ->where('is_active', true)
-            ->with(['limit.reportType', 'limit.user'])
+            ->with([
+                'limit.reportType', 
+                'limit.subscription.user' // Исправлено: получаем пользователя через подписку
+            ])
             ->orderBy('created_at', 'desc')
             ->get();
         
         // Получаем собственные лимиты сотрудника
         $personalLimits = Limit::where('user_id', $member->user_id)
-            ->with(['reportType'])
+            ->with(['reportType', 'subscription.user']) // Исправлено: получаем пользователя через подписку
             ->orderBy('date_created', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -346,6 +361,7 @@ class OrgMemberController extends Controller
             'organization', 
             'member', 
             'routePrefix',
+            'subscriptions', // ДОБАВЛЕНО
             'delegatedLimits',
             'personalLimits',
             'totalDelegated',

@@ -103,4 +103,6 @@ class OrgOwnerProfile extends Model
     {
         return $this->subordinates()->where('is_active', true)->count();
     }
+
+    
 }

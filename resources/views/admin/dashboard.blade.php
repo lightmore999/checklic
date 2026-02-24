@@ -16,6 +16,10 @@
             <i class="bi bi-building-add me-2"></i>
             Создать организацию
         </a>
+        <a href="{{ route('subscriptions.create') }}" class="btn btn-info">
+            <i class="bi bi-stars me-2"></i>
+            Создать подписку
+        </a>
     </div>
 </div>
 

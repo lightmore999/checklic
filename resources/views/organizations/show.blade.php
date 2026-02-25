@@ -332,11 +332,6 @@
                             <span class="badge bg-info ms-2">{{ $subscriptions->count() }}</span>
                         @endif
                     </h5>
-                    @if($isAdmin || $isManager)
-                        <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#createSubscriptionModal">
-                            <i class="bi bi-plus-lg me-1"></i> Добавить подписку
-                        </button>
-                    @endif
                 </div>
                 <div class="card-body">
                     @if(isset($subscriptions) && $subscriptions->count() > 0)
@@ -344,11 +339,12 @@
                             <table class="table table-sm table-hover align-middle">
                                 <thead class="table-light">
                                     <tr>
+                                        <th>ID</th>
                                         <th>Дата начала</th>
                                         <th>Дата окончания</th>
                                         <th>Статус</th>
                                         <th>Осталось дней</th>
-                                        <th class="text-center">Действия</th>
+                                        <th>Отчетов</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -358,8 +354,20 @@
                                         $statusClass = $subscription->status === 'active' ? 'success' : 
                                                       ($subscription->status === 'expired' ? 'danger' : 
                                                       ($subscription->status === 'pending' ? 'warning' : 'secondary'));
+                                        
+                                        // Считаем количество отчетов в этой подписке
+                                        $limitsCount = 0;
+                                        if (isset($groupedLimits)) {
+                                            foreach($groupedLimits as $group) {
+                                                if ($group['subscription']->id == $subscription->id) {
+                                                    $limitsCount = count($group['limits']);
+                                                    break;
+                                                }
+                                            }
+                                        }
                                     @endphp
                                     <tr>
+                                        <td>#{{ $subscription->id }}</td>
                                         <td>{{ $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : '—' }}</td>
                                         <td>
                                             @if($subscription->ends_at)
@@ -382,8 +390,6 @@
                                                     <span class="badge bg-{{ $remainingDays <= 7 ? 'warning' : 'success' }}">
                                                         {{ $remainingDays }} дн.
                                                     </span>
-                                                @elseif($subscription->status === 'expired' || ($subscription->ends_at && $subscription->ends_at->isPast()))
-                                                    <span class="badge bg-danger">Истекла</span>
                                                 @else
                                                     <span class="text-muted">—</span>
                                                 @endif
@@ -392,30 +398,7 @@
                                             @endif
                                         </td>
                                         <td class="text-center">
-                                            <div class="d-flex justify-content-center gap-1">
-                                                <button type="button" 
-                                                        class="btn btn-sm btn-outline-info"
-                                                        onclick="viewSubscription({{ $subscription->id }})"
-                                                        title="Просмотр">
-                                                    <i class="bi bi-eye"></i>
-                                                </button>
-                                                <button type="button" 
-                                                        class="btn btn-sm btn-outline-warning"
-                                                        onclick="editSubscription({{ $subscription->id }})"
-                                                        title="Редактировать"
-                                                        data-bs-toggle="modal" 
-                                                        data-bs-target="#editSubscriptionModal">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                @if($isAdmin)
-                                                <button type="button" 
-                                                        class="btn btn-sm btn-outline-danger"
-                                                        onclick="deleteSubscription({{ $subscription->id }})"
-                                                        title="Удалить">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                                @endif
-                                            </div>
+                                            <span class="badge bg-info">{{ $limitsCount }}</span>
                                         </td>
                                     </tr>
                                     @endforeach
@@ -426,102 +409,206 @@
                         <div class="text-center py-4">
                             <i class="bi bi-stars fs-1 text-muted mb-3 d-block"></i>
                             <p class="text-muted mb-3">У владельца пока нет подписок</p>
-                            @if($isAdmin || $isManager)
-                                <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#createSubscriptionModal">
-                                    <i class="bi bi-plus-lg me-1"></i> Создать первую подписку
-                                </button>
-                            @endif
                         </div>
                     @endif
                 </div>
             </div>
             @endif
 
-            <!-- Лимиты владельца -->
-            @if(isset($ownerLimits) && count($ownerLimits) > 0)
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-white border-bottom">
-                    <div class="d-flex justify-content-between align-items-center">
+            <!-- Отчеты по подпискам -->
+            @if(isset($groupedLimits) && count($groupedLimits) > 0)
+                @foreach($groupedLimits as $group)
+                    @php
+                        $subscription = $group['subscription'];
+                        $limits = $group['limits'];
+                        $totalQuantity = $group['total_quantity'];
+                        $totalUsed = $group['total_used'];
+                        $totalAvailable = $group['total_available'];
+                        
+                        // Получаем делегированные лимиты для этой подписки
+                        $subscriptionDelegated = isset($delegatedLimits) ? $delegatedLimits->filter(function($delegated) use ($subscription) {
+                            return $delegated->limit->subscription_id == $subscription->id;
+                        }) : collect();
+                        $totalDelegatedForSub = $subscriptionDelegated->sum('quantity');
+                        
+                        // Функция для склонения слов
+                        $limitsCount = count($limits);
+                        $wordForms = ['отчет', 'отчета', 'отчетов'];
+                        $wordIndex = ($limitsCount % 100 > 4 && $limitsCount % 100 < 20) ? 2 : [2, 0, 1, 1, 1, 2][min($limitsCount % 10, 5)];
+                        $wordForm = $wordForms[$wordIndex];
+                    @endphp
+                    
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white border-bottom">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-0">
+                                        <i class="bi bi-stars text-info me-2"></i>
+                                        Подписка #{{ $subscription->id }}
+                                        @if($subscription->status === 'active')
+                                            <span class="badge bg-success ms-2">Активна</span>
+                                        @elseif($subscription->status === 'expired')
+                                            <span class="badge bg-danger ms-2">Истекла</span>
+                                        @elseif($subscription->status === 'pending')
+                                            <span class="badge bg-warning ms-2">Ожидает</span>
+                                        @elseif($subscription->status === 'suspended')
+                                            <span class="badge bg-warning ms-2">Приостановлена</span>
+                                        @elseif($subscription->status === 'cancelled')
+                                            <span class="badge bg-secondary ms-2">Отменена</span>
+                                        @else
+                                            <span class="badge bg-secondary ms-2">{{ $subscription->getStatusTextAttribute() }}</span>
+                                        @endif
+                                    </h5>
+                                    <div class="text-muted small mt-1">
+                                        @if($subscription->starts_at)
+                                            <span class="me-3"><i class="bi bi-calendar-plus me-1"></i>С {{ $subscription->starts_at->format('d.m.Y') }}</span>
+                                        @endif
+                                        @if($subscription->ends_at)
+                                            <span><i class="bi bi-calendar-x me-1"></i>до {{ $subscription->ends_at->format('d.m.Y') }}</span>
+                                            @if($subscription->getRemainingDays())
+                                                <span class="badge bg-{{ $subscription->getRemainingDays() <= 7 ? 'warning' : 'info' }} ms-2">
+                                                    осталось {{ $subscription->getRemainingDays() }} дн.
+                                                </span>
+                                            @endif
+                                        @else
+                                            <span class="text-muted">(бессрочная)</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <span class="badge bg-secondary">
+                                        {{ $limitsCount }} {{ $wordForm }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Статистика по подписке -->
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <div class="border rounded p-2 text-center bg-light">
+                                        <small class="text-muted d-block">Всего отчетов</small>
+                                        <span class="fw-bold fs-5">{{ $totalQuantity }} шт.</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="border rounded p-2 text-center bg-light">
+                                        <small class="text-muted d-block">Использовано</small>
+                                        <span class="fw-bold fs-5 text-warning">{{ $totalUsed }} шт.</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="border rounded p-2 text-center bg-light">
+                                        <small class="text-muted d-block">Доступно</small>
+                                        <span class="fw-bold fs-5 text-{{ $totalAvailable > 0 ? 'success' : 'danger' }}">
+                                            {{ $totalAvailable }} шт.
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="border rounded p-2 text-center bg-light">
+                                        <small class="text-muted d-block">Делегировано</small>
+                                        <span class="fw-bold fs-5 text-warning">{{ $totalDelegatedForSub }} шт.</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Тип отчета</th>
+                                            <th>Дата действия</th>
+                                            <th>Выделено</th>
+                                            <th>Использовано</th>
+                                            <th>Делегировано</th>
+                                            <th>Доступно</th>
+                                            <th>Статус</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($limits as $limit)
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <strong>{{ $limit['report_type_name'] }}</strong>
+                                                    @if($limit['only_api'])
+                                                        <span class="badge bg-warning ms-2">API</span>
+                                                    @else
+                                                        <span class="badge bg-primary ms-2">UI</span>
+                                                    @endif
+                                                </div>
+                                            </td>
+                                            <td>{{ date('d.m.Y', strtotime($limit['date_created'])) }}</td>
+                                            <td>
+                                                <span class="badge bg-primary">{{ $limit['quantity'] }} шт.</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">{{ $limit['used_quantity'] }} шт.</span>
+                                            </td>
+                                            <td>
+                                                @if($limit['delegated_amount'] > 0)
+                                                    <span class="badge bg-warning">{{ $limit['delegated_amount'] }} шт.</span>
+                                                @else
+                                                    <span class="text-muted">0 шт.</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ $limit['available_amount'] > 0 ? 'success' : 'danger' }}">
+                                                    {{ $limit['available_amount'] }} шт.
+                                                </span>
+                                            </td>
+                                            <td>
+                                                @if($limit['available_amount'] <= 0)
+                                                    <span class="badge bg-danger">Исчерпан</span>
+                                                @else
+                                                    <span class="badge bg-success">Активен</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            @elseif(isset($subscriptions) && $subscriptions->count() > 0)
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom">
                         <h5 class="mb-0">
-                            <i class="bi bi-speedometer text-info me-2"></i>
-                            Отчеты владельца
-                            <small class="text-muted ms-2">({{ now()->format('d.m.Y') }})</small>
+                            <i class="bi bi-stars text-info me-2"></i>
+                            Отчеты по подпискам
                         </h5>
-                        <div class="d-flex gap-2">
-                            @if($canDelegateAny && isset($availableEmployees) && $availableEmployees->count() > 0 && count(array_filter($ownerLimits, fn($l) => $l['available_amount'] > 0)) > 0)
-                                <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#delegateModal">
-                                    <i class="bi bi-share"></i> Делегировать
-                                </button>
-                            @endif
-                            <span class="badge bg-secondary">
-                                {{ count($ownerLimits) }} тип(ов)
-                            </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center py-5">
+                            <div class="mb-4">
+                                <i class="bi bi-file-text display-1 text-muted"></i>
+                            </div>
+                            <h4 class="text-muted mb-3">В подписках пока нет отчетов</h4>
+                            <p class="text-muted mb-4">Добавьте отчеты в подписки</p>
                         </div>
                     </div>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Тип отчета</th>
-                                    <th>Дата действия</th>
-                                    <th>Выделено</th>
-                                    <th>Использовано</th>
-                                    <th>Делегировано</th>
-                                    <th>Доступно</th>
-                                    <th>Статус</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($ownerLimits as $limit)
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <strong>{{ $limit['report_type_name'] }}</strong>
-                                            @if($limit['only_api'])
-                                                <span class="badge bg-warning ms-2">API</span>
-                                            @else
-                                                <span class="badge bg-primary ms-2">UI</span>
-                                            @endif
-                                        </div>
-                                        @if($limit['description'])
-                                            <small class="text-muted d-block mt-1">{{ $limit['description'] }}</small>
-                                        @endif
-                                    </td>
-                                    <td>{{ date('d.m.Y', strtotime($limit['date_created'])) }}</td>
-                                    <td>
-                                        <span class="badge bg-primary">{{ $limit['total_allocated'] }} шт.</span>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-info">{{ $limit['used_quantity'] }} шт.</span>
-                                    </td>
-                                    <td>
-                                        @if($limit['delegated_amount'] > 0)
-                                            <span class="badge bg-warning">{{ $limit['delegated_amount'] }} шт.</span>
-                                        @else
-                                            <span class="text-muted">0 шт.</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-{{ $limit['available_amount'] > 0 ? 'success' : 'danger' }}">
-                                            {{ $limit['available_amount'] }} шт.
-                                        </span>
-                                    </td>
-                                    <td>
-                                        @if($limit['available_amount'] <= 0)
-                                            <span class="badge bg-danger">Исчерпан</span>
-                                        @else
-                                            <span class="badge bg-success">Активен</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+            @else
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom">
+                        <h5 class="mb-0">
+                            <i class="bi bi-stars text-info me-2"></i>
+                            Отчеты владельца
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center py-5">
+                            <div class="mb-4">
+                                <i class="bi bi-speedometer display-1 text-muted"></i>
+                            </div>
+                            <h4 class="text-muted mb-3">У владельца нет отчетов</h4>
+                            <p class="text-muted mb-4">Для создания отчетов необходимо создать подписку и добавить отчеты</p>
+                        </div>
                     </div>
                 </div>
-            </div>
             @endif
         </div>
 
@@ -702,9 +789,11 @@
                         <tr>
                             <th>Сотрудник</th>
                             <th>Тип отчета</th>
-                            <th>Дата отчета</th>
-                            <th>Делегировано/Использовано</th>
-                            <th>Дата делегирования</th>
+                            <th>Подписка</th>
+                            <th>Делегировано</th>
+                            <th>Использовано</th>
+                            <th>Доступно</th>
+                            <th>Дата</th>
                             <th>Статус</th>
                             @if($canDelegateAny)
                             <th>Действия</th>
@@ -713,6 +802,10 @@
                     </thead>
                     <tbody>
                         @foreach($delegatedLimits as $delegated)
+                        @php
+                            $available = $delegated->quantity - $delegated->used_quantity;
+                            $subscription = $delegated->limit->subscription ?? null;
+                        @endphp
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center">
@@ -729,23 +822,24 @@
                             <td>
                                 <strong>{{ $delegated->limit->reportType->name ?? 'Не указан' }}</strong>
                             </td>
-                            <td>{{ $delegated->limit->date_created->format('d.m.Y') }}</td>
                             <td>
-                                <div>
-                                    <span class="badge bg-warning mb-1">{{ $delegated->quantity }} шт.</span>
-                                    @if($delegated->used_quantity > 0)
-                                        <br>
-                                        <small class="text-muted">использовано: {{ $delegated->used_quantity }} шт.</small>
-                                    @endif
-                                </div>
+                                @if($subscription)
+                                    <span class="badge bg-info">#{{ $subscription->id }}</span>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
                             </td>
-                            <td>{{ $delegated->created_at->format('d.m.Y H:i') }}</td>
+                            <td>{{ $delegated->quantity }} шт.</td>
+                            <td>{{ $delegated->used_quantity }} шт.</td>
+                            <td>
+                                <span class="badge bg-{{ $available > 0 ? 'success' : 'danger' }}">
+                                    {{ $available }} шт.
+                                </span>
+                            </td>
+                            <td>{{ $delegated->created_at->format('d.m.Y') }}</td>
                             <td>
                                 @if($delegated->is_active)
-                                    @php
-                                        $availableDelegated = $delegated->quantity - $delegated->used_quantity;
-                                    @endphp
-                                    @if($availableDelegated <= 0)
+                                    @if($available <= 0)
                                         <span class="badge bg-danger">Исчерпан</span>
                                     @else
                                         <span class="badge bg-success">Активен</span>
@@ -761,7 +855,7 @@
                                     @method('DELETE')
                                     <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
                                     <button type="submit" class="btn btn-sm btn-danger" 
-                                            onclick="return confirm('Возвратить лимит? Лимит вернется владельцу.')"
+                                            onclick="return confirm('Возвратить лимит?')"
                                             title="Возвратить лимит">
                                         <i class="bi bi-arrow-return-left"></i>
                                     </button>
@@ -789,7 +883,7 @@
                         <span class="badge bg-info ms-2">лимит: {{ $organization->max_employees }}</span>
                     @endif
                 </h5>
-                <small class="text-muted">Все сотрудники вашей организации</small>
+                <small class="text-muted">Все сотрудники организации</small>
             </div>
             @if($isAdmin || $isManager)
                 @if(!$organization->max_employees || $currentEmployeesCount < $organization->max_employees)
@@ -827,6 +921,18 @@
                                     <div class="flex-grow-1">
                                         <h6 class="mb-0 fw-bold">{{ $member->user->name }}</h6>
                                         <small class="text-muted d-block">{{ $member->user->email }}</small>
+                                        @if($member->user->phone)
+                                                <p class="mb-2">
+                                                    <i class="bi bi-telephone text-primary"></i> 
+                                                    <a href="tel:{{ $member->user->phone }}" class="text-decoration-none">
+                                                        {{ $member->user->phone }}
+                                                    </a>
+                                                </p>
+                                            @else
+                                                <p class="text-muted small mb-2">
+                                                    <i class="bi bi-telephone-x"></i> Телефон не указан
+                                                </p>
+                                            @endif
                                         <div class="d-flex gap-1 mt-1">
                                             @if($member->is_active)
                                                 <span class="badge bg-success">Активен</span>
@@ -842,7 +948,6 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Статистика по лимитам -->
                                 @if($hasDelegated)
                                     <div class="mb-3 border-top pt-2">
                                         <small class="text-muted d-block mb-2">Статистика по отчетам:</small>
@@ -860,40 +965,6 @@
                                                 {{ $memberTotalAvailable }} шт.
                                             </span>
                                         </div>
-                                        
-                                        <!-- Виды лимитов -->
-                                        @if($memberDelegated->count() > 0)
-                                            <small class="text-muted d-block mb-1">Виды отчетов:</small>
-                                            <div class="mt-1">
-                                                @foreach($memberDelegated->take(2) as $delegated)
-                                                    @php
-                                                        $delegatedAvailable = $delegated->quantity - $delegated->used_quantity;
-                                                        $percentage = $delegated->quantity > 0 ? round(($delegatedAvailable / $delegated->quantity) * 100) : 0;
-                                                    @endphp
-                                                    <div class="mb-2">
-                                                        <small class="d-block text-truncate" title="{{ $delegated->limit->reportType->name ?? 'Отчет' }}">
-                                                            {{ $delegated->limit->reportType->name ?? 'Отчет' }}
-                                                        </small>
-                                                        <div class="progress" style="height: 4px;">
-                                                            <div class="progress-bar bg-{{ $percentage > 20 ? 'success' : ($percentage > 0 ? 'warning' : 'danger') }}" 
-                                                                 style="width: {{ $percentage }}%">
-                                                            </div>
-                                                        </div>
-                                                        <div class="d-flex justify-content-between mt-1">
-                                                            <small class="text-muted">{{ $delegatedAvailable }} шт.</small>
-                                                            <small class="text-muted">из {{ $delegated->quantity }} шт.</small>
-                                                        </div>
-                                                    </div>
-                                                @endforeach
-                                                @if($memberDelegated->count() > 2)
-                                                    <div class="text-center">
-                                                        <small class="text-muted">
-                                                            + еще {{ $memberDelegated->count() - 2 }} видов отчетов
-                                                        </small>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        @endif
                                     </div>
                                 @else
                                     <div class="border-top pt-3 text-center">
@@ -917,13 +988,13 @@
                                                 </a>
                                             @endif
                                         </div>
-                                        @if($canDelegateAny && isset($ownerLimits) && count($ownerLimits) > 0)
+                                        
+                                        <!-- Кнопка делегирования -->
+                                        @if($canDelegateAny && isset($groupedLimits) && count($groupedLimits) > 0)
                                             <button type="button" class="btn btn-sm btn-warning delegate-btn"
                                                     data-employee-id="{{ $member->user->id }}"
                                                     data-employee-name="{{ $member->user->name }}"
-                                                    data-owner-id="{{ $organization->owner->user_id ?? '' }}"
-                                                    title="Делегировать лимит"
-                                                    {{ $organization->max_employees && $currentEmployeesCount >= $organization->max_employees ? 'disabled' : '' }}>
+                                                    title="Делегировать лимит">
                                                 <i class="bi bi-share"></i>
                                             </button>
                                         @endif
@@ -941,7 +1012,7 @@
                     </div>
                     <h4 class="text-muted mb-3">Сотрудников пока нет</h4>
                     <p class="text-muted mb-4">
-                        Добавьте первого сотрудника в вашу организацию
+                        Добавьте первого сотрудника в организацию
                         @if($organization->max_employees)
                             <br><small class="text-info">Лимит сотрудников: {{ $organization->max_employees }} чел.</small>
                         @endif
@@ -963,183 +1034,24 @@
     </div>
 </div>
 
-<!-- Модальное окно создания подписки -->
-@if(($isAdmin || $isManager) && $organization->owner && $organization->owner->user)
-<div class="modal fade" id="createSubscriptionModal" tabindex="-1" aria-labelledby="createSubscriptionModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ route('subscriptions.store') }}" method="POST" id="createSubscriptionForm">
-                @csrf
-                <input type="hidden" name="user_id" value="{{ $organization->owner->user->id }}">
-                <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
-                
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title" id="createSubscriptionModalLabel">
-                        <i class="bi bi-plus-circle me-2"></i>
-                        Новая подписка для {{ $organization->owner->user->name }}
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="starts_at" class="form-label">Дата начала</label>
-                        <input type="date" class="form-control" id="starts_at" name="starts_at" 
-                               value="{{ old('starts_at', now()->format('Y-m-d')) }}">
-                        <div class="form-text">Оставьте пустым для автоматической установки на сегодня</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="ends_at" class="form-label">Дата окончания</label>
-                        <input type="date" class="form-control" id="ends_at" name="ends_at" 
-                               value="{{ old('ends_at') }}"
-                               min="{{ now()->addDay()->format('Y-m-d') }}">
-                        <div class="form-text">Оставьте пустым для бессрочной подписки</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="status" class="form-label">Статус подписки</label>
-                        <select class="form-select" id="status" name="status" required>
-                            <option value="active" selected>Активна</option>
-                            <option value="pending">Ожидает</option>
-                            <option value="suspended">Приостановлена</option>
-                            <option value="expired">Истекла</option>
-                            <option value="cancelled">Отменена</option>
-                        </select>
-                    </div>
-                    
-                    <div class="alert alert-info" id="subscriptionWarning" style="display: none;">
-                        <i class="bi bi-info-circle me-2"></i>
-                        <span id="subscriptionWarningText"></span>
-                    </div>
-                </div>
-                
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-success" id="createSubscriptionBtn">
-                        <i class="bi bi-check-circle me-1"></i> Создать подписку
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+@if($isAdmin)
+<!-- Форма для удаления организации -->
+<form id="delete-form" method="POST" action="{{ route('admin.organization.delete', $organization->id) }}" style="display: none;">
+    @csrf
+    @method('DELETE')
+</form>
+
+<script>
+function confirmDelete(id, name) {
+    if (confirm(`Вы уверены, что хотите удалить организацию "${name}"? Это действие удалит также владельца организации и всех сотрудников.`)) {
+        document.getElementById('delete-form').submit();
+    }
+}
+</script>
 @endif
 
-<!-- Модальное окно редактирования подписки -->
-@if($isAdmin || $isManager)
-<div class="modal fade" id="editSubscriptionModal" tabindex="-1" aria-labelledby="editSubscriptionModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="" method="POST" id="editSubscriptionForm">
-                @csrf
-                @method('PUT')
-                <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
-                
-                <div class="modal-header bg-warning text-white">
-                    <h5 class="modal-title" id="editSubscriptionModalLabel">
-                        <i class="bi bi-pencil me-2"></i>
-                        Редактирование подписки
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="edit_starts_at" class="form-label">Дата начала</label>
-                        <input type="date" class="form-control" id="edit_starts_at" name="starts_at">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="edit_ends_at" class="form-label">Дата окончания</label>
-                        <input type="date" class="form-control" id="edit_ends_at" name="ends_at">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="edit_status" class="form-label">Статус подписки</label>
-                        <select class="form-select" id="edit_status" name="status" required>
-                            <option value="active">Активна</option>
-                            <option value="pending">Ожидает</option>
-                            <option value="suspended">Приостановлена</option>
-                            <option value="expired">Истекла</option>
-                            <option value="cancelled">Отменена</option>
-                        </select>
-                    </div>
-                    
-                    <div class="alert alert-warning" id="editSubscriptionWarning" style="display: none;">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        <span id="editSubscriptionWarningText"></span>
-                    </div>
-                </div>
-                
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-warning" id="editSubscriptionBtn">
-                        <i class="bi bi-save me-1"></i> Сохранить изменения
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-@endif
-
-<!-- Модальное окно просмотра подписки -->
-<div class="modal fade" id="viewSubscriptionModal" tabindex="-1" aria-labelledby="viewSubscriptionModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title" id="viewSubscriptionModalLabel">
-                    <i class="bi bi-eye me-2"></i>
-                    Детали подписки
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="viewSubscriptionContent">
-                <!-- Заполняется через JavaScript -->
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Загрузка...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Модальное окно удаления подписки -->
-<div class="modal fade" id="deleteSubscriptionModal" tabindex="-1" aria-labelledby="deleteSubscriptionModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteSubscriptionModalLabel">
-                    <i class="bi bi-trash me-2"></i>
-                    Удаление подписки
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Вы уверены, что хотите удалить эту подписку?</p>
-                <p class="text-danger"><strong>Внимание!</strong> Это действие также удалит все лимиты, связанные с этой подпиской.</p>
-            </div>
-            <div class="modal-footer">
-                <form action="" method="POST" id="deleteSubscriptionForm">
-                    @csrf
-                    @method('DELETE')
-                    <input type="hidden" name="redirect_to_organization" value="{{ $organization->id }}">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-danger">Удалить подписку</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Модальное окно делегирования (оставляем как есть) -->
-@if($canDelegateAny && isset($ownerLimits) && count($ownerLimits) > 0 && isset($availableEmployees) && $availableEmployees->count() > 0)
+<!-- Модальное окно делегирования -->
+@if($canDelegateAny && isset($groupedLimits) && count($groupedLimits) > 0 && isset($availableEmployees) && $availableEmployees->count() > 0)
 <div class="modal fade" id="delegateModal" tabindex="-1" aria-labelledby="delegateModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -1164,17 +1076,21 @@
                                 </label>
                                 <select name="limit_id" id="limit_id" class="form-select" required>
                                     <option value="">Выберите отчет</option>
-                                    @foreach($ownerLimits as $limit)
-                                        @if($limit['available_amount'] > 0 && $limit['id'])
-                                            <option value="{{ $limit['id'] }}" 
-                                                    data-available="{{ $limit['available_amount'] }}"
-                                                    data-name="{{ $limit['report_type_name'] }}"
-                                                    data-date="{{ date('d.m.Y', strtotime($limit['date_created'])) }}">
-                                                {{ $limit['report_type_name'] }} 
-                                                ({{ date('d.m.Y', strtotime($limit['date_created'])) }})
-                                                - доступно {{ $limit['available_amount'] }} шт.
-                                            </option>
-                                        @endif
+                                    @foreach($groupedLimits as $group)
+                                        @foreach($group['limits'] as $limit)
+                                            @if($limit['available_amount'] > 0)
+                                                <option value="{{ $limit['id'] }}" 
+                                                        data-available="{{ $limit['available_amount'] }}"
+                                                        data-name="{{ $limit['report_type_name'] }}"
+                                                        data-subscription-id="{{ $group['subscription']->id }}"
+                                                        data-date="{{ date('d.m.Y', strtotime($limit['date_created'])) }}">
+                                                    {{ $limit['report_type_name'] }} 
+                                                    (Подписка #{{ $group['subscription']->id }})
+                                                    - {{ date('d.m.Y', strtotime($limit['date_created'])) }}
+                                                    - доступно {{ $limit['available_amount'] }} шт.
+                                                </option>
+                                            @endif
+                                        @endforeach
                                     @endforeach
                                 </select>
                             </div>
@@ -1256,128 +1172,27 @@
 </div>
 @endif
 
-@if($isAdmin)
-<!-- Форма для удаления организации -->
-<form id="delete-form" method="POST" action="{{ route('admin.organization.delete', $organization->id) }}" style="display: none;">
-    @csrf
-    @method('DELETE')
-</form>
-
-<script>
-function confirmDelete(id, name) {
-    if (confirm(`Вы уверены, что хотите удалить организацию "${name}"? Это действие удалит также владельца организации и всех сотрудников.`)) {
-        document.getElementById('delete-form').submit();
-    }
-}
-</script>
-@endif
-
 @push('scripts')
 <script>
-    // Инициализация тултипов
-    document.addEventListener('DOMContentLoaded', function() {
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-        
-        // Данные подписок для модальных окон
-        let subscriptions = {
-            @if(isset($subscriptions))
-                @foreach($subscriptions as $sub)
-                    {{ $sub->id }}: {
-                        starts_at: '{{ $sub->starts_at ? $sub->starts_at->format('Y-m-d') : '' }}',
-                        ends_at: '{{ $sub->ends_at ? $sub->ends_at->format('Y-m-d') : '' }}',
-                        status: '{{ $sub->status }}',
-                        status_text: '{{ $sub->getStatusTextAttribute() }}',
-                        status_class: '{{ $sub->status === "active" ? "success" : ($sub->status === "expired" ? "danger" : ($sub->status === "pending" ? "warning" : "secondary")) }}',
-                        remaining_days: {{ $sub->getRemainingDays() ?? 'null' }},
-                        user_name: '{{ $sub->user->name ?? '' }}',
-                        user_email: '{{ $sub->user->email ?? '' }}'
-                    },
+    // Данные для делегирования
+    let limits = {
+        @if(isset($groupedLimits))
+            @foreach($groupedLimits as $group)
+                @foreach($group['limits'] as $limit)
+                    @if($limit['available_amount'] > 0)
+                        {{ $limit['id'] }}: {
+                            available: {{ $limit['available_amount'] }},
+                            name: '{{ addslashes($limit['report_type_name']) }}',
+                            date: '{{ date('d.m.Y', strtotime($limit['date_created'])) }}'
+                        },
+                    @endif
                 @endforeach
-            @endif
-        };
-        
-        // Функция для открытия модалки просмотра
-        window.viewSubscription = function(id) {
-            const sub = subscriptions[id];
-            if (!sub) return;
-            
-            let html = `
-                <div class="text-center mb-4">
-                    <div class="rounded-circle bg-info d-inline-flex align-items-center justify-content-center mb-3" 
-                         style="width: 70px; height: 70px; color: white; font-size: 1.8rem;">
-                        ${sub.user_name ? sub.user_name.charAt(0).toUpperCase() : '?'}
-                    </div>
-                    <h5>${sub.user_name || 'Неизвестно'}</h5>
-                    <p class="text-muted small">${sub.user_email || ''}</p>
-                </div>
-                <table class="table table-sm">
-                    <tr>
-                        <th>Дата начала:</th>
-                        <td>${sub.starts_at ? sub.starts_at : '—'}</td>
-                    </tr>
-                    <tr>
-                        <th>Дата окончания:</th>
-                        <td>${sub.ends_at ? sub.ends_at : 'Бессрочно'}</td>
-                    </tr>
-                    <tr>
-                        <th>Статус:</th>
-                        <td><span class="badge bg-${sub.status_class}">${sub.status_text}</span></td>
-                    </tr>
-                    <tr>
-                        <th>Осталось дней:</th>
-                        <td>${sub.remaining_days !== null ? sub.remaining_days + ' дн.' : '∞'}</td>
-                    </tr>
-                </table>
-            `;
-            
-            document.getElementById('viewSubscriptionContent').innerHTML = html;
-            new bootstrap.Modal(document.getElementById('viewSubscriptionModal')).show();
-        };
-        
-        // Функция для открытия модалки редактирования
-        window.editSubscription = function(id) {
-            const sub = subscriptions[id];
-            if (!sub) return;
-            
-            document.getElementById('edit_starts_at').value = sub.starts_at || '';
-            document.getElementById('edit_ends_at').value = sub.ends_at || '';
-            document.getElementById('edit_status').value = sub.status;
-            document.getElementById('editSubscriptionForm').action = `/subscriptions/${id}`;
-            
-            // Проверка на активную подписку
-            if (sub.status === 'active') {
-                document.getElementById('editSubscriptionWarning').style.display = 'block';
-                document.getElementById('editSubscriptionWarningText').innerHTML = 
-                    'Редактирование активной подписки может повлиять на доступные лимиты.';
-            } else {
-                document.getElementById('editSubscriptionWarning').style.display = 'none';
-            }
-        };
-        
-        // Функция для открытия модалки удаления
-        window.deleteSubscription = function(id) {
-            document.getElementById('deleteSubscriptionForm').action = `/subscriptions/${id}`;
-            new bootstrap.Modal(document.getElementById('deleteSubscriptionModal')).show();
-        };
-        
-        // Инициализация данных для делегирования
-        @if(isset($ownerLimits) && count($ownerLimits) > 0)
-        let limits = {
-            @foreach($ownerLimits as $limit)
-                @if($limit['id'] && $limit['available_amount'] > 0)
-                    {{ $limit['id'] }}: {
-                        available: {{ $limit['available_amount'] }},
-                        name: '{{ addslashes($limit['report_type_name']) }}',
-                        date: '{{ date('d.m.Y', strtotime($limit['date_created'])) }}'
-                    },
-                @endif
             @endforeach
-        };
-        
-        let employees = {
+        @endif
+    };
+    
+    let employees = {
+        @if(isset($availableEmployees))
             @foreach($availableEmployees as $employee)
                 {{ $employee->id }}: {
                     name: '{{ addslashes($employee->name) }}',
@@ -1385,141 +1200,119 @@ function confirmDelete(id, name) {
                     types: {{ isset($delegatedLimits) ? $delegatedLimits->where('user_id', $employee->id)->count() : 0 }}
                 },
             @endforeach
-        };
+        @endif
+    };
+    
+    // Кнопки делегирования в карточках сотрудников
+    $('.delegate-btn').on('click', function() {
+        const employeeId = $(this).data('employee-id');
+        $('#user_id').val(employeeId).trigger('change');
+        $('#delegateModal').modal('show');
+    });
+    
+    // Обновление информации при выборе лимита
+    $('#limit_id').on('change', function() {
+        const limitId = $(this).val();
+        const limit = limits[limitId];
         
-        // Кнопки делегирования в карточках сотрудников
-        $('.delegate-btn').on('click', function() {
-            const employeeId = $(this).data('employee-id');
-            $('#user_id').val(employeeId).trigger('change');
-            $('#delegateModal').modal('show');
-        });
-        
-        // Обновление информации при выборе лимита
-        $('#limit_id').on('change', function() {
-            const limitId = $(this).val();
-            const limit = limits[limitId];
+        if (limit && limit.available > 0) {
+            $('#limitInfo').show();
+            $('#limitName').text(limit.name);
+            $('#limitDate').text(limit.date);
+            $('#limitAvailable').text(limit.available + ' шт.');
+            $('#maxAmount').text(limit.available);
+            $('#quantity').attr('max', limit.available);
             
-            if (limit && limit.available > 0) {
-                $('#limitInfo').show();
-                $('#limitName').text(limit.name);
-                $('#limitDate').text(limit.date);
-                $('#limitAvailable').text(limit.available + ' шт.');
-                $('#maxAmount').text(limit.available);
-                $('#quantity').attr('max', limit.available);
-                
-                // Проверка текущего значения количества
-                const current = parseInt($('#quantity').val()) || 1;
-                if (current > limit.available) {
-                    $('#quantity').val(Math.min(1, limit.available));
-                }
-            } else {
-                $('#limitInfo').hide();
-                $('#maxAmount').text('0');
-                $('#quantity').attr('max', 0);
-            }
-        });
-        
-        // Обновление информации при выборе сотрудника
-        $('#user_id').on('change', function() {
-            const employeeId = $(this).val();
-            const employee = employees[employeeId];
-            
-            if (employee) {
-                $('#employeeInfo').show();
-                $('#employeeName').text(employee.name);
-                
-                let delegatedInfo = '';
-                if (employee.delegated > 0) {
-                    delegatedInfo = `Уже делегировано: <span class="badge bg-warning">${employee.delegated} шт.</span> (${employee.types} видов)`;
-                } else {
-                    delegatedInfo = '<span class="text-muted">Нет делегированных лимитов</span>';
-                }
-                
-                $('#employeeDelegated').html(delegatedInfo);
-            } else {
-                $('#employeeInfo').hide();
-            }
-        });
-        
-        // Функции для управления количеством
-        window.setDelegateAmount = function(amount) {
             const current = parseInt($('#quantity').val()) || 1;
-            const max = parseInt($('#quantity').attr('max')) || 0;
-            let newValue = current + amount;
-            
-            if (newValue < 1) newValue = 1;
-            if (newValue > max) newValue = max;
-            
-            $('#quantity').val(newValue);
-        };
+            if (current > limit.available) {
+                $('#quantity').val(Math.min(1, limit.available));
+            }
+        } else {
+            $('#limitInfo').hide();
+            $('#maxAmount').text('0');
+            $('#quantity').attr('max', 0);
+        }
+    });
+    
+    // Обновление информации при выборе сотрудника
+    $('#user_id').on('change', function() {
+        const employeeId = $(this).val();
+        const employee = employees[employeeId];
         
-        window.setMaxDelegateAmount = function() {
-            const max = parseInt($('#quantity').attr('max')) || 0;
-            if (max > 0) {
-                $('#quantity').val(max);
+        if (employee) {
+            $('#employeeInfo').show();
+            $('#employeeName').text(employee.name);
+            
+            let delegatedInfo = '';
+            if (employee.delegated > 0) {
+                delegatedInfo = `Уже делегировано: <span class="badge bg-warning">${employee.delegated} шт.</span> (${employee.types} видов)`;
+            } else {
+                delegatedInfo = '<span class="text-muted">Нет делегированных лимитов</span>';
             }
-        };
+            
+            $('#employeeDelegated').html(delegatedInfo);
+        } else {
+            $('#employeeInfo').hide();
+        }
+    });
+    
+    // Функции для управления количеством
+    window.setDelegateAmount = function(amount) {
+        const current = parseInt($('#quantity').val()) || 1;
+        const max = parseInt($('#quantity').attr('max')) || 0;
+        let newValue = current + amount;
         
-        // Валидация формы делегирования
-        $('#delegateForm').on('submit', function(e) {
-            const limitId = $('#limit_id').val();
-            const userId = $('#user_id').val();
-            const quantity = parseInt($('#quantity').val()) || 0;
-            const max = parseInt($('#quantity').attr('max')) || 0;
-            
-            if (!limitId || !userId) {
-                e.preventDefault();
-                alert('Пожалуйста, выберите лимит и сотрудника');
-                return false;
-            }
-            
-            if (quantity <= 0) {
-                e.preventDefault();
-                alert('Количество должно быть больше 0');
-                return false;
-            }
-            
-            if (quantity > max) {
-                e.preventDefault();
-                alert('Нельзя делегировать больше, чем доступно');
-                return false;
-            }
-            
-            const limitName = limits[limitId]?.name || 'лимит';
-            const employeeName = employees[userId]?.name || 'сотруднику';
-            
-            if (!confirm(`Делегировать ${quantity} шт. лимита "${limitName}" сотруднику ${employeeName}?`)) {
-                e.preventDefault();
-                return false;
-            }
-        });
+        if (newValue < 1) newValue = 1;
+        if (newValue > max) newValue = max;
         
-        // Инициализация при открытии модального окна
-        $('#delegateModal').on('shown.bs.modal', function() {
-            $('#limit_id').trigger('change');
-            $('#user_id').trigger('change');
-        });
-        @endif
+        $('#quantity').val(newValue);
+    };
+    
+    window.setMaxDelegateAmount = function() {
+        const max = parseInt($('#quantity').attr('max')) || 0;
+        if (max > 0) {
+            $('#quantity').val(max);
+        }
+    };
+    
+    // Валидация формы делегирования
+    $('#delegateForm').on('submit', function(e) {
+        const limitId = $('#limit_id').val();
+        const userId = $('#user_id').val();
+        const quantity = parseInt($('#quantity').val()) || 0;
+        const max = parseInt($('#quantity').attr('max')) || 0;
         
-        // Проверка активной подписки при создании
-        @if(($isAdmin || $isManager) && $organization->owner && $organization->owner->user)
-        $('#createSubscriptionForm').on('submit', function(e) {
-            const status = $('#status').val();
-            
-            if (status === 'active') {
-                // Проверяем, есть ли уже активная подписка
-                fetch(`/api/users/{{ $organization->owner->user->id }}/subscription/check`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.has_active_subscription) {
-                            if (!confirm('У пользователя уже есть активная подписка. Продолжить создание новой?')) {
-                                e.preventDefault();
-                            }
-                        }
-                    });
-            }
-        });
-        @endif
+        if (!limitId || !userId) {
+            e.preventDefault();
+            alert('Пожалуйста, выберите лимит и сотрудника');
+            return false;
+        }
+        
+        if (quantity <= 0) {
+            e.preventDefault();
+            alert('Количество должно быть больше 0');
+            return false;
+        }
+        
+        if (quantity > max) {
+            e.preventDefault();
+            alert('Нельзя делегировать больше, чем доступно');
+            return false;
+        }
+        
+        const limitName = limits[limitId]?.name || 'лимит';
+        const employeeName = employees[userId]?.name || 'сотруднику';
+        
+        if (!confirm(`Делегировать ${quantity} шт. лимита "${limitName}" сотруднику ${employeeName}?`)) {
+            e.preventDefault();
+            return false;
+        }   
+    });
+    
+    // Инициализация при открытии модального окна
+    $('#delegateModal').on('shown.bs.modal', function() {
+        $('#limit_id').trigger('change');
+        $('#user_id').trigger('change');
     });
 </script>
 @endpush

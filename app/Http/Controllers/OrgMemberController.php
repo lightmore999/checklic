@@ -188,16 +188,18 @@ class OrgMemberController extends Controller
         $validated = $request->validate([
             'user.name' => 'required|string|max:255',
             'user.email' => 'required|email|unique:users,email',
+            'user.phone' => 'nullable|string|max:20', // ДОБАВЛЕНО поле phone
             'user.password' => 'required|string|min:8|confirmed',
         ]);
         
         DB::beginTransaction();
         
         try {
-            // Создаем пользователя для сотрудника
+            // Создаем пользователя для сотрудника (с телефоном)
             $memberUser = User::create([
                 'name' => $validated['user']['name'],
                 'email' => $validated['user']['email'],
+                'phone' => $validated['user']['phone'] ?? null, // ДОБАВЛЕНО поле phone
                 'password' => Hash::make($validated['user']['password']),
                 'role' => 'org_member',
                 'email_verified_at' => now(),
@@ -207,7 +209,7 @@ class OrgMemberController extends Controller
             // Автоматически определяем начальника (владелец организации)
             $bossId = $organization->owner->user_id ?? null;
             
-            // ИСПРАВЛЕНО: manager_id теперь это ID пользователя, а не ID записи из таблицы managers
+            // manager_id теперь это ID пользователя, а не ID записи из таблицы managers
             $managerUserId = $organization->manager ? $organization->manager->id : null;
             
             // Создаем профиль сотрудника
@@ -423,16 +425,18 @@ class OrgMemberController extends Controller
         $validated = $request->validate([
             'user.name' => 'required|string|max:255',
             'user.email' => 'required|email|unique:users,email,' . $member->user_id,
+            'user.phone' => 'nullable|string|max:20', // ДОБАВЛЕНО поле phone
             'is_active' => 'boolean',
         ]);
         
         DB::beginTransaction();
         
         try {
-            // Обновляем пользователя
+            // Обновляем пользователя (с телефоном)
             $member->user->update([
                 'name' => $validated['user']['name'],
                 'email' => $validated['user']['email'],
+                'phone' => $validated['user']['phone'] ?? null, // ДОБАВЛЕНО поле phone
             ]);
             
             // Обновляем профиль сотрудника
@@ -594,11 +598,15 @@ class OrgMemberController extends Controller
      */
     private function getRoutePrefix($user)
     {
-        return match($user->role) {
-            'admin' => 'admin.',
-            'manager' => 'manager.',
-            'org_owner' => 'owner.',
-            default => 'admin.'
-        };
+        switch($user->role) {
+            case 'admin':
+                return 'admin.';
+            case 'manager':
+                return 'manager.';
+            case 'org_owner':
+                return 'owner.';
+            default:
+                return 'admin.';
+        }
     }
 }

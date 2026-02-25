@@ -61,11 +61,25 @@
                 </div>
                 <div class="card-body text-center">
                     <div class="rounded-circle bg-primary d-inline-flex align-items-center justify-content-center mb-3" 
-                         style="width: 80px; height: 80px; color: white; font-size: 28px;">
+                        style="width: 80px; height: 80px; color: white; font-size: 28px;">
                         {{ strtoupper(substr($member->user->name, 0, 1)) }}
                     </div>
                     <h4>{{ $member->user->name }}</h4>
                     <p class="text-muted">{{ $member->user->email }}</p>
+                    
+                    <!-- Номер телефона (если есть) -->
+                    @if($member->user->phone)
+                        <p class="mb-2">
+                            <i class="bi bi-telephone text-primary"></i> 
+                            <a href="tel:{{ $member->user->phone }}" class="text-decoration-none">
+                                {{ $member->user->phone }}
+                            </a>
+                        </p>
+                    @else
+                        <p class="text-muted small mb-2">
+                            <i class="bi bi-telephone-x"></i> Телефон не указан
+                        </p>
+                    @endif
                     
                     <div class="mb-3">
                         <span class="badge bg-info">Сотрудник</span>
@@ -81,6 +95,7 @@
                     </p>
                 </div>
             </div>
+        </div>
 
             @if(isset($subscriptions))
 <div class="card mb-4">

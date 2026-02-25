@@ -58,7 +58,7 @@
           id="editForm"
           class="mb-4">
         @csrf
-        @method('PUT') <!-- Исправлено: должен быть PUT -->
+        @method('PUT')
         
         <div class="row">
             <!-- Левая колонка: Личные данные -->
@@ -97,6 +97,21 @@
                             @enderror
                         </div>
 
+                        <!-- НОВОЕ ПОЛЕ: Номер телефона сотрудника -->
+                        <div class="mb-3">
+                            <label for="user_phone" class="form-label">
+                                Номер телефона <small class="text-muted">(необязательно)</small>
+                            </label>
+                            <input type="tel" class="form-control @error('user.phone') is-invalid @enderror" 
+                                   id="user_phone" name="user[phone]" 
+                                   value="{{ old('user.phone', $member->user->phone ?? '') }}" 
+                                   placeholder="+7 (999) 999-99-99">
+                            @error('user.phone')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Контактный телефон сотрудника</div>
+                        </div>
+
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="is_active" 
@@ -108,6 +123,15 @@
                             </div>
                             <small class="text-muted">Включите, чтобы сотрудник мог войти в систему</small>
                         </div>
+
+                        <!-- Отображение текущего телефона в информации -->
+                        @if($member->user->phone)
+                        <div class="alert alert-light mt-3 py-2">
+                            <small class="text-muted">
+                                <i class="bi bi-telephone me-1"></i> Текущий телефон: {{ $member->user->phone }}
+                            </small>
+                        </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -213,7 +237,7 @@
             </div>
         </div>
 
-        <!-- Кнопки сохранения (внутри основной формы) -->
+        <!-- Кнопки сохранения -->
         <div class="row">
             <div class="col-12">
                 <div class="card border-primary">
@@ -239,7 +263,7 @@
         </div>
     </form>
 
-    <!-- ОТДЕЛЬНЫЙ БЛОК С ДОПОЛНИТЕЛЬНЫМИ ДЕЙСТВИЯМИ (ВНЕ ОСНОВНОЙ ФОРМЫ) -->
+    <!-- ОТДЕЛЬНЫЙ БЛОК С ДОПОЛНИТЕЛЬНЫМИ ДЕЙСТВИЯМИ -->
     @if($isAdmin || $isManager || $isOwner)
     <div class="row">
         <div class="col-12">
@@ -328,7 +352,23 @@
     @method('DELETE')
 </form>
 
+@push('scripts')
+<!-- Inputmask для красивого ввода телефона -->
+<script src="https://cdn.jsdelivr.net/npm/inputmask@5.0.8/dist/inputmask.min.js"></script>
 <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Маска для телефона сотрудника
+    const phoneField = document.getElementById('user_phone');
+    if (phoneField) {
+        Inputmask({ 
+            mask: ['+7 (999) 999-99-99', '+375 (99) 999-99-99', '+999 (99) 999-99-99'],
+            keepStatic: true,
+            showMaskOnHover: false,
+            clearIncomplete: true
+        }).mask(phoneField);
+    }
+});
+
 // Функция подтверждения удаления
 function confirmDelete() {
     const memberName = "{{ $member->user->name }}";
@@ -347,36 +387,28 @@ document.getElementById('editForm')?.addEventListener('submit', function(e) {
         return;
     }
     
-    // Блокируем кнопку после первого нажатия
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
-    
-    // Добавляем небольшую задержку для визуального отклика
-    setTimeout(() => {
-        // Форма все равно отправится, но кнопка останется заблокированной
-    }, 100);
 });
 
 // Обработка чекбокса is_active
 document.addEventListener('DOMContentLoaded', function() {
     const checkbox = document.getElementById('is_active');
     if (checkbox) {
-        // Убедимся, что чекбокс работает правильно
         checkbox.addEventListener('change', function() {
             console.log('Checkbox changed to:', this.checked);
         });
     }
     
-    // Инициализация всех тултипов Bootstrap
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
 });
 </script>
+@endpush
 
 <style>
-/* Стили для улучшения внешнего вида */
 .card {
     border-radius: 10px;
     overflow: hidden;
@@ -391,7 +423,6 @@ document.addEventListener('DOMContentLoaded', function() {
 .table td {
     padding: 0.75rem 1rem;
 }
-/* Анимация для кнопки сохранения */
 #saveButton:disabled {
     cursor: not-allowed;
     opacity: 0.7;

@@ -23,7 +23,7 @@ class OrganizationController extends Controller
      */
     public function index(Request $request)
     {
-        $ $user = Auth::user();
+        $user = Auth::user();
     
         if (!$user->isAdmin() && !$user->isManager()) {
             abort(403, 'Доступ запрещен');
@@ -191,11 +191,12 @@ class OrganizationController extends Controller
         // Базовые правила валидации с новыми полями
         $validationRules = [
             'organization.name' => 'required|string|max:255|unique:organizations,name',
-            'organization.inn' => 'nullable|string|max:12|unique:organizations,inn', // Добавлено
-            'organization.max_employees' => 'nullable|integer|min:1|max:999999', // Добавлено
+            'organization.inn' => 'nullable|string|max:12|unique:organizations,inn',
+            'organization.max_employees' => 'nullable|integer|min:1|max:999999',
             'organization.subscription_ends_at' => 'nullable|date|after:today',
             'user.name' => 'required|string|max:255',
             'user.email' => 'required|email|unique:users,email',
+            'user.phone' => 'nullable|string|max:20', // ДОБАВЛЕНО поле phone
             'user.password' => 'required|string|min:8|confirmed',
         ];
         
@@ -203,14 +204,11 @@ class OrganizationController extends Controller
         if ($user->isAdmin()) {
             $validationRules['organization.status'] = 'required|in:active,suspended,expired';
             
-            // ИСПРАВЛЕНО: Заменяем Rule::exists на кастомное правило
             $validationRules['manager_id'] = [
                 'nullable',
                 'integer',
                 function ($attribute, $value, $fail) use ($user) {
                     if ($value) {
-                        // Проверяем, что пользователь существует, имеет роль manager
-                        // и принадлежит этому админу
                         $exists = User::where('id', $value)
                             ->where('role', 'manager')
                             ->whereHas('managerProfile', function($query) use ($user) {
@@ -225,9 +223,7 @@ class OrganizationController extends Controller
                 }
             ];
         } else {
-            // Для менеджера - только active/inactive
             $validationRules['organization.status'] = 'required|in:active,inactive';
-            // manager_id не нужен - менеджером будет текущий пользователь
         }
         
         $validated = $request->validate($validationRules);
@@ -235,30 +231,29 @@ class OrganizationController extends Controller
         DB::beginTransaction();
         
         try {
-            // 1. Определяем ID менеджера (user_id)
+            // 1. Определяем ID менеджера
             if ($user->isAdmin()) {
-                // Админ выбрал менеджера или NULL
                 $managerUserId = $validated['manager_id'] ?? null;
             } else {
-                // Менеджер - текущий пользователь
                 $managerUserId = $user->id;
             }
             
-            // 2. Создаем пользователя для владельца организации
+            // 2. Создаем пользователя для владельца организации (с телефоном)
             $ownerUser = User::create([
                 'name' => $validated['user']['name'],
                 'email' => $validated['user']['email'],
+                'phone' => $validated['user']['phone'] ?? null, // ДОБАВЛЕНО поле phone
                 'password' => Hash::make($validated['user']['password']),
                 'role' => 'org_owner',
                 'email_verified_at' => now(),
                 'is_active' => true,
             ]);
             
-            // 3. Создаем организацию с новыми полями
+            // 3. Создаем организацию
             $organization = Organization::create([
                 'name' => $validated['organization']['name'],
-                'inn' => $validated['organization']['inn'] ?? null, // Добавлено
-                'max_employees' => $validated['organization']['max_employees'] ?? null, // Добавлено
+                'inn' => $validated['organization']['inn'] ?? null,
+                'max_employees' => $validated['organization']['max_employees'] ?? null,
                 'manager_id' => $managerUserId,
                 'subscription_ends_at' => $validated['organization']['subscription_ends_at'] ?? null,
                 'status' => $validated['organization']['status'],
@@ -273,14 +268,10 @@ class OrganizationController extends Controller
             
             DB::commit();
             
-            // Редирект в зависимости от роли
-            if ($user->isAdmin()) {
-                return redirect()->route('admin.dashboard')
-                    ->with('success', 'Организация и владелец успешно созданы');
-            } else {
-                return redirect()->route('manager.dashboard')
-                    ->with('success', 'Организация и владелец успешно созданы');
-            }
+            // Редирект
+            $route = $user->isAdmin() ? 'admin.dashboard' : 'manager.dashboard';
+            return redirect()->route($route)
+                ->with('success', 'Организация и владелец успешно созданы');
                     
         } catch (\Exception $e) {
             DB::rollBack();
@@ -322,62 +313,75 @@ class OrganizationController extends Controller
                 ->firstOrFail();
         }
         
-        // Получаем статистику по сотрудникам для новых полей
+        // Получаем статистику по сотрудникам
         $currentEmployeesCount = $organization->members()->count();
         $availableEmployeeSlots = $organization->getAvailableEmployeeSlots();
         
         // === ПОДПИСКИ ВЛАДЕЛЬЦА ОРГАНИЗАЦИИ ===
         $subscriptions = collect();
-        if ($organization->owner && $organization->owner->user) {
-            $owner = $organization->owner->user;
-            $subscriptions = Subscription::where('user_id', $owner->id)
-                ->orderBy('created_at', 'desc')
-                ->get();
-        }
-        
-        // === ЛИМИТЫ ВЛАДЕЛЬЦА ОРГАНИЗАЦИИ ===
-        $ownerLimits = [];
+        $groupedLimits = [];
         $delegatedLimits = collect();
         $availableEmployees = collect();
         
         if ($organization->owner && $organization->owner->user) {
             $owner = $organization->owner->user;
             
-            // Получаем обычные лимиты владельца
-            $limits = Limit::where('user_id', $owner->id)
-                ->with(['reportType', 'delegatedVersions.user'])
-                ->orderBy('date_created', 'desc')
-                ->get();
-            
-            // Получаем делегированные лимиты владельца
-            $delegatedLimits = DelegatedLimit::whereHas('limit', function($q) use ($owner) {
-                    $q->where('user_id', $owner->id);
-                })
-                ->with(['user', 'limit.reportType'])
+            // Получаем все подписки владельца
+            $subscriptions = Subscription::where('user_id', $owner->id)
                 ->orderBy('created_at', 'desc')
                 ->get();
             
-            // Формируем данные для отображения
-            foreach ($limits as $limit) {
-                if ($limit->reportType && (!$limit->reportType->only_api || ($limit->reportType->only_api && $limit->quantity > 0))) {
-                    
-                    $delegatedAmount = $delegatedLimits->where('limit_id', $limit->id)->sum('quantity');
-                    $totalAllocated = $limit->quantity + ($limit->used_quantity ?? 0) + $delegatedAmount;
-                    
-                    $ownerLimits[] = [
-                        'id' => $limit->id,
-                        'report_type_id' => $limit->report_type_id,
-                        'report_type_name' => $limit->reportType->name ?? 'Не указан',
-                        'description' => $limit->reportType->description ?? null,
-                        'only_api' => $limit->reportType->only_api ?? false,
-                        'quantity' => $limit->quantity,
-                        'used_quantity' => $limit->used_quantity ?? 0,
-                        'total_allocated' => $totalAllocated,
-                        'delegated_amount' => $delegatedAmount,
-                        'available_amount' => $limit->quantity,
-                        'is_exhausted' => $limit->quantity <= 0,
-                        'has_limit' => true,
-                        'date_created' => $limit->date_created,
+            // === ГРУППИРОВКА ЛИМИТОВ ПО ПОДПИСКАМ ===
+            foreach ($subscriptions as $subscription) {
+                // Получаем обычные лимиты для этой подписки
+                $limits = Limit::where('subscription_id', $subscription->id)
+                    ->with(['reportType'])
+                    ->orderBy('date_created', 'desc')
+                    ->get();
+                
+                // Получаем делегированные лимиты для этой подписки
+                $subscriptionDelegatedLimits = DelegatedLimit::whereHas('limit', function($q) use ($subscription) {
+                        $q->where('subscription_id', $subscription->id);
+                    })
+                    ->with(['user', 'limit.reportType'])
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                
+                // Добавляем делегированные лимиты в общую коллекцию
+                $delegatedLimits = $delegatedLimits->merge($subscriptionDelegatedLimits);
+                
+                // Формируем данные для отображения по этой подписке
+                $subscriptionLimits = [];
+                foreach ($limits as $limit) {
+                    if ($limit->reportType) {
+                        $delegatedAmount = $subscriptionDelegatedLimits->where('limit_id', $limit->id)->sum('quantity');
+                        
+                        $subscriptionLimits[] = [
+                            'id' => $limit->id,
+                            'report_type_id' => $limit->report_type_id,
+                            'report_type_name' => $limit->reportType->name ?? 'Не указан',
+                            'description' => $limit->reportType->description ?? null,
+                            'only_api' => $limit->reportType->only_api ?? false,
+                            'quantity' => $limit->quantity,
+                            'used_quantity' => $limit->used_quantity ?? 0,
+                            'delegated_amount' => $delegatedAmount,
+                            'available_amount' => $limit->getAvailableQuantity(),
+                            'is_exhausted' => $limit->isExhausted(),
+                            'has_limit' => true,
+                            'date_created' => $limit->date_created,
+                        ];
+                    }
+                }
+                
+                // Добавляем в группировку, если есть лимиты
+                if (count($subscriptionLimits) > 0) {
+                    $groupedLimits[] = [
+                        'subscription' => $subscription,
+                        'limits' => $subscriptionLimits,
+                        'total_limits' => count($subscriptionLimits),
+                        'total_quantity' => collect($subscriptionLimits)->sum('quantity'),
+                        'total_used' => collect($subscriptionLimits)->sum('used_quantity'),
+                        'total_available' => collect($subscriptionLimits)->sum('available_amount'),
                     ];
                 }
             }
@@ -397,8 +401,8 @@ class OrganizationController extends Controller
             'user', 
             'organization', 
             'routePrefix',
-            'subscriptions', // Добавлено
-            'ownerLimits',
+            'subscriptions',
+            'groupedLimits',
             'delegatedLimits',
             'availableEmployees',
             'currentEmployeesCount',
@@ -435,6 +439,19 @@ class OrganizationController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name', 'email']);
+                
+            // Добавляем текущего менеджера в список, если его там нет
+            if ($organization->manager_id) {
+                $currentManagerExists = $managers->contains('id', $organization->manager_id);
+                if (!$currentManagerExists) {
+                    $currentManager = User::where('id', $organization->manager_id)
+                        ->where('role', 'manager')
+                        ->first(['id', 'name', 'email']);
+                    if ($currentManager) {
+                        $managers->prepend($currentManager);
+                    }
+                }
+            }
         } else {
             // Для менеджера - только свои организации
             $organization = Organization::where('id', $id)
@@ -442,7 +459,7 @@ class OrganizationController extends Controller
                 ->with('owner.user')
                 ->firstOrFail();
                 
-            $managers = [];
+            $managers = collect();
         }
         
         $routePrefix = $user->isAdmin() ? 'admin.' : 'manager.';
@@ -467,7 +484,6 @@ class OrganizationController extends Controller
         
         // Проверка прав доступа
         if ($user->isAdmin()) {
-            // Для админа - проверяем, что менеджер организации принадлежит этому админу
             if ($organization->manager) {
                 $managerExists = Manager::where('user_id', $organization->manager->id)
                     ->where('admin_id', $user->id)
@@ -478,7 +494,6 @@ class OrganizationController extends Controller
                 }
             }
         } else if ($user->isManager()) {
-            // Менеджер может редактировать только свои организации
             if (!$organization->manager || $organization->manager->id != $user->id) {
                 abort(403, 'У вас нет прав на редактирование этой организации');
             }
@@ -486,11 +501,11 @@ class OrganizationController extends Controller
         
         $owner = $organization->owner;
         
-        // Правила валидации с новыми полями
+        // Правила валидации
         $validationRules = [
             'organization.name' => 'required|string|max:255|unique:organizations,name,' . $organization->id,
-            'organization.inn' => 'nullable|string|max:12|unique:organizations,inn,' . $organization->id, // Добавлено
-            'organization.max_employees' => 'nullable|integer|min:1|max:999999', // Добавлено
+            'organization.inn' => 'nullable|string|max:12|unique:organizations,inn,' . $organization->id,
+            'organization.max_employees' => 'nullable|integer|min:1|max:999999',
             'organization.subscription_ends_at' => 'nullable|date',
             'organization.status' => 'required|in:active,suspended,expired',
         ];
@@ -499,7 +514,6 @@ class OrganizationController extends Controller
             $validationRules['organization.manager_id'] = [
                 'nullable',
                 'integer',
-                // ИСПРАВЛЕНО: Убрана ошибка с "has"
                 function ($attribute, $value, $fail) use ($user) {
                     if ($value) {
                         $exists = User::where('id', $value)
@@ -520,10 +534,12 @@ class OrganizationController extends Controller
         if ($owner && $owner->user) {
             $validationRules['owner.name'] = 'required|string|max:255';
             $validationRules['owner.email'] = 'required|email|unique:users,email,' . $owner->user_id;
+            $validationRules['owner.phone'] = 'nullable|string|max:20'; // ДОБАВЛЕНО поле phone
             $validationRules['owner.password'] = 'nullable|string|min:8|confirmed';
         } else {
             $validationRules['owner.name'] = 'required|string|max:255';
             $validationRules['owner.email'] = 'required|email|unique:users,email';
+            $validationRules['owner.phone'] = 'nullable|string|max:20'; // ДОБАВЛЕНО поле phone
             $validationRules['owner.password'] = 'required|string|min:8|confirmed';
         }
         
@@ -532,15 +548,15 @@ class OrganizationController extends Controller
         DB::beginTransaction();
         
         try {
+            // Обновляем организацию
             $organizationData = [
                 'name' => $validated['organization']['name'],
-                'inn' => $validated['organization']['inn'] ?? null, // Добавлено
-                'max_employees' => $validated['organization']['max_employees'] ?? null, // Добавлено
+                'inn' => $validated['organization']['inn'] ?? null,
+                'max_employees' => $validated['organization']['max_employees'] ?? null,
                 'subscription_ends_at' => $validated['organization']['subscription_ends_at'] ?? null,
                 'status' => $validated['organization']['status'],
             ];
             
-            // Обновляем менеджера (только для админа)
             if ($user->isAdmin() && array_key_exists('manager_id', $validated['organization'])) {
                 $organizationData['manager_id'] = $validated['organization']['manager_id'] ?: null;
             }
@@ -552,6 +568,7 @@ class OrganizationController extends Controller
                 $ownerUserData = [
                     'name' => $validated['owner']['name'],
                     'email' => $validated['owner']['email'],
+                    'phone' => $validated['owner']['phone'] ?? null, // ДОБАВЛЕНО поле phone
                 ];
                 
                 if (!empty($validated['owner']['password'])) {
@@ -560,12 +577,13 @@ class OrganizationController extends Controller
                 
                 $owner->user->update($ownerUserData);
             } else {
-                // Создаем нового владельца (если его не было)
+                // Создаем нового владельца
                 $managerUserId = $organization->manager ? $organization->manager->id : null;
                 
                 $ownerUser = User::create([
                     'name' => $validated['owner']['name'],
                     'email' => $validated['owner']['email'],
+                    'phone' => $validated['owner']['phone'] ?? null, // ДОБАВЛЕНО поле phone
                     'password' => Hash::make($validated['owner']['password']),
                     'role' => 'org_owner',
                     'email_verified_at' => now(),
@@ -845,19 +863,63 @@ class OrganizationController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
         
-        // Получаем лимиты владельца
-        $ownerLimits = Limit::where('user_id', $user->id)
-            ->with('reportType')
-            ->orderBy('date_created', 'desc')
-            ->get();
+        // === ГРУППИРОВКА ЛИМИТОВ ПО ПОДПИСКАМ ===
+        $groupedLimits = [];
+        $delegatedLimits = collect();
         
-        // Получаем делегированные лимиты владельца
-        $delegatedLimits = DelegatedLimit::whereHas('limit', function($q) use ($user) {
-                $q->where('user_id', $user->id);
-            })
-            ->with(['user', 'limit.reportType'])
-            ->orderBy('created_at', 'desc')
-            ->get();
+        foreach ($subscriptions as $subscription) {
+            // Получаем обычные лимиты для этой подписки
+            $limits = Limit::where('subscription_id', $subscription->id)
+                ->with(['reportType'])
+                ->orderBy('date_created', 'desc')
+                ->get();
+            
+            // Получаем делегированные лимиты для этой подписки
+            $subscriptionDelegatedLimits = DelegatedLimit::whereHas('limit', function($q) use ($subscription) {
+                    $q->where('subscription_id', $subscription->id);
+                })
+                ->with(['user', 'limit.reportType'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+            
+            // Добавляем делегированные лимиты в общую коллекцию
+            $delegatedLimits = $delegatedLimits->merge($subscriptionDelegatedLimits);
+            
+            // Формируем данные для отображения по этой подписке
+            $subscriptionLimits = [];
+            foreach ($limits as $limit) {
+                if ($limit->reportType) {
+                    $delegatedAmount = $subscriptionDelegatedLimits->where('limit_id', $limit->id)->sum('quantity');
+                    
+                    $subscriptionLimits[] = [
+                        'id' => $limit->id,
+                        'report_type_id' => $limit->report_type_id,
+                        'report_type_name' => $limit->reportType->name ?? 'Не указан',
+                        'description' => $limit->reportType->description ?? null,
+                        'only_api' => $limit->reportType->only_api ?? false,
+                        'quantity' => $limit->quantity,
+                        'used_quantity' => $limit->used_quantity ?? 0,
+                        'delegated_amount' => $delegatedAmount,
+                        'available_amount' => $limit->getAvailableQuantity(),
+                        'is_exhausted' => $limit->isExhausted(),
+                        'has_limit' => true,
+                        'date_created' => $limit->date_created,
+                    ];
+                }
+            }
+            
+            // Добавляем в группировку, если есть лимиты
+            if (count($subscriptionLimits) > 0) {
+                $groupedLimits[] = [
+                    'subscription' => $subscription,
+                    'limits' => $subscriptionLimits,
+                    'total_limits' => count($subscriptionLimits),
+                    'total_quantity' => collect($subscriptionLimits)->sum('quantity'),
+                    'total_used' => collect($subscriptionLimits)->sum('used_quantity'),
+                    'total_available' => collect($subscriptionLimits)->sum('available_amount'),
+                ];
+            }
+        }
         
         // Получаем доступных для делегирования сотрудников
         $availableEmployees = User::whereHas('orgMemberProfile', function($q) use ($organization, $user) {
@@ -875,8 +937,8 @@ class OrganizationController extends Controller
             'members', 
             'membersCount', 
             'activeMembersCount',
-            'subscriptions', // Добавлено
-            'ownerLimits',
+            'subscriptions',
+            'groupedLimits', // Добавлено
             'delegatedLimits',
             'availableEmployees',
             'currentEmployeesCount',

@@ -49,6 +49,21 @@
                             @enderror
                         </div>
 
+                        <!-- НОВОЕ ПОЛЕ: Номер телефона сотрудника -->
+                        <div class="mb-3">
+                            <label for="user_phone" class="form-label">
+                                Номер телефона <small class="text-muted">(необязательно)</small>
+                            </label>
+                            <input type="tel" class="form-control @error('user.phone') is-invalid @enderror" 
+                                   id="user_phone" name="user[phone]" 
+                                   value="{{ old('user.phone') }}" 
+                                   placeholder="+7 (999) 999-99-99">
+                            @error('user.phone')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Контактный телефон сотрудника</div>
+                        </div>
+
                         <div class="mb-3">
                             <label for="user_password" class="form-label">Пароль *</label>
                             <input type="password" class="form-control @error('user.password') is-invalid @enderror" 
@@ -133,4 +148,23 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<!-- Inputmask для красивого ввода телефона -->
+<script src="https://cdn.jsdelivr.net/npm/inputmask@5.0.8/dist/inputmask.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Маска для телефона сотрудника
+        const phoneField = document.getElementById('user_phone');
+        if (phoneField) {
+            Inputmask({ 
+                mask: ['+7 (999) 999-99-99', '+375 (99) 999-99-99', '+999 (99) 999-99-99'],
+                keepStatic: true,
+                showMaskOnHover: false,
+                clearIncomplete: true
+            }).mask(phoneField);
+        }
+    });
+</script>
+@endpush
 @endsection

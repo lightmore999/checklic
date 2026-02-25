@@ -18,29 +18,46 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="name" class="form-label">Имя менеджера *</label>
-                            <input type="text" class="form-control" id="name" name="name" 
-                                   value="{{ old('name') }}" required autofocus>
+                            <input type="text" class="form-control @error('name') is-invalid @enderror" 
+                                   id="name" name="name" value="{{ old('name') }}" required autofocus>
                             @error('name')
-                                <div class="text-danger small">{{ $message }}</div>
+                                <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         
                         <div class="col-md-6">
                             <label for="email" class="form-label">Email *</label>
-                            <input type="email" class="form-control" id="email" name="email" 
-                                   value="{{ old('email') }}" required>
+                            <input type="email" class="form-control @error('email') is-invalid @enderror" 
+                                   id="email" name="email" value="{{ old('email') }}" required>
                             @error('email')
-                                <div class="text-danger small">{{ $message }}</div>
+                                <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+                        </div>
+                    </div>
+                    
+                    <!-- НОВОЕ ПОЛЕ: Номер телефона -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="phone" class="form-label">
+                                Номер телефона <small class="text-muted">(необязательно)</small>
+                            </label>
+                            <input type="tel" class="form-control @error('phone') is-invalid @enderror" 
+                                   id="phone" name="phone" value="{{ old('phone') }}" 
+                                   placeholder="+7 (999) 999-99-99">
+                            @error('phone')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Формат: международный или местный номер</div>
                         </div>
                     </div>
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="password" class="form-label">Пароль *</label>
-                            <input type="password" class="form-control" id="password" name="password" required>
+                            <input type="password" class="form-control @error('password') is-invalid @enderror" 
+                                   id="password" name="password" required>
                             @error('password')
-                                <div class="text-danger small">{{ $message }}</div>
+                                <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
                         

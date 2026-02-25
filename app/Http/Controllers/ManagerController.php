@@ -7,6 +7,7 @@ use App\Models\Manager;
 use App\Models\Organization;
 use App\Models\ReportType;
 use App\Models\Limit;
+use App\Models\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -42,6 +43,7 @@ class ManagerController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
+            'phone' => 'nullable|string|max:20', // Добавлено новое поле
             'password' => 'required|string|min:8|confirmed',
         ]);
         
@@ -52,6 +54,7 @@ class ManagerController extends Controller
             $managerUser = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
+                'phone' => $validated['phone'] ?? null, // Добавлено поле phone
                 'password' => Hash::make($validated['password']),
                 'role' => 'manager',
                 'email_verified_at' => now(),
@@ -104,52 +107,57 @@ class ManagerController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
         
-        // === ДОБАВЛЕНО: ЛИМИТЫ МЕНЕДЖЕРА ===
-        $limits = [];
+        // === ПОДПИСКИ МЕНЕДЖЕРА ===
+        $subscriptions = Subscription::where('user_id', $manager->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
         
-        // Получаем ВСЕ типы отчетов
-        $reportTypes = ReportType::all();
+        // === ГРУППИРОВКА ЛИМИТОВ ПО ПОДПИСКАМ ===
+        $groupedLimits = [];
         
-        foreach ($reportTypes as $reportType) {
-            // ПОЛУЧАЕМ ПОСЛЕДНИЙ ЛИМИТ МЕНЕДЖЕРА
-            $limit = Limit::where('user_id', $manager->id)
-                ->where('report_type_id', $reportType->id)
+        foreach ($subscriptions as $subscription) {
+            $limits = Limit::where('subscription_id', $subscription->id)
+                ->with(['reportType'])
                 ->orderBy('date_created', 'desc')
-                ->orderBy('created_at', 'desc')
-                ->first();
+                ->get();
             
-            // Логика отображения:
-            // 1. Если only_api = false, ВСЕГДА показываем
-            // 2. Если only_api = true, показываем ТОЛЬКО если есть лимит
-            if (!$reportType->only_api || ($reportType->only_api && $limit !== null)) {
-                $quantity = $limit ? $limit->quantity : 0;
-                $used_quantity = $limit ? $limit->used_quantity : 0;
-                $available_quantity = $limit ? ($limit->quantity - $limit->used_quantity) : 0;
-                
-                $limits[] = [
-                    'report_type_id' => $reportType->id,
-                    'report_type_name' => $reportType->name,
-                    'description' => $reportType->description,
-                    'only_api' => $reportType->only_api,
-                    'quantity' => $quantity,
-                    'used_quantity' => $used_quantity,
-                    'available_quantity' => $available_quantity,
-                    'is_exhausted' => $limit ? ($limit->quantity - $limit->used_quantity <= 0) : true,
-                    'has_limit' => $limit !== null,
-                    'date_created' => $limit ? $limit->date_created->format('d.m.Y') : null,
+            $limitsData = [];
+            foreach ($limits as $limit) {
+                if ($limit->reportType) {
+                    $limitsData[] = [
+                        'id' => $limit->id,
+                        'report_type_id' => $limit->report_type_id,
+                        'report_type_name' => $limit->reportType->name,
+                        'description' => $limit->reportType->description,
+                        'only_api' => $limit->reportType->only_api,
+                        'quantity' => $limit->quantity,
+                        'used_quantity' => $limit->used_quantity,
+                        'available_quantity' => $limit->getAvailableQuantity(),
+                        'is_exhausted' => $limit->isExhausted(),
+                        'has_limit' => true,
+                        'date_created' => $limit->date_created->format('d.m.Y'),
+                    ];
+                }
+            }
+            
+            if (count($limitsData) > 0) {
+                $groupedLimits[] = [
+                    'subscription' => $subscription,
+                    'limits' => $limitsData,
+                    'total_quantity' => collect($limitsData)->sum('quantity'),
+                    'total_used' => collect($limitsData)->sum('used_quantity'),
+                    'total_available' => collect($limitsData)->sum('available_quantity'),
                 ];
             }
         }
         
-        // Сортируем лимиты: сначала интерфейсные, потом API, потом по имени
-        usort($limits, function($a, $b) {
-            if ($a['only_api'] !== $b['only_api']) {
-                return $a['only_api'] ? 1 : -1;
-            }
-            return strcmp($a['report_type_name'], $b['report_type_name']);
-        });
-        
-        return view('managers.show', compact('admin', 'manager', 'organizations', 'limits'));
+        return view('managers.show', compact(
+            'admin', 
+            'manager', 
+            'organizations',
+            'subscriptions',
+            'groupedLimits'
+        ));
     }
 
     /**
@@ -197,6 +205,7 @@ class ManagerController extends Controller
         $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $manager->id,
+            'phone' => 'nullable|string|max:20', // Добавлено поле phone
         ];
         
         // Если меняем пароль
@@ -210,6 +219,7 @@ class ManagerController extends Controller
         $updateData = [
             'name' => $validated['name'],
             'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null, // Добавлено поле phone
         ];
         
         if ($request->filled('password')) {
@@ -338,62 +348,59 @@ class ManagerController extends Controller
         // === СТАТИСТИКА ===
         $stats = [
             'total_organizations' => Organization::where('manager_id', $manager->id)->count(),
-            
             'active_organizations' => Organization::where('manager_id', $manager->id)
                 ->where('status', 'active')
                 ->count(),
-            
             'pending_organizations' => Organization::where('manager_id', $manager->id)
                 ->where('status', 'pending')
                 ->count(),
         ];
         
-        // === ЛИМИТЫ МЕНЕДЖЕРА ===
-        $limits = [];
+        // === ПОДПИСКИ МЕНЕДЖЕРА ===
+        $subscriptions = Subscription::where('user_id', $manager->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
         
-        // Получаем ВСЕ типы отчетов
-        $reportTypes = ReportType::all();
+        // === ГРУППИРОВКА ЛИМИТОВ ПО ПОДПИСКАМ ===
+        $groupedLimits = [];
         
-        foreach ($reportTypes as $reportType) {
-            // ПОЛУЧАЕМ ПОСЛЕДНИЙ ЛИМИТ МЕНЕДЖЕРА
-            $limit = Limit::where('user_id', $manager->id)
-                ->where('report_type_id', $reportType->id)
+        foreach ($subscriptions as $subscription) {
+            $limits = Limit::where('subscription_id', $subscription->id)
+                ->with(['reportType'])
                 ->orderBy('date_created', 'desc')
-                ->orderBy('created_at', 'desc')
-                ->first();
+                ->get();
             
-            // Логика отображения:
-            // 1. Если only_api = false, ВСЕГДА показываем
-            // 2. Если only_api = true, показываем ТОЛЬКО если есть лимит
-            if (!$reportType->only_api || ($reportType->only_api && $limit !== null)) {
-                $quantity = $limit ? $limit->quantity : 0;
-                $used_quantity = $limit ? $limit->used_quantity : 0;
-                $available_quantity = $limit ? ($limit->quantity - $limit->used_quantity) : 0;
-                
-                $limits[] = [
-                    'report_type_id' => $reportType->id,
-                    'report_type_name' => $reportType->name,
-                    'description' => $reportType->description,
-                    'only_api' => $reportType->only_api,
-                    'quantity' => $quantity,
-                    'used_quantity' => $used_quantity,
-                    'available_quantity' => $available_quantity,
-                    'is_exhausted' => $limit ? ($limit->quantity - $limit->used_quantity <= 0) : true,
-                    'has_limit' => $limit !== null,
-                    'date_created' => $limit ? $limit->date_created->format('d.m.Y') : null,
+            $limitsData = [];
+            foreach ($limits as $limit) {
+                if ($limit->reportType) {
+                    $limitsData[] = [
+                        'id' => $limit->id,
+                        'report_type_id' => $limit->report_type_id,
+                        'report_type_name' => $limit->reportType->name,
+                        'description' => $limit->reportType->description,
+                        'only_api' => $limit->reportType->only_api,
+                        'quantity' => $limit->quantity,
+                        'used_quantity' => $limit->used_quantity,
+                        'available_quantity' => $limit->getAvailableQuantity(),
+                        'is_exhausted' => $limit->isExhausted(),
+                        'has_limit' => true,
+                        'date_created' => $limit->date_created->format('d.m.Y'),
+                    ];
+                }
+            }
+            
+            if (count($limitsData) > 0) {
+                $groupedLimits[] = [
+                    'subscription' => $subscription,
+                    'limits' => $limitsData,
+                    'total_quantity' => collect($limitsData)->sum('quantity'),
+                    'total_used' => collect($limitsData)->sum('used_quantity'),
+                    'total_available' => collect($limitsData)->sum('available_quantity'),
                 ];
             }
         }
         
-        // Сортируем лимиты: сначала интерфейсные, потом API, потом по имени
-        usort($limits, function($a, $b) {
-            if ($a['only_api'] !== $b['only_api']) {
-                return $a['only_api'] ? 1 : -1;
-            }
-            return strcmp($a['report_type_name'], $b['report_type_name']);
-        });
-        
-        // ИСПРАВЛЕНО: Получаем организации менеджера
+        // Получаем организации менеджера
         $organizations = Organization::where('manager_id', $manager->id)
             ->with(['owner.user'])
             ->orderBy('created_at', 'desc')
@@ -408,7 +415,8 @@ class ManagerController extends Controller
             'stats',
             'organizations',
             'admin',
-            'limits'
+            'subscriptions',
+            'groupedLimits'
         ));
     }
     

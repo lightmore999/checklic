@@ -25,9 +25,11 @@ class LimitController extends Controller
         $query = Limit::with([
             'subscription.user.orgOwnerProfile', 
             'subscription.user.orgMemberProfile',
+            'subscription.user.managerProfile',
             'creator',
             'creator.orgOwnerProfile',
             'creator.orgMemberProfile',
+            'creator.managerProfile',
             'reportType',
             'delegatedVersions.user.orgOwnerProfile',
             'delegatedVersions.user.orgMemberProfile'
@@ -54,6 +56,14 @@ class LimitController extends Controller
                 $subscriptionIds = Subscription::whereIn('user_id', $userIds)->pluck('id');
                     
                 $query->whereIn('subscription_id', $subscriptionIds);
+            } else {
+                // Если нет организаций, возвращаем пустой результат
+                $limits = collect();
+                $users = collect();
+                $reportTypes = ReportType::all();
+                $organizations = collect();
+                
+                return view('limits.index', compact('limits', 'users', 'reportTypes', 'organizations'));
             }
         }
         
@@ -125,7 +135,18 @@ class LimitController extends Controller
         $users = $this->getAvailableUsers($user);
         $reportTypes = ReportType::all();
         
-        return view('limits.create', compact('users', 'reportTypes'));
+        // Получаем организации для фильтра
+        if ($user->isAdmin()) {
+            $organizations = Organization::orderBy('name')->get();
+        } elseif ($user->isManager()) {
+            $organizations = Organization::where('manager_id', $user->id)
+                ->orderBy('name')
+                ->get();
+        } else {
+            $organizations = collect();
+        }
+        
+        return view('limits.create', compact('users', 'reportTypes', 'organizations'));
     }
     
     /**
@@ -140,7 +161,6 @@ class LimitController extends Controller
             'user_id' => 'required|exists:users,id',
             'report_type_id' => 'required|exists:report_types,id',
             'quantity' => 'required|integer|min:0',
-            'date_created' => 'required|date',
         ]);
         
         if ($validator->fails()) {
@@ -200,7 +220,14 @@ class LimitController extends Controller
             abort(403, 'Только администратор может редактировать лимиты');
         }
         
-        $users = User::whereIn('role', ['org_owner', 'org_member'])->get();
+        // Загружаем пользователя через подписку
+        $limit->load('subscription.user');
+        
+        $users = User::whereIn('role', ['org_owner', 'org_member', 'manager'])
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'role']);
+            
         $reportTypes = ReportType::all();
         
         return view('limits.edit', compact('limit', 'users', 'reportTypes'));
@@ -491,7 +518,7 @@ class LimitController extends Controller
         return response()->json([
             'success' => $result,
             'message' => $result ? 'Лимит уменьшен' : 'Недостаточно лимита',
-            'remaining' => $limit->quantity - $limit->used_quantity
+            'remaining' => $limit->getAvailableQuantity()
         ]);
     }
     
@@ -582,6 +609,12 @@ class LimitController extends Controller
         // Проверяем права на делегирование этому пользователю
         if (!$this->checkUserAvailability($user->id, $request->user_id)) {
             return back()->with('error', 'Вы не можете делегировать лимиты этому пользователю');
+        }
+
+        // Проверяем, что пользователь, которому делегируем, имеет активную подписку
+        $targetUser = User::find($request->user_id);
+        if (!$targetUser->hasActiveSubscription()) {
+            return back()->with('error', 'У сотрудника нет активной подписки для получения лимитов');
         }
 
         // Используем лимит из основного пула

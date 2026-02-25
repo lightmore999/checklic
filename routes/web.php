@@ -34,7 +34,6 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-Route::get('/order-stats', [App\Http\Controllers\OrderStatsController::class, 'index'])->name('order-stats');
 
 // Аутентификация
 Route::middleware('guest')->group(function () {
@@ -244,7 +243,10 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/subscriptions/{subscription}', [App\Http\Controllers\SubscriptionController::class, 'destroy'])->name('subscriptions.destroy');
     });
     
-    // API маршруты для проверки подписок (доступны всем аутентифицированным)
+    // API маршруты для подписок (доступны всем аутентифицированным)
     Route::get('/api/users/{user}/subscription/check', [App\Http\Controllers\SubscriptionController::class, 'checkUserSubscription'])->name('api.users.subscription.check');
     Route::get('/api/subscriptions/stats', [App\Http\Controllers\SubscriptionController::class, 'stats'])->name('api.subscriptions.stats');
+    
+    // НОВЫЙ МАРШРУТ: Получение всех подписок пользователя
+    Route::get('/api/users/{user}/subscriptions', [App\Http\Controllers\SubscriptionController::class, 'getUserSubscriptions'])->name('api.users.subscriptions');
 });

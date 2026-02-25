@@ -27,13 +27,12 @@
 <div class="row mb-4">
     <!-- Информация о текущем админе -->
     <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0">
                     <i class="bi bi-person-circle text-danger"></i> Ваш профиль
                 </h5>
             </div>
-            
             <div class="card-body text-center py-4">
                 <div class="rounded-circle bg-danger d-inline-flex align-items-center justify-content-center mb-3" 
                      style="width: 80px; height: 80px; font-size: 2rem; color: white;">
@@ -41,6 +40,18 @@
                 </div>
                 <h5 class="mb-1">{{ $user->name }}</h5>
                 <p class="text-muted mb-3">{{ $user->email }}</p>
+                @if($user->phone)
+                    <p class="mb-2">
+                        <i class="bi bi-telephone text-primary"></i> 
+                        <a href="tel:{{ $user->phone }}" class="text-decoration-none">
+                            {{ $user->phone }}
+                        </a>
+                    </p>
+                @else
+                    <p class="text-muted small mb-2">
+                        <i class="bi bi-telephone-x"></i> Телефон не указан
+                    </p>
+                @endif
                 
                 <div class="mb-3">
                     <span class="badge bg-danger">Администратор</span>
@@ -56,7 +67,7 @@
     
     <!-- Статистика организаций -->
     <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0">
                     <i class="bi bi-buildings text-success"></i> Организации
@@ -83,7 +94,7 @@
     
     <!-- Статистика менеджеров -->
     <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0">
                     <i class="bi bi-person-badge text-primary"></i> Менеджеры
@@ -105,159 +116,324 @@
     </div>
 </div>
 
-<!-- Лимиты администратора -->
+<!-- Подписки администратора -->
+@if(isset($subscriptions) && $subscriptions->count() > 0)
 <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+    <div class="card-header bg-white border-bottom">
         <h5 class="mb-0">
-            <i class="bi bi-speedometer text-info"></i> Ваши Отчеты
-            @if(count($limits) > 0)
-                <span class="badge bg-info ms-2">{{ count($limits) }}</span>
-            @endif
+            <i class="bi bi-stars text-info me-2"></i>
+            Ваши подписки
+            <span class="badge bg-info ms-2">{{ $subscriptions->count() }}</span>
         </h5>
-        @if(count($limits) > 0)
-            <div class="small text-muted">
-                <i class="bi bi-info-circle"></i> Обновлено: {{ now()->format('H:i') }}
-            </div>
-        @endif
     </div>
     <div class="card-body">
-        @if(count($limits) > 0)
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Тип отчета</th>
-                            <th>Доступ через</th>
-                            <th>Всего</th>
-                            <th>Использовано</th>
-                            <th>Доступно</th>
-                            <th>Статус</th>
-                            <th>Прогресс</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($limits as $limit)
-                        <tr>
-                            <td>
-                                <strong>{{ $limit['report_type_name'] }}</strong>
-                            </td>
-                            <td>
-                                @if($limit['only_api'])
-                                    <span class="badge bg-warning" title="Только через API">
-                                        <i class="bi bi-plug"></i> API
-                                    </span>
-                                @else
-                                    <span class="badge bg-primary" title="Доступен в интерфейсе">
-                                        <i class="bi bi-window"></i> UI
-                                    </span>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Дата начала</th>
+                        <th>Дата окончания</th>
+                        <th>Статус</th>
+                        <th>Осталось дней</th>
+                        <th>Отчетов</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($subscriptions as $subscription)
+                    @php
+                        $remainingDays = $subscription->getRemainingDays();
+                        $statusClass = $subscription->status === 'active' ? 'success' : 
+                                      ($subscription->status === 'expired' ? 'danger' : 
+                                      ($subscription->status === 'pending' ? 'warning' : 'secondary'));
+                        
+                        // Считаем количество отчетов в этой подписке
+                        $limitsCount = 0;
+                        if (isset($groupedLimits)) {
+                            foreach($groupedLimits as $group) {
+                                if ($group['subscription']->id == $subscription->id) {
+                                    $limitsCount = count($group['limits']);
+                                    break;
+                                }
+                            }
+                        }
+                    @endphp
+                    <tr>
+                        <td>#{{ $subscription->id }}</td>
+                        <td>{{ $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : '—' }}</td>
+                        <td>
+                            @if($subscription->ends_at)
+                                {{ $subscription->ends_at->format('d.m.Y') }}
+                                @if($subscription->isExpiringSoon() && $subscription->isActive())
+                                    <span class="badge bg-warning ms-1">скоро</span>
                                 @endif
-                            </td>
-                            <td>
-                                <span class="badge bg-secondary">{{ $limit['quantity'] }} шт.</span>
-                            </td>
-                            <td>
-                                <span class="badge bg-info">{{ $limit['used_quantity'] }} шт.</span>
-                            </td>
-                            <td>
-                                <span class="badge bg-{{ $limit['available_quantity'] > 0 ? 'success' : 'danger' }}">
-                                    {{ $limit['available_quantity'] }} шт.
-                                </span>
-                            </td>
-                            <td>
-                                @if($limit['is_exhausted'])
-                                    <span class="badge bg-danger">
-                                        <i class="bi bi-exclamation-triangle"></i> Исчерпан
+                            @else
+                                <span class="text-muted">Бессрочно</span>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ $statusClass }}">
+                                {{ $subscription->getStatusTextAttribute() }}
+                            </span>
+                        </td>
+                        <td>
+                            @if($remainingDays !== null)
+                                @if($subscription->isActive())
+                                    <span class="badge bg-{{ $remainingDays <= 7 ? 'warning' : 'success' }}">
+                                        {{ $remainingDays }} дн.
                                     </span>
-                                @elseif(!$limit['has_limit'])
-                                    <span class="badge bg-secondary">Не настроен</span>
-                                @else
-                                    <span class="badge bg-success">
-                                        <i class="bi bi-check-circle"></i> Активен
-                                    </span>
-                                @endif
-                            </td>
-                            <td style="min-width: 150px;">
-                                @if($limit['quantity'] > 0)
-                                    @php
-                                        $percentage = round(($limit['used_quantity'] / $limit['quantity']) * 100);
-                                        $progressClass = $limit['is_exhausted'] ? 'bg-danger' : 
-                                                        ($percentage > 80 ? 'bg-danger' : 
-                                                        ($percentage > 50 ? 'bg-warning' : 'bg-success'));
-                                    @endphp
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="progress flex-grow-1" style="height: 8px;">
-                                            <div class="progress-bar {{ $progressClass }}" 
-                                                 style="width: {{ $percentage }}%"
-                                                 role="progressbar"
-                                                 aria-valuenow="{{ $percentage }}"
-                                                 aria-valuemin="0"
-                                                 aria-valuemax="100">
-                                            </div>
-                                        </div>
-                                        <small class="text-muted">{{ $percentage }}%</small>
-                                    </div>
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                            @else
+                                <span class="text-muted">∞</span>
+                            @endif
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-info">{{ $limitsCount }}</span>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+@endif
+
+<!-- Отчеты по подпискам администратора -->
+@if(isset($groupedLimits) && count($groupedLimits) > 0)
+    @foreach($groupedLimits as $group)
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-stars text-info me-2"></i>
+                        Подписка #{{ $group['subscription']->id }}
+                        @if($group['subscription']->status === 'active')
+                            <span class="badge bg-success ms-2">Активна</span>
+                        @elseif($group['subscription']->status === 'expired')
+                            <span class="badge bg-danger ms-2">Истекла</span>
+                        @elseif($group['subscription']->status === 'pending')
+                            <span class="badge bg-warning ms-2">Ожидает</span>
+                        @elseif($group['subscription']->status === 'suspended')
+                            <span class="badge bg-warning ms-2">Приостановлена</span>
+                        @elseif($group['subscription']->status === 'cancelled')
+                            <span class="badge bg-secondary ms-2">Отменена</span>
+                        @else
+                            <span class="badge bg-secondary ms-2">{{ $group['subscription']->getStatusTextAttribute() }}</span>
+                        @endif
+                    </h5>
+                    <div class="text-muted small">
+                        @if($group['subscription']->starts_at)
+                            <span class="me-3"><i class="bi bi-calendar-plus me-1"></i>С {{ $group['subscription']->starts_at->format('d.m.Y') }}</span>
+                        @endif
+                        @if($group['subscription']->ends_at)
+                            <span><i class="bi bi-calendar-x me-1"></i>до {{ $group['subscription']->ends_at->format('d.m.Y') }}</span>
+                            @if($group['subscription']->getRemainingDays())
+                                <span class="badge bg-{{ $group['subscription']->getRemainingDays() <= 7 ? 'warning' : 'info' }} ms-2">
+                                    осталось {{ $group['subscription']->getRemainingDays() }} дн.
+                                </span>
+                            @endif
+                        @else
+                            <span class="text-muted">(бессрочная)</span>
+                        @endif
+                    </div>
+                </div>
             </div>
-            
-            <!-- Сводка по лимитам -->
-            <div class="mt-3 pt-3 border-top">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="small text-muted">
-                            @php
-                                $interfaceCount = count(array_filter($limits, fn($l) => !$l['only_api']));
-                                $apiCount = count(array_filter($limits, fn($l) => $l['only_api']));
-                                $exhaustedCount = count(array_filter($limits, fn($l) => $l['is_exhausted']));
-                                $hasLimitCount = count(array_filter($limits, fn($l) => $l['has_limit']));
-                                $totalAvailable = array_sum(array_column($limits, 'available_quantity'));
-                                $totalUsed = array_sum(array_column($limits, 'used_quantity'));
-                                $totalQuantity = array_sum(array_column($limits, 'quantity'));
-                            @endphp
-                            <i class="bi bi-info-circle"></i>
-                            Всего отчетов: {{ count($limits) }} | 
-                            UI: {{ $interfaceCount }} | 
-                            API: {{ $apiCount }} | 
-                            Исчерпано: <span class="{{ $exhaustedCount > 0 ? 'text-danger fw-bold' : 'text-success' }}">{{ $exhaustedCount }}</span>
+            <div class="card-body">
+                <!-- Статистика по подписке -->
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <div class="border rounded p-2 text-center bg-light">
+                            <small class="text-muted d-block">Всего отчетов</small>
+                            <span class="fw-bold fs-5">{{ $group['total_quantity'] }} шт.</span>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="small text-muted text-end">
-                            <i class="bi bi-pie-chart"></i>
-                            Всего запросов: {{ $totalQuantity }} | 
-                            Использовано: {{ $totalUsed }} | 
-                            Доступно: <span class="{{ $totalAvailable > 0 ? 'text-success fw-bold' : 'text-danger' }}">{{ $totalAvailable }}</span>
+                    <div class="col-md-3">
+                        <div class="border rounded p-2 text-center bg-light">
+                            <small class="text-muted d-block">Использовано</small>
+                            <span class="fw-bold fs-5 text-warning">{{ $group['total_used'] }} шт.</span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-2 text-center bg-light">
+                            <small class="text-muted d-block">Доступно</small>
+                            <span class="fw-bold fs-5 text-{{ $group['total_available'] > 0 ? 'success' : 'danger' }}">
+                                {{ $group['total_available'] }} шт.
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-2 text-center bg-light">
+                            <small class="text-muted d-block">Типов отчетов</small>
+                            <span class="fw-bold fs-5 text-info">{{ count($group['limits']) }}</span>
                         </div>
                     </div>
                 </div>
                 
-                @if($exhaustedCount > 0)
-                    <div class="alert alert-danger py-2 mt-2 mb-0">
-                        <i class="bi bi-exclamation-triangle me-1"></i>
-                        <small>{{ $exhaustedCount }} отчет(ов) исчерпано. Обратитесь к администратору для пополнения.</small>
-                    </div>
-                @endif
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Тип отчета</th>
+                                <th>Доступ через</th>
+                                <th>Всего</th>
+                                <th>Использовано</th>
+                                <th>Доступно</th>
+                                <th>Статус</th>
+                                <th>Прогресс</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($group['limits'] as $limit)
+                            <tr>
+                                <td>
+                                    <strong>{{ $limit['report_type_name'] }}</strong>
+                                    @if($limit['description'])
+                                        <br><small class="text-muted">{{ $limit['description'] }}</small>
+                                    @endif
+                                </td>
+                                <td>
+                                    @if($limit['only_api'])
+                                        <span class="badge bg-warning" title="Только через API">
+                                            <i class="bi bi-plug"></i> API
+                                        </span>
+                                    @else
+                                        <span class="badge bg-primary" title="Доступен в интерфейсе">
+                                            <i class="bi bi-window"></i> UI
+                                        </span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ $limit['quantity'] }} шт.</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ $limit['used_quantity'] }} шт.</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ $limit['available_quantity'] > 0 ? 'success' : 'danger' }}">
+                                        {{ $limit['available_quantity'] }} шт.
+                                    </span>
+                                </td>
+                                <td>
+                                    @if($limit['is_exhausted'])
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-exclamation-triangle"></i> Исчерпан
+                                        </span>
+                                    @else
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Активен
+                                        </span>
+                                    @endif
+                                </td>
+                                <td style="min-width: 150px;">
+                                    @if($limit['quantity'] > 0)
+                                        @php
+                                            $percentage = round(($limit['used_quantity'] / $limit['quantity']) * 100);
+                                            $progressClass = $limit['is_exhausted'] ? 'bg-danger' : 
+                                                            ($percentage > 80 ? 'bg-danger' : 
+                                                            ($percentage > 50 ? 'bg-warning' : 'bg-success'));
+                                        @endphp
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="progress flex-grow-1" style="height: 8px;">
+                                                <div class="progress-bar {{ $progressClass }}" 
+                                                     style="width: {{ $percentage }}%"
+                                                     role="progressbar"
+                                                     aria-valuenow="{{ $percentage }}"
+                                                     aria-valuemin="0"
+                                                     aria-valuemax="100">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">{{ $percentage }}%</small>
+                                        </div>
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        @else
+        </div>
+    @endforeach
+    
+    <!-- Общая сводка по всем подпискам -->
+    @php
+        $totalAllQuantity = collect($groupedLimits)->sum('total_quantity');
+        $totalAllUsed = collect($groupedLimits)->sum('total_used');
+        $totalAllAvailable = collect($groupedLimits)->sum('total_available');
+        $totalAllPercentage = $totalAllQuantity > 0 ? round(($totalAllUsed / $totalAllQuantity) * 100) : 0;
+        $totalAllSubscriptions = count($groupedLimits);
+    @endphp
+    
+    <div class="card border-0 shadow-sm mb-4 bg-light">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <div class="d-flex flex-wrap align-items-center gap-4">
+                        <div>
+                            <span class="text-muted">Подписок:</span>
+                            <span class="fw-bold ms-2">{{ $totalAllSubscriptions }}</span>
+                        </div>
+                        <div>
+                            <span class="text-muted">Всего отчетов:</span>
+                            <span class="fw-bold ms-2">{{ $totalAllQuantity }} шт.</span>
+                        </div>
+                        <div>
+                            <span class="text-muted">Использовано:</span>
+                            <span class="fw-bold text-warning ms-2">{{ $totalAllUsed }} шт.</span>
+                        </div>
+                        <div>
+                            <span class="text-muted">Доступно:</span>
+                            <span class="fw-bold text-{{ $totalAllAvailable > 0 ? 'success' : 'danger' }} ms-2">
+                                {{ $totalAllAvailable }} шт.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted">Общий прогресс:</span>
+                        <div class="progress flex-grow-1" style="height: 8px;">
+                            <div class="progress-bar bg-{{ $totalAllPercentage > 80 ? 'danger' : ($totalAllPercentage > 50 ? 'warning' : 'success') }}" 
+                                 style="width: {{ $totalAllPercentage }}%">
+                            </div>
+                        </div>
+                        <small class="text-muted">{{ $totalAllPercentage }}%</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+@else
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-bottom">
+            <h5 class="mb-0">
+                <i class="bi bi-speedometer text-info"></i> Ваши отчеты
+            </h5>
+        </div>
+        <div class="card-body">
             <div class="text-center py-5">
                 <div class="mb-4">
                     <i class="bi bi-speedometer display-1 text-muted"></i>
                 </div>
-                <h4 class="text-muted mb-3">Отчеты не настроены</h4>
-                <p class="text-muted mb-4">Нет доступных типов отчетов или отчетов для отображения</p>
-                <a href="{{ route('limits.index') }}" class="btn btn-info">
-                    <i class="bi bi-sliders"></i> Настроить Отчеты
-                </a>
+                <h4 class="text-muted mb-3">У вас нет отчетов</h4>
+                <p class="text-muted mb-4">Создайте подписку и добавьте отчеты</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <a href="{{ route('subscriptions.create') }}" class="btn btn-info">
+                        <i class="bi bi-stars me-1"></i> Создать подписку
+                    </a>
+                    <a href="{{ route('limits.create') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle me-1"></i> Создать отчет
+                    </a>
+                </div>
             </div>
-        @endif
+        </div>
     </div>
-</div>
+@endif
 
 <!-- Раздел организаций -->
 <div class="card border-0 shadow-sm mb-4">
@@ -269,7 +445,9 @@
             </h5>
             <small class="text-muted">Последние созданные организации</small>
         </div>
-
+        <a href="{{ route('admin.organizations.list') }}" class="btn btn-outline-success btn-sm">
+            <i class="bi bi-list-ul me-1"></i> Все организации
+        </a>
     </div>
     <div class="card-body">
         @if($organizations->count() > 0)
@@ -278,7 +456,7 @@
                     <thead class="table-light">
                         <tr>
                             <th width="60">ID</th>
-                            <th>Организация</th>
+                            <th>Организация / ИНН</th>
                             <th>Владелец</th>
                             <th>Менеджер</th>
                             <th width="120">Статус</th>
@@ -287,7 +465,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($organizations as $organization)
+                        @foreach($organizations->take(5) as $organization)
                         <tr>
                             <td class="text-muted">#{{ $organization->id }}</td>
                             <td>
@@ -298,7 +476,9 @@
                                     </div>
                                     <div>
                                         <div class="fw-bold">{{ Str::limit($organization->name, 30) }}</div>
-                                        <small class="text-muted">{{ $organization->created_at->format('d.m.Y') }}</small>
+                                        @if($organization->inn)
+                                            <small class="text-muted">ИНН: {{ $organization->inn }}</small>
+                                        @endif
                                     </div>
                                 </div>
                             </td>
@@ -339,19 +519,17 @@
                             <td>
                                 @php
                                     $statusConfig = [
-                                        'active' => ['class' => 'success', 'icon' => 'check-circle'],
-                                        'inactive' => ['class' => 'danger', 'icon' => 'x-circle'],
-                                        'pending' => ['class' => 'warning', 'icon' => 'clock'],
-                                        'suspended' => ['class' => 'secondary', 'icon' => 'pause-circle'],
+                                        'active' => ['class' => 'success', 'icon' => 'check-circle', 'text' => 'Активна'],
+                                        'inactive' => ['class' => 'danger', 'icon' => 'x-circle', 'text' => 'Неактивна'],
+                                        'pending' => ['class' => 'warning', 'icon' => 'clock', 'text' => 'Ожидает'],
+                                        'suspended' => ['class' => 'warning', 'icon' => 'pause-circle', 'text' => 'Приостановлена'],
+                                        'expired' => ['class' => 'danger', 'icon' => 'exclamation-triangle', 'text' => 'Истекла'],
                                     ];
-                                    $config = $statusConfig[$organization->status] ?? ['class' => 'secondary', 'icon' => 'question-circle'];
+                                    $config = $statusConfig[$organization->status] ?? ['class' => 'secondary', 'icon' => 'question-circle', 'text' => $organization->status];
                                 @endphp
                                 <span class="badge bg-{{ $config['class'] }}">
                                     <i class="bi bi-{{ $config['icon'] }} me-1"></i>
-                                    {{ $organization->status === 'active' ? 'Активна' : 
-                                       ($organization->status === 'inactive' ? 'Неактивна' : 
-                                       ($organization->status === 'pending' ? 'Ожидает' : 
-                                       ($organization->status === 'suspended' ? 'Приостановлена' : $organization->status))) }}
+                                    {{ $config['text'] }}
                                 </span>
                             </td>
                             <td>
@@ -378,7 +556,7 @@
                             <td class="text-center">
                                 <div class="d-flex justify-content-center gap-1">
                                     <a href="{{ route('admin.organization.show', $organization->id) }}" 
-                                       class="btn btn-sm btn-info rounded-circle d-flex align-items-center justify-content-center"
+                                       class="btn btn-sm btn-outline-info rounded-circle d-flex align-items-center justify-content-center"
                                        style="width: 32px; height: 32px;"
                                        title="Просмотреть"
                                        data-bs-toggle="tooltip">
@@ -386,7 +564,7 @@
                                     </a>
                                     
                                     <a href="{{ route('admin.organization.edit', $organization->id) }}" 
-                                       class="btn btn-sm btn-warning rounded-circle d-flex align-items-center justify-content-center"
+                                       class="btn btn-sm btn-outline-warning rounded-circle d-flex align-items-center justify-content-center"
                                        style="width: 32px; height: 32px;"
                                        title="Редактировать"
                                        data-bs-toggle="tooltip">
@@ -402,7 +580,7 @@
             
             @if($organizations->count() > 5)
                 <div class="text-center mt-3">
-                    <a href="{{ route('admin.organizations.list') }}" class="btn btn-success">
+                    <a href="{{ route('admin.organizations.list') }}" class="btn btn-outline-success">
                         <i class="bi bi-list-ul me-1"></i> Показать все организации ({{ $organizations->count() }})
                     </a>
                 </div>
@@ -445,11 +623,11 @@
                             <th>Создан</th>
                             <th>Кем создан</th>
                             <th width="100">Статус</th>
-                            <th width="200" class="text-center">Действия</th>
+                            <th width="120" class="text-center">Действия</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($managers as $manager)
+                        @foreach($managers->take(5) as $manager)
                         <tr>
                             <td class="text-muted">#{{ $manager->id }}</td>
                             <td>
@@ -503,53 +681,21 @@
                             </td>
                             <td>
                                 <div class="d-flex justify-content-center gap-1">
-                                    <!-- Просмотр -->
                                     <a href="{{ route('admin.managers.show', $manager->id) }}" 
-                                       class="btn btn-sm btn-primary rounded-circle d-flex align-items-center justify-content-center"
+                                       class="btn btn-sm btn-outline-info rounded-circle d-flex align-items-center justify-content-center"
                                        style="width: 32px; height: 32px;"
                                        title="Просмотреть профиль"
                                        data-bs-toggle="tooltip">
                                         <i class="bi bi-eye"></i>
                                     </a>
                                     
-                                    <!-- Редактирование -->
                                     <a href="{{ route('admin.managers.edit', $manager->id) }}" 
-                                       class="btn btn-sm btn-success rounded-circle d-flex align-items-center justify-content-center"
+                                       class="btn btn-sm btn-outline-warning rounded-circle d-flex align-items-center justify-content-center"
                                        style="width: 32px; height: 32px;"
                                        title="Редактировать"
                                        data-bs-toggle="tooltip">
                                         <i class="bi bi-pencil"></i>
                                     </a>
-                                    
-                                    <!-- Статус -->
-                                    <form method="POST" action="{{ route('admin.managers.toggle-status', $manager->id) }}" 
-                                          class="m-0" 
-                                          onsubmit="return confirm('{{ $manager->is_active ? 'Деактивировать' : 'Активировать' }} менеджера {{ $manager->name }}?')">
-                                        @csrf
-                                        <button type="submit" 
-                                                class="btn btn-sm btn-{{ $manager->is_active ? 'warning' : 'secondary' }} rounded-circle d-flex align-items-center justify-content-center"
-                                                style="width: 32px; height: 32px;"
-                                                title="{{ $manager->is_active ? 'Деактивировать' : 'Активировать' }}"
-                                                data-bs-toggle="tooltip">
-                                            <i class="bi bi-toggle-{{ $manager->is_active ? 'on' : 'off' }}"></i>
-                                        </button>
-                                    </form>
-                                    
-                                    <!-- Удаление -->
-                                    <form method="POST" action="{{ route('admin.managers.delete', $manager->id) }}" 
-                                          class="m-0" 
-                                          onsubmit="return confirm('⚠️ ВНИМАНИЕ!\n\nВы уверены, что хотите удалить менеджера {{ $manager->name }}?\n\nЭто действие нельзя отменить. Все связанные данные будут безвозвратно удалены.')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" 
-                                                class="btn btn-sm btn-danger rounded-circle d-flex align-items-center justify-content-center"
-                                                style="width: 32px; height: 32px;"
-                                                title="Удалить менеджера"
-                                                data-bs-toggle="tooltip"
-                                                {{ $manager->id === auth()->id() ? 'disabled' : '' }}>
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -557,6 +703,14 @@
                     </tbody>
                 </table>
             </div>
+            
+            @if($managers->count() > 5)
+                <div class="text-center mt-3">
+                    <a href="{{ route('admin.managers.index') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-list-ul me-1"></i> Показать всех менеджеров ({{ $managers->count() }})
+                    </a>
+                </div>
+            @endif
         @else
             <div class="text-center py-5">
                 <div class="mb-4">

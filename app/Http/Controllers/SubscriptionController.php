@@ -18,7 +18,7 @@ class SubscriptionController extends Controller
      */
     public function index(Request $request)
     {
-        $user = Auth::user();
+        $user = Auth::user();   
         
         // Только админ и менеджер могут видеть список подписок
         if (!$user->isAdmin() && !$user->isManager()) {
@@ -26,6 +26,30 @@ class SubscriptionController extends Controller
         }
         
         $query = Subscription::with(['user', 'user.orgOwnerProfile', 'user.orgMemberProfile']);
+        
+        // Получаем список организаций для фильтра
+        if ($user->isAdmin()) {
+            $organizations = Organization::orderBy('name')->get();
+        } else {
+            // Для менеджера - только его организации
+            $organizations = Organization::where('manager_id', $user->id)
+                ->orderBy('name')
+                ->get();
+        }
+        
+        // Фильтр по организации
+        if ($request->filled('organization_id')) {
+            // Получаем ID пользователей, связанных с этой организацией
+            $orgUserIds = User::whereHas('orgOwnerProfile', function($q) use ($request) {
+                    $q->where('organization_id', $request->organization_id);
+                })
+                ->orWhereHas('orgMemberProfile', function($q) use ($request) {
+                    $q->where('organization_id', $request->organization_id);
+                })
+                ->pluck('id');
+                
+            $query->whereIn('user_id', $orgUserIds);
+        }
         
         // Фильтр по пользователю
         if ($request->filled('user_id')) {
@@ -41,24 +65,24 @@ class SubscriptionController extends Controller
         if ($request->filled('expiring_soon')) {
             $days = (int) $request->expiring_soon;
             $query->where('status', 'active')
-                  ->whereNotNull('ends_at')
-                  ->where('ends_at', '<=', now()->addDays($days))
-                  ->where('ends_at', '>', now());
+                ->whereNotNull('ends_at')
+                ->where('ends_at', '<=', now()->addDays($days))
+                ->where('ends_at', '>', now());
         }
         
         // Фильтр по истекшим
         if ($request->filled('expired')) {
             $query->where(function($q) {
                 $q->where('status', 'expired')
-                  ->orWhere(function($subQ) {
-                      $subQ->where('status', 'active')
-                           ->whereNotNull('ends_at')
-                           ->where('ends_at', '<', now());
-                  });
+                ->orWhere(function($subQ) {
+                    $subQ->where('status', 'active')
+                        ->whereNotNull('ends_at')
+                        ->where('ends_at', '<', now());
+                });
             });
         }
         
-        // Для менеджера - только подписки пользователей его организаций
+        // Для менеджера - дополнительная фильтрация по его организациям
         if ($user->isManager()) {
             $organizationIds = Organization::where('manager_id', $user->id)->pluck('id');
             
@@ -78,7 +102,7 @@ class SubscriptionController extends Controller
                 $users = collect();
                 $stats = [];
                 
-                return view('subscriptions.index', compact('subscriptions', 'users', 'stats'));
+                return view('subscriptions.index', compact('subscriptions', 'users', 'stats', 'organizations'));
             }
         }
         
@@ -106,30 +130,30 @@ class SubscriptionController extends Controller
                 ->get(['id', 'name', 'email', 'role']);
         }
         
-        // Статистика
+        // Статистика (с учетом прав доступа)
         $stats = [
-            'total' => Subscription::count(),
-            'active' => Subscription::where('status', 'active')
+            'total' => $query->count(), // Используем отфильтрованный запрос для подсчета
+            'active' => (clone $query)->where('status', 'active')
                 ->where(function($q) {
                     $q->whereNull('ends_at')
-                      ->orWhere('ends_at', '>', now());
+                    ->orWhere('ends_at', '>', now());
                 })->count(),
-            'expired' => Subscription::where(function($q) {
+            'expired' => (clone $query)->where(function($q) {
                     $q->where('status', 'expired')
-                      ->orWhere(function($subQ) {
-                          $subQ->where('status', 'active')
-                               ->whereNotNull('ends_at')
-                               ->where('ends_at', '<', now());
-                      });
+                    ->orWhere(function($subQ) {
+                        $subQ->where('status', 'active')
+                            ->whereNotNull('ends_at')
+                            ->where('ends_at', '<', now());
+                    });
                 })->count(),
-            'expiring_soon' => Subscription::where('status', 'active')
+            'expiring_soon' => (clone $query)->where('status', 'active')
                 ->whereNotNull('ends_at')
                 ->where('ends_at', '<=', now()->addDays(7))
                 ->where('ends_at', '>', now())
                 ->count(),
         ];
         
-        return view('subscriptions.index', compact('subscriptions', 'users', 'stats'));
+        return view('subscriptions.index', compact('subscriptions', 'users', 'stats', 'organizations'));
     }
 
     /**
@@ -143,31 +167,23 @@ class SubscriptionController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
-        // Получаем доступных пользователей
+        $organizations = collect(); // По умолчанию пустая коллекция
+        
         if ($user->isAdmin()) {
-            $users = User::whereIn('role', ['org_owner', 'org_member', 'manager'])
-                ->where('is_active', true)
+            // Для админа - все организации
+            $organizations = Organization::whereIn('status', ['active', 'suspended'])
                 ->orderBy('name')
-                ->get(['id', 'name', 'email', 'role']);
+                ->get(['id', 'name', 'inn']);
         } else {
-            // Для менеджера - только пользователи его организаций
-            $organizationIds = Organization::where('manager_id', $user->id)->pluck('id');
-            
-            $userIds = User::whereHas('orgOwnerProfile', function($q) use ($organizationIds) {
-                    $q->whereIn('organization_id', $organizationIds);
-                })
-                ->orWhereHas('orgMemberProfile', function($q) use ($organizationIds) {
-                    $q->whereIn('organization_id', $organizationIds);
-                })
-                ->where('is_active', true)
-                ->pluck('id');
-                
-            $users = User::whereIn('id', $userIds)
+            // Для менеджера - только его организации
+            $organizations = Organization::where('manager_id', $user->id)
+                ->whereIn('status', ['active', 'suspended'])
                 ->orderBy('name')
-                ->get(['id', 'name', 'email', 'role']);
+                ->get(['id', 'name', 'inn']);
         }
         
-        return view('subscriptions.create', compact('users'));
+        // Не передаем users, так как используем AJAX поиск
+        return view('subscriptions.create', compact('organizations'));
     }
 
     /**
@@ -659,5 +675,56 @@ class SubscriptionController extends Controller
         return Subscription::where('user_id', $ownerId)
             ->orderBy('created_at', 'desc')
             ->get();
+    }
+
+    /**
+     * Получить подписки пользователя (API)
+     */
+    public function getUserSubscriptions(User $user)
+    {
+        $currentUser = Auth::user();
+        
+        // Проверка доступа
+        if (!$currentUser->isAdmin() && !$currentUser->isManager()) {
+            return response()->json(['error' => 'Доступ запрещен'], 403);
+        }
+        
+        try {
+            // Получаем все подписки пользователя
+            $subscriptions = Subscription::where('user_id', $user->id)
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function($subscription) {
+                    // Безопасно получаем лимиты, если связь существует
+                    $limits = $subscription->limits ?? collect();
+                    
+                    return [
+                        'id' => $subscription->id,
+                        'starts_at' => $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : null,
+                        'ends_at' => $subscription->ends_at ? $subscription->ends_at->format('d.m.Y') : null,
+                        'status' => $subscription->status,
+                        'status_text' => $subscription->getStatusTextAttribute(),
+                        'remaining_days' => $subscription->getRemainingDays(),
+                        'is_expiring_soon' => $subscription->isExpiringSoon(),
+                        'limits_count' => $limits->count(),
+                        'total_limits_quantity' => $limits->sum('quantity'),
+                        'total_limits_used' => $limits->sum('used_quantity'),
+                    ];
+                });
+            
+            return response()->json([
+                'success' => true,
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'subscriptions' => $subscriptions,
+                'total' => $subscriptions->count()
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

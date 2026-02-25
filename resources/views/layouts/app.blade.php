@@ -168,6 +168,13 @@
                             Все организации
                         </a>
                         
+                        <!-- ДОБАВЛЕНО: Управление подписками для админа -->
+                        <a href="{{ route('subscriptions.index') }}" 
+                        class="nav-link {{ request()->routeIs('subscriptions.index') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-stars"></i>
+                            Все подписки
+                        </a>
+                        
                         <a href="{{ route('limits.index') }}" 
                         class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-pie-chart"></i>
@@ -189,6 +196,13 @@
                         class="nav-link {{ request()->routeIs('manager.organizations.list') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-buildings"></i>
                             Мои организации
+                        </a>
+                        
+                        <!-- ДОБАВЛЕНО: Подписки для менеджера -->
+                        <a href="{{ route('subscriptions.index') }}" 
+                        class="nav-link {{ request()->routeIs('subscriptions.index') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-stars"></i>
+                            Подписки
                         </a>
                         
                         <a href="{{ route('limits.index') }}" 

@@ -135,14 +135,21 @@
                                     @foreach($managers as $manager)
                                         <option value="{{ $manager->id }}" 
                                                 {{ old('organization.manager_id', $organization->manager_id) == $manager->id ? 'selected' : '' }}>
-                                            {{ $manager->name }}
+                                            {{ $manager->name }} ({{ $manager->email }})
                                         </option>
                                     @endforeach
                                 </select>
                                 @error('organization.manager_id')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
-                                <div class="form-text">Выберите менеджера из списка</div>
+                                <div class="form-text">
+                                    Текущий менеджер: 
+                                    @if($organization->manager)
+                                        {{ $organization->manager->name }} ({{ $organization->manager->email }})
+                                    @else
+                                        <span class="text-muted">не назначен</span>
+                                    @endif
+                                </div>
                             </div>
                         @endif
 
@@ -179,9 +186,9 @@
                         <div class="mb-3">
                             <label for="owner_name" class="form-label">Имя владельца *</label>
                             <input type="text" class="form-control @error('owner.name') is-invalid @enderror" 
-                                   id="owner_name" name="owner[name]" 
-                                   value="{{ old('owner.name', $ownerUser->name ?? '') }}" 
-                                   required>
+                                id="owner_name" name="owner[name]" 
+                                value="{{ old('owner.name', $ownerUser->name ?? '') }}" 
+                                required>
                             @error('owner.name')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -190,12 +197,27 @@
                         <div class="mb-3">
                             <label for="owner_email" class="form-label">Email *</label>
                             <input type="email" class="form-control @error('owner.email') is-invalid @enderror" 
-                                   id="owner_email" name="owner[email]" 
-                                   value="{{ old('owner.email', $ownerUser->email ?? '') }}" 
-                                   required>
+                                id="owner_email" name="owner[email]" 
+                                value="{{ old('owner.email', $ownerUser->email ?? '') }}" 
+                                required>
                             @error('owner.email')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+                        </div>
+
+                        <!-- НОВОЕ ПОЛЕ: Номер телефона владельца (улучшенный дизайн) -->
+                        <div class="mb-3">
+                            <label for="owner_phone" class="form-label">
+                                Номер телефона <small class="text-muted">(необязательно)</small>
+                            </label>
+                            <input type="tel" class="form-control @error('owner.phone') is-invalid @enderror" 
+                                   id="owner_phone" name="owner[phone]" 
+                                   value="{{ old('owner.phone', $ownerUser->phone ?? '') }}" 
+                                   placeholder="+7 (999) 999-99-99">
+                            @error('owner.phone')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Контактный телефон владельца организации</div>
                         </div>
 
                         <div class="mb-3">
@@ -208,10 +230,10 @@
                             </label>
                             <div class="input-group">
                                 <input type="password" class="form-control @error('owner.password') is-invalid @enderror" 
-                                       id="owner_password" name="owner[password]" 
-                                       placeholder="Введите пароль"
-                                       {{ $ownerUser ? '' : 'required' }}>
-                                <button class="btn btn-secondary" type="button" id="togglePassword">
+                                    id="owner_password" name="owner[password]" 
+                                    placeholder="Введите пароль"
+                                    {{ $ownerUser ? '' : 'required' }}>
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
                                     <i class="bi bi-eye"></i>
                                 </button>
                             </div>
@@ -231,15 +253,21 @@
                                 @endif
                             </label>
                             <input type="password" class="form-control" 
-                                   id="owner_password_confirmation" name="owner[password_confirmation]"
-                                   placeholder="Повторите пароль"
-                                   {{ $ownerUser ? '' : 'required' }}>
+                                id="owner_password_confirmation" name="owner[password_confirmation]"
+                                placeholder="Повторите пароль"
+                                {{ $ownerUser ? '' : 'required' }}>
                         </div>
 
                         @if($ownerUser)
                             <div class="alert alert-light border">
                                 <h6 class="alert-heading">Информация о владельце:</h6>
                                 <p class="mb-1"><strong>Зарегистрирован:</strong> {{ $ownerUser->created_at->format('d.m.Y H:i') }}</p>
+                                @if($ownerUser->phone)
+                                <p class="mb-1">
+                                    <strong>Телефон:</strong> 
+                                    <a href="tel:{{ $ownerUser->phone }}" class="text-decoration-none">{{ $ownerUser->phone }}</a>
+                                </p>
+                                @endif
                                 <p class="mb-1"><strong>Роль:</strong> <span class="badge bg-success">Владелец организации</span></p>
                                 <p class="mb-0"><strong>Статус:</strong> 
                                     @if($ownerUser->is_active)
@@ -375,62 +403,79 @@ function confirmDelete(id, name) {
 </script>
 @endif
 
+@push('scripts')
+<!-- Inputmask для красивого ввода телефона -->
+<script src="https://cdn.jsdelivr.net/npm/inputmask@5.0.8/dist/inputmask.min.js"></script>
 <script>
-// Показать/скрыть пароль
-document.getElementById('togglePassword')?.addEventListener('click', function() {
-    const passwordField = document.getElementById('owner_password');
-    const confirmField = document.getElementById('owner_password_confirmation');
-    const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
-    
-    passwordField.setAttribute('type', type);
-    if (confirmField) {
-        confirmField.setAttribute('type', type);
-    }
-    
-    this.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
-});
+    document.addEventListener('DOMContentLoaded', function() {
+        // Маска для телефона владельца
+        const ownerPhoneField = document.getElementById('owner_phone');
+        if (ownerPhoneField) {
+            Inputmask({ 
+                mask: ['+7 (999) 999-99-99', '+375 (99) 999-99-99', '+999 (99) 999-99-99'],
+                keepStatic: true,
+                showMaskOnHover: false,
+                clearIncomplete: true
+            }).mask(ownerPhoneField);
+        }
 
-// Валидация ИНН (только цифры)
-document.getElementById('organization_inn')?.addEventListener('input', function(e) {
-    this.value = this.value.replace(/[^0-9]/g, '');
-});
+        // Показать/скрыть пароль
+        document.getElementById('togglePassword')?.addEventListener('click', function() {
+            const passwordField = document.getElementById('owner_password');
+            const confirmField = document.getElementById('owner_password_confirmation');
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            
+            passwordField.setAttribute('type', type);
+            if (confirmField) {
+                confirmField.setAttribute('type', type);
+            }
+            
+            this.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+        });
 
-// Валидация максимального количества сотрудников
-document.getElementById('organization_max_employees')?.addEventListener('input', function(e) {
-    let value = parseInt(this.value);
-    if (value < 1) {
-        this.value = '';
-    }
-});
+        // Валидация ИНН (только цифры)
+        document.getElementById('organization_inn')?.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
 
-// Предотвращаем двойную отправку формы
-document.querySelector('form[action*="update"]')?.addEventListener('submit', function(e) {
-    const submitBtn = this.querySelector('button[type="submit"]');
-    
-    // Проверка ИНН
-    const inn = document.getElementById('organization_inn')?.value;
-    if (inn && (inn.length < 10 || inn.length > 12)) {
-        e.preventDefault();
-        alert('ИНН должен содержать от 10 до 12 цифр');
-        document.getElementById('organization_inn')?.focus();
-        return false;
-    }
-    
-    // Проверка максимального количества сотрудников
-    const maxEmployees = document.getElementById('organization_max_employees')?.value;
-    if (maxEmployees && parseInt(maxEmployees) < 1) {
-        e.preventDefault();
-        alert('Максимальное количество сотрудников должно быть не менее 1');
-        document.getElementById('organization_max_employees')?.focus();
-        return false;
-    }
-    
-    if (submitBtn.disabled) {
-        e.preventDefault();
-        return;
-    }
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
-});
+        // Валидация максимального количества сотрудников
+        document.getElementById('organization_max_employees')?.addEventListener('input', function(e) {
+            let value = parseInt(this.value);
+            if (value < 1) {
+                this.value = '';
+            }
+        });
+
+        // Предотвращаем двойную отправку формы
+        document.querySelector('form[action*="update"]')?.addEventListener('submit', function(e) {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            
+            // Проверка ИНН
+            const inn = document.getElementById('organization_inn')?.value;
+            if (inn && (inn.length < 10 || inn.length > 12)) {
+                e.preventDefault();
+                alert('ИНН должен содержать от 10 до 12 цифр');
+                document.getElementById('organization_inn')?.focus();
+                return false;
+            }
+            
+            // Проверка максимального количества сотрудников
+            const maxEmployees = document.getElementById('organization_max_employees')?.value;
+            if (maxEmployees && parseInt(maxEmployees) < 1) {
+                e.preventDefault();
+                alert('Максимальное количество сотрудников должно быть не менее 1');
+                document.getElementById('organization_max_employees')?.focus();
+                return false;
+            }
+            
+            if (submitBtn.disabled) {
+                e.preventDefault();
+                return;
+            }
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Сохранение...';
+        });
+    });
 </script>
+@endpush
 @endsection

@@ -34,6 +34,18 @@
                     <div>
                         <h4 class="mb-1">{{ $member->user->name }}</h4>
                         <div class="text-muted">{{ $member->user->email }}</div>
+                        @if($member->user->phone)
+                            <p class="mb-2">
+                                <i class="bi bi-telephone text-primary"></i> 
+                                <a href="tel:{{ $member->user->phone }}" class="text-decoration-none">
+                                    {{ $member->user->phone }}
+                                </a>
+                            </p>
+                        @else
+                            <p class="text-muted small mb-2">
+                                <i class="bi bi-telephone-x"></i> Телефон не указан
+                            </p>
+                        @endif
                     </div>
                 </div>
                 

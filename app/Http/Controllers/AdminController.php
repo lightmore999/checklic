@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Subscription;
 use App\Models\Manager;
 use App\Models\Organization;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class AdminController extends Controller
         }
         
         // === СТАТИСТИКА ===
-        $stats = [
+        $stats = [  
             'total_users' => User::count(),
             'active_users' => User::where('is_active', true)->count(),
             'managers_count' => User::where('role', 'manager')->count(),
@@ -32,37 +33,85 @@ class AdminController extends Controller
             'pending_organizations' => Organization::where('status', 'pending')->count(),
         ];
         
-        // === ЛИМИТЫ АДМИНИСТРАТОРА ===
+        // === ЛИМИТЫ АДМИНИСТРАТОРА (через подписки) ===
         $limits = [];
         
         // Получаем ВСЕ типы отчетов
         $reportTypes = \App\Models\ReportType::all();
         
-        foreach ($reportTypes as $reportType) {
-            // Получаем ПОСЛЕДНИЙ лимит админа для этого типа отчета
-            $limit = \App\Models\Limit::where('user_id', $admin->id)
-                ->where('report_type_id', $reportType->id)
+        // Получаем подписки администратора
+        $subscriptions = Subscription::where('user_id', $admin->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        // Для каждой подписки получаем лимиты
+        $groupedLimits = [];
+        foreach ($subscriptions as $subscription) {
+            // Получаем лимиты для этой подписки
+            $subscriptionLimits = \App\Models\Limit::where('subscription_id', $subscription->id)
+                ->with('reportType')
                 ->orderBy('date_created', 'desc')
-                ->orderBy('created_at', 'desc')
-                ->first();
+                ->get();
             
-            // Логика отображения:
-            // 1. Если only_api = false, ВСЕГДА показываем
-            // 2. Если only_api = true, показываем ТОЛЬКО если есть лимит
-            if (!$reportType->only_api || ($reportType->only_api && $limit !== null)) {
-                $quantity = $limit ? $limit->quantity : 0;
-                
+            $limitsData = [];
+            foreach ($subscriptionLimits as $limit) {
+                if ($limit->reportType) {
+                    $limitsData[] = [
+                        'id' => $limit->id,
+                        'report_type_id' => $limit->report_type_id,
+                        'report_type_name' => $limit->reportType->name,
+                        'description' => $limit->reportType->description,
+                        'only_api' => $limit->reportType->only_api,
+                        'quantity' => $limit->quantity,
+                        'used_quantity' => $limit->used_quantity,
+                        'available_quantity' => $limit->getAvailableQuantity(),
+                        'is_exhausted' => $limit->isExhausted(),
+                        'has_limit' => true,
+                        'date_created' => $limit->date_created->format('d.m.Y'),
+                    ];
+                }
+            }
+            
+            if (count($limitsData) > 0) {
+                $groupedLimits[] = [
+                    'subscription' => $subscription,
+                    'limits' => $limitsData,
+                    'total_quantity' => collect($limitsData)->sum('quantity'),
+                    'total_used' => collect($limitsData)->sum('used_quantity'),
+                    'total_available' => collect($limitsData)->sum('available_quantity'),
+                ];
+            }
+        }
+        
+        // Формируем плоский список лимитов для отображения в таблице
+        foreach ($groupedLimits as $group) {
+            foreach ($group['limits'] as $limit) {
+                $limits[] = $limit;
+            }
+        }
+        
+        // Добавляем типы отчетов без лимитов (для интерфейсных)
+        foreach ($reportTypes as $reportType) {
+            $exists = false;
+            foreach ($limits as $limit) {
+                if ($limit['report_type_id'] == $reportType->id) {
+                    $exists = true;
+                    break;
+                }
+            }
+            
+            if (!$exists && !$reportType->only_api) {
                 $limits[] = [
                     'report_type_id' => $reportType->id,
                     'report_type_name' => $reportType->name,
                     'description' => $reportType->description,
                     'only_api' => $reportType->only_api,
-                    'quantity' => $quantity,
-                    'used_quantity' => $limit ? $limit->used_quantity : 0,
-                    'available_quantity' => $limit ? ($limit->quantity - $limit->used_quantity) : 0,
-                    'is_exhausted' => $limit ? ($limit->quantity - $limit->used_quantity <= 0) : true,
-                    'has_limit' => $limit !== null,
-                    'date_created' => $limit ? $limit->date_created->format('d.m.Y') : null,
+                    'quantity' => 0,
+                    'used_quantity' => 0,
+                    'available_quantity' => 0,
+                    'is_exhausted' => true,
+                    'has_limit' => false,
+                    'date_created' => null,
                 ];
             }
         }
@@ -88,13 +137,21 @@ class AdminController extends Controller
             ->get();
 
         $user = $admin;
+        
+        // Получаем статистику по подпискам
+        $subscriptionsCount = $subscriptions->count();
+        $activeSubscriptionsCount = $subscriptions->where('status', 'active')->count();
             
         return view('admin.dashboard', compact(
             'user', 
             'stats', 
             'managers',
             'organizations',
-            'limits'
+            'limits',
+            'groupedLimits',
+            'subscriptions',
+            'subscriptionsCount',
+            'activeSubscriptionsCount'
         ));
     }
 }

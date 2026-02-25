@@ -1,21 +1,25 @@
 @extends('layouts.app')
 
-@section('title', 'Управление лимитами')
+@section('title', 'Управление отчетами')
+@section('page-icon', 'bi-file-text')
 
 @section('content')
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h3 class="card-title">Отчеты</h3>
-                    <div>
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center py-3">
+                    <h3 class="card-title h5 mb-0">
+                        <i class="bi bi-file-text text-primary me-2"></i>
+                        Отчеты
+                    </h3>
+                    <div class="d-flex gap-2">
                         @if(auth()->user()->isAdmin() || auth()->user()->isManager())
                             <a href="{{ route('limits.create') }}" class="btn btn-primary btn-sm">
-                                <i class="fas fa-plus"></i> Создать отчет
+                                <i class="bi bi-plus-circle me-1"></i> Создать отчет
                             </a>
                             <a href="{{ route('limits.bulk-create') }}" class="btn btn-success btn-sm">
-                                <i class="fas fa-layer-group"></i> Массовое создание
+                                <i class="bi bi-files me-1"></i> Массовое создание
                             </a>
                         @endif
                     </div>
@@ -24,10 +28,10 @@
                 <div class="card-body">
                     <!-- Фильтры -->
                     <form method="GET" class="mb-4" id="filterForm">
-                        <div class="row">
+                        <div class="row g-3">
                             <div class="col-md-3">
-                                <label>Организация</label>
-                                <select name="organization_id" class="form-control select2-organization">
+                                <label class="form-label">Организация</label>
+                                <select name="organization_id" class="form-select select2-organization">
                                     <option value="">Все организации</option>
                                     @foreach($organizations ?? [] as $org)
                                         <option value="{{ $org->id }}" {{ request('organization_id') == $org->id ? 'selected' : '' }}>
@@ -38,8 +42,8 @@
                             </div>
                             
                             <div class="col-md-3">
-                                <label>Пользователь</label>
-                                <select name="user_id" class="form-control select2-user" data-placeholder="Поиск пользователя...">
+                                <label class="form-label">Пользователь</label>
+                                <select name="user_id" class="form-select select2-user" data-placeholder="Поиск пользователя...">
                                     <option value="">Все пользователи</option>
                                     @foreach($users as $user)
                                         <option value="{{ $user->id }}" {{ request('user_id') == $user->id ? 'selected' : '' }}>
@@ -51,8 +55,8 @@
                             </div>
                             
                             <div class="col-md-2">
-                                <label>Тип отчета</label>
-                                <select name="report_type_id" class="form-control">
+                                <label class="form-label">Тип отчета</label>
+                                <select name="report_type_id" class="form-select">
                                     <option value="">Все типы</option>
                                     @foreach($reportTypes as $type)
                                         <option value="{{ $type->id }}" {{ request('report_type_id') == $type->id ? 'selected' : '' }}>
@@ -63,26 +67,26 @@
                             </div>
                             
                             <div class="col-md-2">
-                                <label>Дата</label>
+                                <label class="form-label">Дата</label>
                                 <input type="date" name="date" class="form-control" value="{{ request('date') }}">
                             </div>
                             
                             <div class="col-md-2">
-                                <label>Статус</label>
-                                <select name="status" class="form-control">
+                                <label class="form-label">Статус</label>
+                                <select name="status" class="form-select">
                                     <option value="">Все</option>
                                     <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Активные</option>
                                     <option value="exhausted" {{ request('status') == 'exhausted' ? 'selected' : '' }}>Исчерпанные</option>
                                 </select>
                             </div>
                             
-                            <div class="col-md-12 mt-3">
-                                <div class="d-flex justify-content-end">
+                            <div class="col-12 mt-3">
+                                <div class="d-flex justify-content-end gap-2">
                                     <button type="submit" class="btn btn-info">
-                                        <i class="fas fa-filter"></i> Применить фильтры
+                                        <i class="bi bi-funnel me-1"></i> Применить фильтры
                                     </button>
-                                    <a href="{{ route('limits.index') }}" class="btn btn-secondary ml-2">
-                                        <i class="fas fa-undo"></i> Сбросить
+                                    <a href="{{ route('limits.index') }}" class="btn btn-outline-secondary">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i> Сбросить
                                     </a>
                                 </div>
                             </div>
@@ -92,32 +96,32 @@
                     <!-- Активные фильтры -->
                     @if(request()->anyFilled(['organization_id', 'user_id', 'report_type_id', 'date', 'status']))
                         <div class="alert alert-info py-2 mb-3">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-filter mr-2"></i>
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                <i class="bi bi-funnel me-1"></i>
                                 <span>Активные фильтры:</span>
                                 @if(request('organization_id'))
                                     @php 
                                         $org = isset($organizations) ? $organizations->firstWhere('id', request('organization_id')) : null; 
                                     @endphp
-                                    <span class="badge badge-info ml-2">Организация: {{ $org->name ?? 'ID: ' . request('organization_id') }}</span>
+                                    <span class="badge bg-info text-white">Организация: {{ $org->name ?? 'ID: ' . request('organization_id') }}</span>
                                 @endif
                                 @if(request('user_id'))
                                     @php 
                                         $usr = $users->firstWhere('id', request('user_id')); 
                                     @endphp
-                                    <span class="badge badge-info ml-2">Пользователь: {{ $usr->name ?? 'ID: ' . request('user_id') }}</span>
+                                    <span class="badge bg-info text-white">Пользователь: {{ $usr->name ?? 'ID: ' . request('user_id') }}</span>
                                 @endif
                                 @if(request('report_type_id'))
                                     @php 
                                         $type = $reportTypes->firstWhere('id', request('report_type_id')); 
                                     @endphp
-                                    <span class="badge badge-info ml-2">Тип отчета: {{ $type->name ?? 'ID: ' . request('report_type_id') }}</span>
+                                    <span class="badge bg-info text-white">Тип отчета: {{ $type->name ?? 'ID: ' . request('report_type_id') }}</span>
                                 @endif
                                 @if(request('date'))
-                                    <span class="badge badge-info ml-2">Дата: {{ \Carbon\Carbon::parse(request('date'))->format('d.m.Y') }}</span>
+                                    <span class="badge bg-info text-white">Дата: {{ \Carbon\Carbon::parse(request('date'))->format('d.m.Y') }}</span>
                                 @endif
                                 @if(request('status'))
-                                    <span class="badge badge-info ml-2">Статус: {{ request('status') == 'active' ? 'Активные' : 'Исчерпанные' }}</span>
+                                    <span class="badge bg-info text-white">Статус: {{ request('status') == 'active' ? 'Активные' : 'Исчерпанные' }}</span>
                                 @endif
                             </div>
                         </div>
@@ -125,123 +129,173 @@
 
                     <!-- Таблица лимитов -->
                     <div class="table-responsive">
-                        <table class="table table-bordered table-hover">
-                            <thead class="thead-light">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
                                 <tr>
                                     <th>ID</th>
                                     <th>Пользователь</th>
                                     <th>Организация</th>
+                                    <th>Подписка</th>
                                     <th>Создатель</th>
                                     <th>Тип отчета</th>
-                                    <th>Количество</th>
+                                    <th>Кол-во</th>
                                     <th>Использовано</th>
                                     <th>Доступно</th>
                                     <th>Делегировано</th>
                                     <th>Дата</th>
                                     <th>Статус</th>
                                     <th>Создан</th>
-                                    <th>Действия</th>
+                                    <th class="text-center">Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse($limits as $limit)
+                                    @php
+                                        // Получаем пользователя через подписку
+                                        $user = $limit->subscription->user ?? null;
+                                        $subscription = $limit->subscription;
+                                        
+                                        // Определяем организацию пользователя
+                                        $userOrg = null;
+                                        if ($user) {
+                                            if ($user->isOrgOwner() && $user->orgOwnerProfile) {
+                                                $userOrg = $user->orgOwnerProfile->organization;
+                                            } elseif ($user->isOrgMember() && $user->orgMemberProfile) {
+                                                $userOrg = $user->orgMemberProfile->organization;
+                                            }
+                                        }
+                                        
+                                        // Статус подписки
+                                        $subscriptionStatus = $subscription ? $subscription->status : null;
+                                        $subscriptionStatusClass = $subscriptionStatus === 'active' ? 'success' : 
+                                                                  ($subscriptionStatus === 'expired' ? 'danger' : 
+                                                                  ($subscriptionStatus === 'pending' ? 'warning' : 'secondary'));
+                                        $subscriptionStatusText = $subscription ? $subscription->getStatusTextAttribute() : 'Нет подписки';
+                                    @endphp
                                     <tr>
-                                        <td>{{ $limit->id }}</td>
+                                        <td class="fw-bold">#{{ $limit->id }}</td>
                                         <td>
-                                            @if($limit->user)
-                                                <strong>{{ $limit->user->name ?? 'Не указан' }}</strong><br>
-                                                <small class="text-muted">{{ $limit->user->email ?? '' }}</small><br>
-                                                <span class="badge bg-{{ $limit->user->getRoleColor() ?? 'secondary' }}">
-                                                    {{ $limit->user->getRoleDisplayName() ?? 'Нет роли' }}
-                                                </span>
+                                            @if($user)
+                                                <div class="d-flex align-items-center">
+                                                    <div class="rounded-circle bg-{{ $user->getRoleColor() ?? 'secondary' }} d-flex align-items-center justify-content-center me-2" 
+                                                         style="width: 32px; height: 32px; color: white; font-size: 0.8rem;">
+                                                        {{ strtoupper(substr($user->name, 0, 1)) }}
+                                                    </div>
+                                                    <div>
+                                                        <div class="fw-bold">{{ $user->name }}</div>
+                                                        <small class="text-muted">{{ $user->email }}</small>
+                                                        <div>
+                                                            <span class="badge bg-{{ $user->getRoleColor() ?? 'secondary' }}" style="font-size: 0.7rem;">
+                                                                {{ $user->getRoleDisplayName() ?? 'Нет роли' }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             @else
-                                                <span class="text-muted">Пользователь не указан</span>
+                                                <span class="text-muted fst-italic">Пользователь удален</span>
                                             @endif
                                         </td>
                                         <td>
-                                            <!-- ИСПРАВЛЕНО: Определяем организацию пользователя -->
-                                            @if($limit->user)
-                                                @php
-                                                    $userOrg = null;
-                                                    if ($limit->user->isOrgOwner() && $limit->user->orgOwnerProfile) {
-                                                        $userOrg = $limit->user->orgOwnerProfile->organization;
-                                                    } elseif ($limit->user->isOrgMember() && $limit->user->orgMemberProfile) {
-                                                        $userOrg = $limit->user->orgMemberProfile->organization;
-                                                    } elseif ($limit->user->isManager() && $limit->user->managerProfile) {
-                                                        // Для менеджера показываем "Менеджер" без конкретной организации
-                                                        $userOrg = null;
-                                                    }
-                                                @endphp
-                                                
-                                                @if($userOrg)
-                                                    <strong>{{ $userOrg->name }}</strong><br>
-                                                    <small class="text-muted">
-                                                        @if($limit->user->isOrgOwner())
-                                                            <span class="badge bg-primary">Руководитель</span>
-                                                        @elseif($limit->user->isOrgMember())
-                                                            <span class="badge bg-info">Сотрудник</span>
+                                            @if($userOrg)
+                                                <div class="d-flex align-items-center">
+                                                    <div class="rounded-circle bg-success d-flex align-items-center justify-content-center me-2" 
+                                                         style="width: 28px; height: 28px; color: white; font-size: 0.7rem;">
+                                                        <i class="bi bi-building"></i>
+                                                    </div>
+                                                    <div>
+                                                        <div>{{ $userOrg->name }}</div>
+                                                        @if($user && $user->isOrgOwner())
+                                                            <small class="badge bg-primary">Руководитель</small>
+                                                        @elseif($user && $user->isOrgMember())
+                                                            <small class="badge bg-info">Сотрудник</small>
                                                         @endif
-                                                    </small>
-                                                @elseif($limit->user->isManager())
-                                                    <span class="badge bg-secondary">Менеджер</span>
-                                                @else
-                                                    <span class="text-muted">Не указана</span>
-                                                @endif
+                                                    </div>
+                                                </div>
+                                            @elseif($user && $user->isManager())
+                                                <span class="badge bg-secondary">Менеджер</span>
                                             @else
-                                                <span class="text-muted">Не указана</span>
+                                                <span class="text-muted fst-italic">Не указана</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($subscription)
+                                                <div>
+                                                    <span class="badge bg-{{ $subscriptionStatusClass }} mb-1">
+                                                        {{ $subscriptionStatusText }}
+                                                    </span>
+                                                    @if($subscription->ends_at)
+                                                        <div><small>до {{ $subscription->ends_at->format('d.m.Y') }}</small></div>
+                                                        @if($subscription->isExpiringSoon())
+                                                            <span class="badge bg-warning mt-1">скоро</span>
+                                                        @endif
+                                                    @else
+                                                        <div><small class="text-muted">бессрочно</small></div>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <span class="text-muted fst-italic">Нет подписки</span>
                                             @endif
                                         </td>
                                         <td>
                                             @if($limit->creator)
-                                                <strong>{{ $limit->creator->name ?? 'Не указан' }}</strong><br>
-                                                <small class="text-muted">{{ $limit->creator->email ?? '' }}</small><br>
-                                                <span class="badge bg-{{ $limit->creator->getRoleColor() ?? 'secondary' }}">
-                                                    {{ $limit->creator->getRoleDisplayName() ?? 'Нет роли' }}
-                                                </span>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-2" 
+                                                         style="width: 28px; height: 28px; color: white; font-size: 0.7rem;">
+                                                        {{ strtoupper(substr($limit->creator->name, 0, 1)) }}
+                                                    </div>
+                                                    <div>
+                                                        <div>{{ $limit->creator->name }}</div>
+                                                        <small class="text-muted">{{ $limit->creator->email }}</small>
+                                                    </div>
+                                                </div>
                                             @else
                                                 <span class="text-muted">
-                                                    <i class="fas fa-robot"></i> Система
+                                                    <i class="bi bi-robot"></i> Система
                                                 </span>
                                             @endif
                                         </td>
-                                        <td>{{ $limit->reportType->name ?? 'Не указан' }}</td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-file-text text-info me-1"></i>
+                                                <strong>{{ $limit->reportType->name ?? 'Не указан' }}</strong>
+                                            </div>
+                                            @if($limit->reportType && $limit->reportType->only_api)
+                                                <span class="badge bg-warning mt-1" style="font-size: 0.7rem;">только API</span>
+                                            @endif
+                                        </td>
                                         <td>
                                             <span class="badge bg-secondary">
-                                                {{ $limit->quantity }}
+                                                {{ $limit->quantity }} шт.
                                             </span>
                                         </td>
                                         <td>
                                             <span class="badge bg-warning">
-                                                {{ $limit->used_quantity }}
+                                                {{ $limit->used_quantity }} шт.
                                             </span>
                                         </td>
                                         <td>
                                             <span class="badge bg-{{ $limit->getAvailableQuantity() > 0 ? 'success' : 'danger' }}">
-                                                {{ $limit->getAvailableQuantity() }}
+                                                {{ $limit->getAvailableQuantity() }} шт.
                                             </span>
                                         </td>
                                         <td>
                                             @if($limit->delegatedVersions && $limit->delegatedVersions->count() > 0)
                                                 <div class="delegated-info">
-                                                    <button type="button" class="btn btn-xs btn-info" data-toggle="collapse" 
-                                                            data-target="#delegated-{{ $limit->id }}">
-                                                        <i class="fas fa-share-alt"></i> 
+                                                    <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" 
+                                                            data-bs-target="#delegated-{{ $limit->id }}">
+                                                        <i class="bi bi-share"></i> 
                                                         {{ $limit->delegatedVersions->count() }}
                                                     </button>
-                                                    <div class="mt-2">
-                                                        <small>Всего делегировано: 
-                                                            <strong>{{ $limit->delegatedVersions->sum('quantity') }}</strong>
-                                                        </small><br>
-                                                        <small>Использовано: 
-                                                            <strong>{{ $limit->delegatedVersions->sum('used_quantity') }}</strong>
-                                                        </small>
+                                                    <div class="mt-2 small">
+                                                        <div>Всего: <strong>{{ $limit->delegatedVersions->sum('quantity') }}</strong> шт.</div>
+                                                        <div>Использовано: <strong>{{ $limit->delegatedVersions->sum('used_quantity') }}</strong> шт.</div>
                                                     </div>
                                                 </div>
                                             @else
-                                                <span class="text-muted">Нет</span>
+                                                <span class="text-muted fst-italic">—</span>
                                             @endif
                                         </td>
-                                        <td>{{ $limit->date_created ? $limit->date_created->format('d.m.Y') : 'Не указана' }}</td>
+                                        <td>{{ $limit->date_created ? $limit->date_created->format('d.m.Y') : '—' }}</td>
                                         <td>
                                             @if($limit->isExhausted())
                                                 <span class="badge bg-danger">Исчерпан</span>
@@ -249,30 +303,35 @@
                                                 <span class="badge bg-success">Активен</span>
                                             @endif
                                         </td>
-                                        <td>{{ $limit->created_at ? $limit->created_at->format('d.m.Y H:i') : '' }}</td>
                                         <td>
-                                            <div class="btn-group" role="group">
+                                            {{ $limit->created_at ? $limit->created_at->format('d.m.Y') : '' }}<br>
+                                            <small class="text-muted">{{ $limit->created_at ? $limit->created_at->format('H:i') : '' }}</small>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex justify-content-center gap-1">
                                                 @if(auth()->user()->isAdmin())
-                                                    <a href="{{ route('limits.edit', $limit) }}" class="btn btn-sm btn-warning" title="Редактировать">
-                                                        <i class="fas fa-edit"></i>
+                                                    <a href="{{ route('limits.edit', $limit) }}" class="btn btn-sm btn-outline-warning" title="Редактировать">
+                                                        <i class="bi bi-pencil"></i>
                                                     </a>
-                                                    <form action="{{ route('limits.destroy', $limit) }}" method="POST" class="d-inline">
+                                                    <form action="{{ route('limits.destroy', $limit) }}" method="POST" class="d-inline" 
+                                                          onsubmit="return confirm('Вы уверены, что хотите удалить этот отчет?')">
                                                         @csrf
                                                         @method('DELETE')
-                                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить лимит?')" title="Удалить">
-                                                            <i class="fas fa-trash"></i>
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить">
+                                                            <i class="bi bi-trash"></i>
                                                         </button>
                                                     </form>
                                                 @endif
-                                                @if($limit->user)
-                                                    <a href="{{ route('users.limits', $limit->user) }}" class="btn btn-sm btn-info" title="Все лимиты пользователя">
-                                                        <i class="fas fa-user"></i>
+                                                @if($user)
+                                                    <a href="{{ route('users.limits', $user) }}" class="btn btn-sm btn-outline-info" title="Все отчеты пользователя">
+                                                        <i class="bi bi-person"></i>
                                                     </a>
                                                 @endif
-                                                @if((auth()->user()->isAdmin() || auth()->user()->isManager()) && $limit->getAvailableQuantity() > 0)
-                                                    <button type="button" class="btn btn-sm btn-secondary" 
-                                                            data-toggle="modal" data-target="#delegateModal{{ $limit->id }}" title="Делегировать">
-                                                        <i class="fas fa-share-alt"></i>
+                                                @if((auth()->user()->isAdmin() || auth()->user()->isManager()) && $limit->getAvailableQuantity() > 0 && $subscription)
+                                                    <button type="button" class="btn btn-sm btn-outline-success" 
+                                                            data-bs-toggle="modal" data-bs-target="#delegateModal{{ $limit->id }}" 
+                                                            title="Делегировать">
+                                                        <i class="bi bi-share"></i>
                                                     </button>
                                                 @endif
                                             </div>
@@ -282,12 +341,15 @@
                                     <!-- Детали делегированных лимитов (скрытый блок) -->
                                     @if($limit->delegatedVersions && $limit->delegatedVersions->count() > 0)
                                         <tr class="collapse" id="delegated-{{ $limit->id }}">
-                                            <td colspan="13" class="p-0">
-                                                <div class="p-3 bg-light">
-                                                    <h6 class="mb-3"><i class="fas fa-share-alt mr-2"></i>Делегированные отчеты:</h6>
+                                            <td colspan="14" class="p-0">
+                                                <div class="p-3 bg-light border-top border-bottom">
+                                                    <h6 class="mb-3">
+                                                        <i class="bi bi-share me-2"></i>
+                                                        Делегированные отчеты:
+                                                    </h6>
                                                     <div class="table-responsive">
-                                                        <table class="table table-sm table-bordered mb-0">
-                                                            <thead class="thead-light">
+                                                        <table class="table table-sm table-bordered mb-0 bg-white">
+                                                            <thead class="table-light">
                                                                 <tr>
                                                                     <th>Пользователь</th>
                                                                     <th>Организация</th>
@@ -300,41 +362,48 @@
                                                             </thead>
                                                             <tbody>
                                                                 @foreach($limit->delegatedVersions as $delegated)
+                                                                    @php
+                                                                        $delUser = $delegated->user;
+                                                                        $delUserOrg = null;
+                                                                        if ($delUser) {
+                                                                            if ($delUser->isOrgOwner() && $delUser->orgOwnerProfile) {
+                                                                                $delUserOrg = $delUser->orgOwnerProfile->organization;
+                                                                            } elseif ($delUser->isOrgMember() && $delUser->orgMemberProfile) {
+                                                                                $delUserOrg = $delUser->orgMemberProfile->organization;
+                                                                            }
+                                                                        }
+                                                                    @endphp
                                                                     <tr>
                                                                         <td>
-                                                                            @if($delegated->user)
-                                                                                <strong>{{ $delegated->user->name ?? 'Не указан' }}</strong><br>
-                                                                                <small>{{ $delegated->user->email ?? '' }}</small>
+                                                                            @if($delUser)
+                                                                                <div class="d-flex align-items-center">
+                                                                                    <div class="rounded-circle bg-info d-flex align-items-center justify-content-center me-2" 
+                                                                                         style="width: 28px; height: 28px; color: white; font-size: 0.7rem;">
+                                                                                        {{ strtoupper(substr($delUser->name, 0, 1)) }}
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <div>{{ $delUser->name }}</div>
+                                                                                        <small class="text-muted">{{ $delUser->email }}</small>
+                                                                                    </div>
+                                                                                </div>
                                                                             @else
-                                                                                <span class="text-muted">Не указан</span>
+                                                                                <span class="text-muted fst-italic">Не указан</span>
                                                                             @endif
                                                                         </td>
                                                                         <td>
-                                                                            <!-- ИСПРАВЛЕНО: Организация делегированного пользователя -->
-                                                                            @if($delegated->user)
-                                                                                @php
-                                                                                    $delUserOrg = null;
-                                                                                    if ($delegated->user->isOrgOwner() && $delegated->user->orgOwnerProfile) {
-                                                                                        $delUserOrg = $delegated->user->orgOwnerProfile->organization;
-                                                                                    } elseif ($delegated->user->isOrgMember() && $delegated->user->orgMemberProfile) {
-                                                                                        $delUserOrg = $delegated->user->orgMemberProfile->organization;
-                                                                                    }
-                                                                                @endphp
-                                                                                
-                                                                                @if($delUserOrg)
-                                                                                    {{ $delUserOrg->name }}
-                                                                                @else
-                                                                                    <span class="text-muted">Не указана</span>
-                                                                                @endif
+                                                                            @if($delUserOrg)
+                                                                                {{ $delUserOrg->name }}
+                                                                            @elseif($delUser && $delUser->isManager())
+                                                                                <span class="badge bg-secondary">Менеджер</span>
                                                                             @else
-                                                                                <span class="text-muted">Не указана</span>
+                                                                                <span class="text-muted fst-italic">Не указана</span>
                                                                             @endif
                                                                         </td>
-                                                                        <td>{{ $delegated->quantity }}</td>
-                                                                        <td>{{ $delegated->used_quantity }}</td>
+                                                                        <td>{{ $delegated->quantity }} шт.</td>
+                                                                        <td>{{ $delegated->used_quantity }} шт.</td>
                                                                         <td>
                                                                             <span class="badge bg-{{ $delegated->getAvailableQuantity() > 0 ? 'success' : 'danger' }}">
-                                                                                {{ $delegated->getAvailableQuantity() }}
+                                                                                {{ $delegated->getAvailableQuantity() }} шт.
                                                                             </span>
                                                                         </td>
                                                                         <td>
@@ -358,9 +427,12 @@
                                     @endif
                                 @empty
                                     <tr>
-                                        <td colspan="13" class="text-center py-4">
-                                            <i class="fas fa-inbox fa-3x mb-3 text-muted"></i>
+                                        <td colspan="14" class="text-center py-5">
+                                            <i class="bi bi-file-text display-1 text-muted mb-3 d-block"></i>
                                             <p class="text-muted mb-0">Отчеты не найдены</p>
+                                            @if(request()->anyFilled(['organization_id', 'user_id', 'report_type_id', 'date', 'status']))
+                                                <p class="text-muted mt-2">Попробуйте изменить параметры фильтрации</p>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforelse
@@ -390,48 +462,58 @@
 
 <!-- Модальные окна для делегирования -->
 @foreach($limits as $limit)
-    @if((auth()->user()->isAdmin() || auth()->user()->isManager()) && $limit->getAvailableQuantity() > 0)
-        <div class="modal fade" id="delegateModal{{ $limit->id }}" tabindex="-1" role="dialog" aria-labelledby="delegateModalLabel{{ $limit->id }}" aria-hidden="true">
-            <div class="modal-dialog" role="document">
+    @php
+        $subscription = $limit->subscription;
+    @endphp
+    @if((auth()->user()->isAdmin() || auth()->user()->isManager()) && $limit->getAvailableQuantity() > 0 && $subscription)
+        <div class="modal fade" id="delegateModal{{ $limit->id }}" tabindex="-1" aria-labelledby="delegateModalLabel{{ $limit->id }}" aria-hidden="true">
+            <div class="modal-dialog">
                 <div class="modal-content">
                     <form action="{{ route('limits.delegate', $limit) }}" method="POST">
                         @csrf
-                        <div class="modal-header">
+                        <div class="modal-header bg-success text-white">
                             <h5 class="modal-title" id="delegateModalLabel{{ $limit->id }}">
-                                <i class="fas fa-share-alt mr-2"></i>Делегировать отчет #{{ $limit->id }}
+                                <i class="bi bi-share me-2"></i>
+                                Делегировать отчет #{{ $limit->id }}
                             </h5>
-                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <div class="alert alert-info">
-                                <strong>Отчет:</strong> {{ $limit->reportType->name ?? 'Не указан' }}<br>
-                                <strong>Доступно для делегирования:</strong> {{ $limit->getAvailableQuantity() }}
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="bi bi-file-text me-2"></i>
+                                    <strong>Отчет:</strong> {{ $limit->reportType->name ?? 'Не указан' }}
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-check-circle me-2"></i>
+                                    <strong>Доступно для делегирования:</strong> 
+                                    <span class="badge bg-success ms-2">{{ $limit->getAvailableQuantity() }} шт.</span>
+                                </div>
                             </div>
                             
-                            <div class="form-group">
-                                <label>Пользователь <span class="text-danger">*</span></label>
-                                <select name="user_id" class="form-control select2-delegate" 
-                                        data-exclude-user-id="{{ $limit->user_id }}" required>
+                            <div class="mb-3">
+                                <label class="form-label">Пользователь <span class="text-danger">*</span></label>
+                                <select name="user_id" class="form-select select2-delegate" 
+                                        data-exclude-user-id="{{ $user ? $user->id : '' }}" required>
                                     <option value="">Поиск пользователя...</option>
                                 </select>
+                                <small class="text-muted">Выберите сотрудника для делегирования</small>
                             </div>
                             
-                            <div class="form-group">
-                                <label>Количество <span class="text-danger">*</span></label>
+                            <div class="mb-3">
+                                <label class="form-label">Количество <span class="text-danger">*</span></label>
                                 <input type="number" name="quantity" class="form-control" 
                                        min="1" max="{{ $limit->getAvailableQuantity() }}" 
                                        value="1" required>
                                 <small class="text-muted">
-                                    Максимум доступно: {{ $limit->getAvailableQuantity() }}
+                                    Максимум: {{ $limit->getAvailableQuantity() }} шт.
                                 </small>
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Отмена</button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-share-alt mr-1"></i>Делегировать
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-share me-1"></i>Делегировать
                             </button>
                         </div>
                     </form>
@@ -444,56 +526,41 @@
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
+    .select2-container {
+        width: 100% !important;
+    }
     .select2-container--default .select2-selection--single {
-        height: calc(2.25rem + 2px);
-        border: 1px solid #ced4da;
+        height: 38px;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
     }
     .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: calc(2.25rem + 2px);
+        line-height: 38px;
+        padding-left: 12px;
     }
-    .btn-group .btn {
-        margin-right: 2px;
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 38px;
     }
-    .table td {
+    .table td, .table th {
         vertical-align: middle;
     }
     .badge {
         font-size: 85%;
-        padding: 0.4em 0.6em;
     }
-    .delegated-info .btn-xs {
-        padding: 0.25rem 0.4rem;
-        font-size: 0.75rem;
+    .btn-sm {
+        line-height: 1;
+    }
+    .btn-sm i {
+        font-size: 1rem;
+    }
+    .delegated-info .btn-sm {
+        padding: 0.25rem 0.5rem;
     }
     .collapse:not(.show) {
         display: none;
     }
     .collapse.show {
         display: table-row;
-    }
-    .bg-success {
-        background-color: #28a745 !important;
-    }
-    .bg-danger {
-        background-color: #dc3545 !important;
-    }
-    .bg-warning {
-        background-color: #ffc107 !important;
-    }
-    .bg-info {
-        background-color: #17a2b8 !important;
-    }
-    .bg-secondary {
-        background-color: #6c757d !important;
-    }
-    .bg-primary {
-        background-color: #007bff !important;
-    }
-    .ml-2 {
-        margin-left: 0.5rem;
-    }
-    .mr-2 {
-        margin-right: 0.5rem;
     }
 </style>
 @endpush
@@ -599,6 +666,20 @@
                     },
                     cache: true
                 }
+            });
+        });
+
+        // Инициализация Bootstrap Tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Инициализация Bootstrap Collapse для кнопок делегирования
+        var collapseElementList = [].slice.call(document.querySelectorAll('.collapse'));
+        collapseElementList.map(function (collapseEl) {
+            return new bootstrap.Collapse(collapseEl, {
+                toggle: false
             });
         });
     });

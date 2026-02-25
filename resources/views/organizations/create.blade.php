@@ -191,9 +191,9 @@
                                     Имя владельца *
                                 </label>
                                 <input type="text" class="form-control @error('user.name') is-invalid @enderror" 
-                                       id="user_name" name="user[name]" 
-                                       value="{{ old('user.name') }}" 
-                                       placeholder="Введите имя" required>
+                                    id="user_name" name="user[name]" 
+                                    value="{{ old('user.name') }}" 
+                                    placeholder="Введите имя" required>
                                 @error('user.name')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -204,12 +204,29 @@
                                     Email *
                                 </label>
                                 <input type="email" class="form-control @error('user.email') is-invalid @enderror" 
-                                       id="user_email" name="user[email]" 
-                                       value="{{ old('user.email') }}" 
-                                       placeholder="email@example.com" required>
+                                    id="user_email" name="user[email]" 
+                                    value="{{ old('user.email') }}" 
+                                    placeholder="email@example.com" required>
                                 @error('user.email')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
+                            </div>
+                        </div>
+                        
+                        <!-- НОВОЕ ПОЛЕ: Номер телефона владельца (улучшенный дизайн) -->
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="user_phone" class="form-label">
+                                    Номер телефона владельца <small class="text-muted">(необязательно)</small>
+                                </label>
+                                <input type="tel" class="form-control @error('user.phone') is-invalid @enderror" 
+                                    id="user_phone" name="user[phone]" 
+                                    value="{{ old('user.phone') }}" 
+                                    placeholder="+7 (999) 999-99-99">
+                                @error('user.phone')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text text-muted">Контактный телефон владельца организации</div>
                             </div>
                         </div>
                         
@@ -219,8 +236,8 @@
                                     Пароль *
                                 </label>
                                 <input type="password" class="form-control @error('user.password') is-invalid @enderror" 
-                                       id="user_password" name="user[password]" 
-                                       placeholder="Минимум 8 символов" required>
+                                    id="user_password" name="user[password]" 
+                                    placeholder="Минимум 8 символов" required>
                                 @error('user.password')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -231,8 +248,8 @@
                                     Подтверждение пароля *
                                 </label>
                                 <input type="password" class="form-control" 
-                                       id="user_password_confirmation" name="user[password_confirmation]" 
-                                       placeholder="Повторите пароль" required>
+                                    id="user_password_confirmation" name="user[password_confirmation]" 
+                                    placeholder="Повторите пароль" required>
                             </div>
                         </div>
                     </div>
@@ -264,10 +281,24 @@
         </div>
     </div>
 </div>
+@endsection
 
 @push('scripts')
+<!-- Inputmask для красивого ввода телефона -->
+<script src="https://cdn.jsdelivr.net/npm/inputmask@5.0.8/dist/inputmask.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Маска для телефона владельца
+        const phoneField = document.getElementById('user_phone');
+        if (phoneField) {
+            Inputmask({ 
+                mask: ['+7 (999) 999-99-99', '+375 (99) 999-99-99', '+999 (99) 999-99-99'],
+                keepStatic: true,
+                showMaskOnHover: false,
+                clearIncomplete: true
+            }).mask(phoneField);
+        }
+
         // Устанавливаем минимальную дату для подписки
         const subscriptionField = document.getElementById('subscription_ends_at');
         if (subscriptionField) {
@@ -335,4 +366,3 @@
     });
 </script>
 @endpush
-@endsection

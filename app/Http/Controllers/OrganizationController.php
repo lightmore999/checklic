@@ -319,7 +319,7 @@ class OrganizationController extends Controller
         
         // === ПОДПИСКИ ВЛАДЕЛЬЦА ОРГАНИЗАЦИИ ===
         $subscriptions = collect();
-        $groupedLimits = [];
+        $groupedLimits = []; // ИСПРАВЛЕНО: теперь ассоциативный массив с ключом по ID подписки
         $delegatedLimits = collect();
         $availableEmployees = collect();
         
@@ -331,15 +331,15 @@ class OrganizationController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->get();
             
-            // === ГРУППИРОВКА ЛИМИТОВ ПО ПОДПИСКАМ ===
+            // === ИСПРАВЛЕНО: ГРУППИРУЕМ ЛИМИТЫ ПО КАЖДОЙ ПОДПИСКЕ ===
             foreach ($subscriptions as $subscription) {
-                // Получаем обычные лимиты для этой подписки
+                // Получаем обычные лимиты для ЭТОЙ подписки
                 $limits = Limit::where('subscription_id', $subscription->id)
                     ->with(['reportType'])
                     ->orderBy('date_created', 'desc')
                     ->get();
                 
-                // Получаем делегированные лимиты для этой подписки
+                // Получаем делегированные лимиты для ЭТОЙ подписки
                 $subscriptionDelegatedLimits = DelegatedLimit::whereHas('limit', function($q) use ($subscription) {
                         $q->where('subscription_id', $subscription->id);
                     })
@@ -350,11 +350,19 @@ class OrganizationController extends Controller
                 // Добавляем делегированные лимиты в общую коллекцию
                 $delegatedLimits = $delegatedLimits->merge($subscriptionDelegatedLimits);
                 
-                // Формируем данные для отображения по этой подписке
+                // Формируем данные для отображения по ЭТОЙ подписке
                 $subscriptionLimits = [];
+                $totalQuantity = 0;
+                $totalUsed = 0;
+                $totalDelegatedForSub = 0;
+                
                 foreach ($limits as $limit) {
                     if ($limit->reportType) {
-                        $delegatedAmount = $subscriptionDelegatedLimits->where('limit_id', $limit->id)->sum('quantity');
+                        $delegatedAmount = $subscriptionDelegatedLimits
+                            ->where('limit_id', $limit->id)
+                            ->sum('quantity');
+                        
+                        $availableAmount = $limit->getAvailableQuantity();
                         
                         $subscriptionLimits[] = [
                             'id' => $limit->id,
@@ -365,23 +373,28 @@ class OrganizationController extends Controller
                             'quantity' => $limit->quantity,
                             'used_quantity' => $limit->used_quantity ?? 0,
                             'delegated_amount' => $delegatedAmount,
-                            'available_amount' => $limit->getAvailableQuantity(),
-                            'is_exhausted' => $limit->isExhausted(),
+                            'available_amount' => $availableAmount,
+                            'is_exhausted' => $availableAmount <= 0,
                             'has_limit' => true,
                             'date_created' => $limit->date_created,
                         ];
+                        
+                        $totalQuantity += $limit->quantity;
+                        $totalUsed += $limit->used_quantity ?? 0;
+                        $totalDelegatedForSub += $delegatedAmount;
                     }
                 }
                 
-                // Добавляем в группировку, если есть лимиты
+                // Добавляем в группировку, используя ID подписки как ключ
                 if (count($subscriptionLimits) > 0) {
-                    $groupedLimits[] = [
+                    $groupedLimits[$subscription->id] = [ // ИСПРАВЛЕНО: используем ID как ключ
                         'subscription' => $subscription,
                         'limits' => $subscriptionLimits,
                         'total_limits' => count($subscriptionLimits),
-                        'total_quantity' => collect($subscriptionLimits)->sum('quantity'),
-                        'total_used' => collect($subscriptionLimits)->sum('used_quantity'),
-                        'total_available' => collect($subscriptionLimits)->sum('available_amount'),
+                        'total_quantity' => $totalQuantity,
+                        'total_used' => $totalUsed,
+                        'total_available' => $totalQuantity - $totalUsed - $totalDelegatedForSub,
+                        'total_delegated' => $totalDelegatedForSub,
                     ];
                 }
             }
@@ -402,7 +415,7 @@ class OrganizationController extends Controller
             'organization', 
             'routePrefix',
             'subscriptions',
-            'groupedLimits',
+            'groupedLimits',      // Теперь ассоциативный массив [subscription_id => данные]
             'delegatedLimits',
             'availableEmployees',
             'currentEmployeesCount',

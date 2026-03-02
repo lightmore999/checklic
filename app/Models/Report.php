@@ -35,8 +35,11 @@ class Report extends Model
         'cadastral_number',
         'property_type',
         
-        // Результат
+        // Результат от API
         'response_data',
+        
+        // НОВОЕ: обработанные данные после парсинга
+        'processed_data',
         
         // Системные
         'quantity_used',
@@ -60,6 +63,7 @@ class Report extends Model
      */
     protected $casts = [
         'response_data' => 'array',
+        'processed_data' => 'array',    // НОВОЕ
         'birth_date' => 'date',
         'passport_date' => 'date',
         'quantity_used' => 'integer',
@@ -323,5 +327,30 @@ class Report extends Model
             'cadastral_number' => $this->cadastral_number,
             'property_type' => $this->property_type,
         ];
+    }
+
+    /**
+     * НОВЫЙ МЕТОД: Сохранить обработанные данные
+     */
+    public function setProcessedData(array $data): self
+    {
+        $this->processed_data = $data;
+        return $this;
+    }
+
+    /**
+     * НОВЫЙ МЕТОД: Получить обработанные данные
+     */
+    public function getProcessedData(): ?array
+    {
+        return $this->processed_data;
+    }
+
+    /**
+     * НОВЫЙ МЕТОД: Проверить, есть ли обработанные данные
+     */
+    public function hasProcessedData(): bool
+    {
+        return !empty($this->processed_data);
     }
 }

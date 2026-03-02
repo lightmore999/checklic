@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 
+require_once app_path('Helpers/dossier-v2.php');
+
 class ReportController extends Controller
 {
     /**
@@ -394,13 +396,12 @@ class ReportController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-
-
+        
         $validator = Validator::make($request->all(), [
             'report_types' => 'required|array|min:1',
             'report_types.*' => 'exists:report_types,id',
             
-            // Все поля делаем nullable, так как проверка будет на фронтенде
+            // Все поля nullable, так как проверка на фронтенде
             'last_name' => 'nullable|string|max:100',
             'first_name' => 'nullable|string|max:100',
             'patronymic' => 'nullable|string|max:100',
@@ -423,54 +424,68 @@ class ReportController extends Controller
         $createdReports = [];
         $errors = [];
         
-        // Для каждого выбранного типа отчета создаем отдельный отчет
-        foreach ($request->report_types as $reportTypeId) {
+        // Группируем отчеты по типам для более эффективного использования лимитов
+        $reportsByType = array_count_values($request->report_types);
+        
+        foreach ($reportsByType as $reportTypeId => $count) {
             try {
                 $reportType = ReportType::findOrFail($reportTypeId);
                 
-                // Проверяем, есть ли у пользователя лимит для этого типа отчета
-                $availableLimit = $this->getUserLimitForReportType($user, $reportTypeId);
+                // ПОЛУЧАЕМ ДОСТУПНЫЕ ЛИМИТЫ ДЛЯ ЭТОГО ТИПА ОТЧЕТА
+                $availableLimits = $this->getAvailableLimitsForReportType($user, $reportTypeId, $count);
                 
-                if (!$availableLimit) {
-                    $errors[] = "Нет доступного лимита для отчета: {$reportType->name}";
+                if (empty($availableLimits)) {
+                    $errors[] = "Нет доступных лимитов для отчета: {$reportType->name} (нужно {$count})";
                     continue;
                 }
                 
-                // УБРАЛ проверку обязательных полей, так как она на фронтенде
-                // Проверяем только минимальные требования для каждого типа
-                if (!$this->validateMinimalRequirements($reportTypeId, $request)) {
-                    $errors[] = "Не заполнены минимальные требования для отчета: {$reportType->name}";
-                    continue;
+                $remainingToCreate = $count;
+                
+                // Проходим по доступным лимитам и создаем отчеты
+                foreach ($availableLimits as $limit) {
+                    if ($remainingToCreate <= 0) break;
+                    
+                    // Сколько можем создать из этого лимита
+                    $availableQuantity = $limit->getAvailableQuantity();
+                    $createCount = min($remainingToCreate, $availableQuantity);
+                    
+                    for ($i = 0; $i < $createCount; $i++) {
+                        try {
+                            // Создаем отчет
+                            $reportData = $this->prepareReportData($request, $reportTypeId);
+                            $reportData['user_id'] = $user->id;
+                            $reportData['report_type_id'] = $reportTypeId;
+                            $reportData['status'] = Report::STATUS_PENDING;
+                            $reportData['quantity_used'] = 1;
+                            
+                            // Привязываем лимит (определяем по типу объекта)
+                            if ($limit instanceof \App\Models\DelegatedLimit) {
+                                $reportData['delegated_limit_id'] = $limit->id;
+                            } else {
+                                $reportData['limit_id'] = $limit->id;
+                            }
+                            
+                            $report = Report::create($reportData);
+                            
+                            // Списываем лимит
+                            $limit->useQuantity(1);
+                            
+                            $createdReports[] = $report;
+                            $remainingToCreate--;
+                            
+                        } catch (\Exception $e) {
+                            $errors[] = "Ошибка при создании отчета {$reportType->name}: " . $e->getMessage();
+                        }
+                    }
                 }
                 
-                // Создаем отчет
-                $reportData = $this->prepareReportData($request, $reportTypeId);
-                $reportData['user_id'] = $user->id;
-                $reportData['report_type_id'] = $reportTypeId;
-                $reportData['status'] = Report::STATUS_PENDING;
-                $reportData['quantity_used'] = 1;
-                
-                // Привязываем использованный лимит
-                if ($availableLimit instanceof DelegatedLimit) {
-                    $reportData['delegated_limit_id'] = $availableLimit->id;
-                } else {
-                    $reportData['limit_id'] = $availableLimit->id;
+                // Если не удалось создать все запрошенные отчеты этого типа
+                if ($remainingToCreate > 0) {
+                    $errors[] = "Не удалось создать {$remainingToCreate} отчет(ов) типа {$reportType->name} (недостаточно лимитов)";
                 }
-                
-                $report = Report::create($reportData);
-
-                
-                // Списываем лимит
-                if ($availableLimit instanceof DelegatedLimit) {
-                    $availableLimit->useQuantity(1);
-                } else {
-                    $availableLimit->useQuantity(1);
-                }
-                
-                $createdReports[] = $report;
                 
             } catch (\Exception $e) {
-                $errors[] = "Ошибка при создании отчета: " . $e->getMessage();
+                $errors[] = "Ошибка при обработке типа отчета: " . $e->getMessage();
             }
         }
         
@@ -481,13 +496,72 @@ class ReportController extends Controller
                 ->withInput();
         }
         
-        $message = count($createdReports) . ' отчет(ов) успешно создан.';
+        $message = count($createdReports) . ' отчет(ов) успешно создано.';
         if (!empty($errors)) {
             $message .= '<br>Ошибки: ' . implode('<br>', $errors);
         }
         
         return redirect()->route('reports.index')
             ->with('success', $message);
+    }
+
+    /**
+     * Получить доступные лимиты для типа отчета
+     */
+    private function getAvailableLimitsForReportType($user, $reportTypeId, $neededQuantity)
+    {
+        $limits = collect();
+        
+        // Получаем активные подписки пользователя
+        $subscriptions = $user->subscriptions()
+            ->where('status', 'active')
+            ->where(function($query) {
+                $query->whereNull('ends_at')
+                    ->orWhere('ends_at', '>', now());
+            })
+            ->orderBy('ends_at', 'asc') // Сортируем по дате окончания (сначала истекающие)
+            ->get();
+        
+        foreach ($subscriptions as $subscription) {
+            // Собственные лимиты подписки
+            $personalLimits = $subscription->limits()
+                ->where('report_type_id', $reportTypeId)
+                ->whereRaw('used_quantity < quantity')
+                ->orderBy('date_created')
+                ->get();
+            
+            foreach ($personalLimits as $limit) {
+                $limits->push($limit);
+            }
+            
+            // Делегированные лимиты
+            $delegatedLimits = \App\Models\DelegatedLimit::whereHas('limit', function($query) use ($subscription, $reportTypeId) {
+                $query->where('subscription_id', $subscription->id)
+                    ->where('report_type_id', $reportTypeId);
+            })
+            ->where('user_id', $user->id)
+            ->where('is_active', true)
+            ->whereRaw('used_quantity < quantity')
+            ->orderBy('created_at')
+            ->get();
+            
+            foreach ($delegatedLimits as $delegated) {
+                $limits->push($delegated);
+            }
+            
+            // Если уже набрали достаточно лимитов, выходим
+            if ($limits->sum(function($limit) {
+                return $limit->getAvailableQuantity();
+            }) >= $neededQuantity) {
+                break;
+            }
+        }
+        
+        return $limits->filter(function($limit) {
+            return $limit->getAvailableQuantity() > 0;
+        })->sortBy(function($limit) {
+            return $limit instanceof \App\Models\DelegatedLimit ? 1 : 0;
+        })->take($neededQuantity);
     }
 
     /**
@@ -596,7 +670,69 @@ class ReportController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
-        return view('reports.show', compact('report'));
+        // Загружаем связи
+        $report->load(['reportType', 'user']);
+        
+        // Определяем тип отчета
+        $reportTypeCode = $report->reportType->code ?? null; // Предполагаю, что есть поле code
+        $reportTypeName = $report->reportType->name ?? '';
+        
+        // Для типа "Досье V2" используем специальную обработку
+        if ($reportTypeCode === 'dossier_v2' || str_contains($reportTypeName, 'Досье V2')) {
+            return $this->showDossierV2($report);
+        }
+        
+        // Для остальных типов показываем заглушку
+        return view('reports.show_placeholder', compact('report'));
+    }
+
+    private function showDossierV2(Report $report)
+    {
+        $user = Auth::user();
+        
+        // Переменные для данных
+        $data = [];
+        $updateArrayBlocks = [];
+        
+        // Если есть обработанные данные - используем их
+        if ($report->processed_data) {
+            $processedData = json_decode($report->processed_data, true);
+            $data = $processedData['data'] ?? [];
+            $updateArrayBlocks = $processedData['update_array_blocks'] ?? [];
+        } 
+        // Если есть сырые данные - обрабатываем их
+        elseif ($report->response_data) {
+            require_once app_path('Helpers/dossier-v2.php');
+            
+            $order = new \stdClass();
+            $order->raw = json_encode($report->response_data);
+            $order->report_success = false;
+            $order->raw_processed = null;
+            $order->oid = $report->id;
+            
+            dossier_v2_conversion($order, $data, $updateArrayBlocks);
+            
+            // Сохраняем обработанные данные
+            $processedData = [
+                'data' => $data,
+                'update_array_blocks' => $updateArrayBlocks
+            ];
+            $report->processed_data = json_encode($processedData);
+            $report->save();
+        }
+        
+        // Константы для отображения заголовков блоков
+        if (!defined('D2_OPTIONS_OF_BLOCKS')) {
+            require_once app_path('Helpers/dossier-v2.php');
+        }
+        $d2OptionsOfBlocks = D2_OPTIONS_OF_BLOCKS;
+        
+        return view('reports.show', compact(
+            'report',
+            'data',
+            'updateArrayBlocks',
+            'd2OptionsOfBlocks'
+        ));
     }
 
     /**
@@ -652,29 +788,42 @@ class ReportController extends Controller
      */
     private function getUserLimitForReportType($user, $reportTypeId)
     {
-        // 1. ДЛЯ ВСЕХ: Проверяем собственные лимиты пользователя
-        $limit = Limit::where('user_id', $user->id)
-            ->where('report_type_id', $reportTypeId)
-            ->orderBy('date_created', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->first();
+        // Получаем активные подписки пользователя
+        $subscriptions = $user->subscriptions()
+            ->where('status', 'active')
+            ->where(function($query) {
+                $query->whereNull('ends_at')
+                    ->orWhere('ends_at', '>', now());
+            })
+            ->get();
         
-        if ($limit && $limit->getAvailableQuantity() > 0) {
-            return $limit;
-        }
-        
-        // 2. ТОЛЬКО ДЛЯ СОТРУДНИКОВ: Проверяем делегированные лимиты
-        if ($user->isOrgMember()) {  // или любая проверка на роль сотрудника
-            $delegatedLimit = DelegatedLimit::where('user_id', $user->id)
+        // Сначала ищем собственные лимиты
+        foreach ($subscriptions as $subscription) {
+            $limit = $subscription->limits()
+                ->where('report_type_id', $reportTypeId)
                 ->where('is_active', true)
-                ->whereHas('limit', function($q) use ($reportTypeId) {
-                    $q->where('report_type_id', $reportTypeId);
-                })
-                ->orderBy('created_at', 'desc')
+                ->whereRaw('used_quantity < quantity')
                 ->first();
             
-            if ($delegatedLimit && $delegatedLimit->getAvailableQuantity() > 0) {
-                return $delegatedLimit;
+            if ($limit) {
+                return $limit;
+            }
+        }
+        
+        // Если нет собственных, ищем делегированные
+        foreach ($subscriptions as $subscription) {
+            $delegated = \App\Models\DelegatedLimit::whereHas('limit', function($query) use ($subscription, $reportTypeId) {
+                $query->where('subscription_id', $subscription->id)
+                    ->where('report_type_id', $reportTypeId)
+                    ->where('is_active', true);
+            })
+            ->where('user_id', $user->id)
+            ->where('is_active', true)
+            ->whereRaw('used_quantity < quantity')
+            ->first();
+            
+            if ($delegated) {
+                return $delegated;
             }
         }
         

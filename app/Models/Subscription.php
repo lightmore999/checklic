@@ -160,4 +160,9 @@ class Subscription extends Model
             default => 'secondary',
         };
     }
+
+    public function limits()
+    {
+        return $this->hasMany(Limit::class, 'subscription_id');
+    }
 }

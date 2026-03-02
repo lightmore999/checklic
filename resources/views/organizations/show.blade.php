@@ -417,7 +417,7 @@
 
             <!-- Отчеты по подпискам -->
             @if(isset($groupedLimits) && count($groupedLimits) > 0)
-                @foreach($groupedLimits as $group)
+                @foreach($groupedLimits as $subscriptionId => $group)
                     @php
                         $subscription = $group['subscription'];
                         $limits = $group['limits'];

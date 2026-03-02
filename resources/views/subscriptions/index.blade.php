@@ -225,7 +225,6 @@
                                 <th>Статус</th>
                                 <th>Осталось дней</th>
                                 <th>Создана</th>
-                                <th class="text-center">Действия</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -233,9 +232,9 @@
                                 @php
                                     $remainingDays = $subscription->getRemainingDays();
                                     $statusClass = $subscription->status === 'active' ? 'success' : 
-                                                  ($subscription->status === 'expired' ? 'danger' : 
-                                                  ($subscription->status === 'pending' ? 'warning' : 
-                                                  ($subscription->status === 'cancelled' ? 'secondary' : 'info')));
+                                                ($subscription->status === 'expired' ? 'danger' : 
+                                                ($subscription->status === 'pending' ? 'warning' : 
+                                                ($subscription->status === 'cancelled' ? 'secondary' : 'info')));
                                     
                                     $user = $subscription->user;
                                     $userRoleDisplay = $user ? $user->getRoleDisplayName() : 'Неизвестно';
@@ -250,6 +249,20 @@
                                             $userOrg = $user->orgMemberProfile->organization;
                                         }
                                     }
+                                    
+                                    // Определяем маршрут к профилю пользователя в зависимости от роли
+                                    $userProfileRoute = null;
+                                    if ($user) {
+                                        if ($user->isAdmin()) {
+                                            $userProfileRoute = route('admin.dashboard'); // или другой маршрут для админа
+                                        } elseif ($user->isManager()) {
+                                            $userProfileRoute = route('admin.managers.show', $user->id);
+                                        } elseif ($user->isOrgOwner()) {
+                                            $userProfileRoute = route('admin.organization.show', $userOrg->id ?? 0);
+                                        } elseif ($user->isOrgMember()) {
+                                            $userProfileRoute = $userOrg ? route('admin.org-members.show', [$userOrg->id, $user->orgMemberProfile->id]) : null;
+                                        }
+                                    }
                                 @endphp
                                 <tr>
                                     <td class="fw-bold">#{{ $subscription->id }}</td>
@@ -257,11 +270,15 @@
                                         @if($user)
                                             <div class="d-flex align-items-center">
                                                 <div class="rounded-circle bg-{{ $user->getRoleColor() }} d-flex align-items-center justify-content-center me-2" 
-                                                     style="width: 36px; height: 36px; color: white; font-size: 0.9rem;">
+                                                    style="width: 36px; height: 36px; color: white; font-size: 0.9rem;">
                                                     {{ $userInitial }}
                                                 </div>
                                                 <div>
-                                                    <div class="fw-bold">{{ $user->name }}</div>
+                                                    @if($userProfileRoute)
+                                                        <a href="{{ $userProfileRoute }}" class="fw-bold text-decoration-none">{{ $user->name }}</a>
+                                                    @else
+                                                        <div class="fw-bold">{{ $user->name }}</div>
+                                                    @endif
                                                     <small class="text-muted">{{ $user->email }}</small>
                                                     <div>
                                                         <span class="badge bg-{{ $user->getRoleColor() }} mt-1">
@@ -278,11 +295,13 @@
                                         @if($userOrg)
                                             <div class="d-flex align-items-center">
                                                 <div class="rounded-circle bg-success d-flex align-items-center justify-content-center me-2" 
-                                                     style="width: 28px; height: 28px; color: white; font-size: 0.7rem;">
+                                                    style="width: 28px; height: 28px; color: white; font-size: 0.7rem;">
                                                     <i class="bi bi-building"></i>
                                                 </div>
                                                 <div>
-                                                    <div>{{ $userOrg->name }}</div>
+                                                    <a href="{{ route('admin.organization.show', $userOrg->id) }}" class="text-decoration-none">
+                                                        {{ $userOrg->name }}
+                                                    </a>
                                                     @if($user && $user->isOrgOwner())
                                                         <small class="badge bg-primary">Руководитель</small>
                                                     @elseif($user && $user->isOrgMember())
@@ -336,28 +355,6 @@
                                     <td>
                                         {{ $subscription->created_at->format('d.m.Y') }}<br>
                                         <small class="text-muted">{{ $subscription->created_at->format('H:i') }}</small>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex justify-content-center gap-1">
-                                            <a href="{{ route('subscriptions.show', $subscription) }}" 
-                                               class="btn btn-sm btn-outline-info"
-                                               title="Просмотр">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <a href="{{ route('subscriptions.edit', $subscription) }}" 
-                                               class="btn btn-sm btn-outline-warning"
-                                               title="Редактировать">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-                                            @if(Auth::user()->isAdmin())
-                                                <button type="button" 
-                                                        class="btn btn-sm btn-outline-danger"
-                                                        onclick="deleteSubscription({{ $subscription->id }})"
-                                                        title="Удалить">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            @endif
-                                        </div>
                                     </td>
                                 </tr>
                             @endforeach

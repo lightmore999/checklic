@@ -129,85 +129,104 @@ class LimitController extends Controller
     /**
      * Форма создания лимита
      */
-    public function create()
-    {
-        $user = Auth::user();
-        $users = $this->getAvailableUsers($user);
-        $reportTypes = ReportType::all();
-        
-        // Получаем организации для фильтра
-        if ($user->isAdmin()) {
-            $organizations = Organization::orderBy('name')->get();
-        } elseif ($user->isManager()) {
-            $organizations = Organization::where('manager_id', $user->id)
-                ->orderBy('name')
-                ->get();
-        } else {
-            $organizations = collect();
-        }
-        
-        return view('limits.create', compact('users', 'reportTypes', 'organizations'));
-    }
-    
-    /**
-     * Сохранить лимит
-     */
-    public function store(Request $request)
-    {
-        $user = Auth::user();
-        
-        // Валидация
-        $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id',
-            'report_type_id' => 'required|exists:report_types,id',
-            'quantity' => 'required|integer|min:0',
-        ]);
-        
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-        
-        // Проверяем доступ к пользователю
-        if (!$this->checkUserAvailability($user->id, $request->user_id)) {
-            return redirect()->back()
-                ->with('error', 'Вы не можете выдавать лимиты этому пользователю')
-                ->withInput();
-        }
-        
-        // Получаем активную подписку пользователя
-        $targetUser = User::find($request->user_id);
-        $subscription = $targetUser->activeSubscription();
-        
-        if (!$subscription) {
-            return redirect()->back()
-                ->with('error', 'У пользователя нет активной подписки')
-                ->withInput();
-        }
-        
-        // Создаем или обновляем лимит
-        try {
-            $limit = Limit::createOrUpdateLimit(
-                $subscription->id,
-                $request->report_type_id,
-                $request->quantity,
-                $request->date_created
-            );
+        public function create()
+        {
+            $user = Auth::user();
+            $users = $this->getAvailableUsers($user);
+            $reportTypes = ReportType::all();
             
-            // Явно сохраняем создателя
-            $limit->created_by = auth()->id();
-            $limit->save();
+            // Получаем организации для фильтра
+            if ($user->isAdmin()) {
+                $organizations = Organization::orderBy('name')->get();
+            } elseif ($user->isManager()) {
+                $organizations = Organization::where('manager_id', $user->id)
+                    ->orderBy('name')
+                    ->get();
+            } else {
+                $organizations = collect();
+            }
             
-            return redirect()->route('limits.index')
-                ->with('success', 'Лимит успешно создан');
+            return view('limits.create', compact('users', 'reportTypes', 'organizations'));
+        }
+        
+        /**
+         * Сохранить лимит
+         */
+        public function store(Request $request)
+        {
+            $user = Auth::user();
+            
+            // Валидация - добавляем subscription_id
+            $validator = Validator::make($request->all(), [
+                'user_id' => 'required|exists:users,id',
+                'subscription_id' => 'required|exists:subscriptions,id', // ДОБАВЛЕНО
+                'report_type_id' => 'required|exists:report_types,id',
+                'quantity' => 'required|integer|min:1',
+            ]);
+            
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput();
+            }
+            
+            // Проверяем доступ к пользователю
+            if (!$this->checkUserAvailability($user->id, $request->user_id)) {
+                return redirect()->back()
+                    ->with('error', 'Вы не можете выдавать лимиты этому пользователю')
+                    ->withInput();
+            }
+            
+            // Проверяем, что подписка принадлежит выбранному пользователю
+            $subscription = Subscription::where('id', $request->subscription_id)
+                ->where('user_id', $request->user_id)
+                ->first();
+            
+            if (!$subscription) {
+                return redirect()->back()
+                    ->with('error', 'Выбранная подписка не принадлежит указанному пользователю')
+                    ->withInput();
+            }
+            
+            // Проверяем активность подписки (опционально)
+            if (!$subscription->isActive()) {
+                return redirect()->back()
+                    ->with('error', 'Подписка неактивна. Текущий статус: ' . $subscription->getStatusTextAttribute())
+                    ->withInput();
+            }
+            
+            // Создаем или обновляем лимит
+            try {
+                // Используем выбранную подписку
+                $limit = Limit::createOrUpdateLimit(
+                    $subscription->id,  // Используем subscription_id из формы
+                    $request->report_type_id,
+                    $request->quantity,
+                    $request->date_created ?? now()->format('Y-m-d')
+                );
                 
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Ошибка: ' . $e->getMessage())
-                ->withInput();
+                // Явно сохраняем создателя
+                $limit->created_by = auth()->id();
+                $limit->save();
+                
+                // Определяем редирект в зависимости от роли
+                if ($user->isAdmin()) {
+                    $redirectRoute = 'admin.limits.index';
+                } elseif ($user->isManager()) {
+                    $redirectRoute = 'manager.limits.index';
+                } else {
+                    $redirectRoute = 'limits.index';
+                }
+                
+                return redirect()->route($redirectRoute)
+                    ->with('success', 'Лимит успешно создан в подписке #' . $subscription->id);
+                    
+            } catch (\Exception $e) {
+                return redirect()->back()
+                    ->with('error', 'Ошибка при создании лимита: ' . $e->getMessage())
+                    ->withInput();
+            }
         }
-    }
     
     /**
      * Форма редактирования лимита (только для админа)

@@ -14,43 +14,7 @@
     </a>
 </div>
 
-<!-- Уведомления -->
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle me-2"></i>
-        {!! session('success') !!}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
 
-@if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle me-2"></i>
-        {!! session('error') !!}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
-
-@if(session('warning'))
-    <div class="alert alert-warning alert-dismissible fade show" role="alert">
-        <i class="bi bi-info-circle me-2"></i>
-        {{ session('warning') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
-
-@if($errors->any())
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-octagon me-2"></i>
-        <strong>Ошибки в форме:</strong>
-        <ul class="mb-0 mt-1">
-            @foreach($errors->all() as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-@endif
 
 <!-- ВКЛАДКИ: Одиночное создание / Массовая загрузка -->
 <ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
@@ -839,6 +803,45 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
+    .nav-tabs {
+    border-bottom: 1px solid #dee2e6;
+    background-color: #f8f9fa; /* Светло-серый фон для области табов */
+    padding: 0.5rem 0.5rem 0 0.5rem;
+    border-radius: 0.25rem 0.25rem 0 0;
+}
+
+.nav-tabs .nav-link {
+    color: #495057;
+    background-color: #e9ecef; /* Серый фон для неактивных табов */
+    border: 1px solid #ced4da;
+    margin-right: 0.25rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+/* Активный таб - выделяем синим цветом */
+.nav-tabs .nav-link.active {
+    color: #ffffff !important;
+    background-color: #0d6efd !important; /* Синий фон */
+    border-color: #0d6efd #0d6efd #fff !important;
+    font-weight: 600 !important;
+    box-shadow: 0 -2px 4px rgba(13, 110, 253, 0.2);
+}
+
+/* При наведении на неактивный таб */
+.nav-tabs .nav-link:hover:not(.active) {
+    background-color: #dee2e6;
+    border-color: #adb5bd;
+}
+
+/* Для иконок в табах */
+.nav-tabs .nav-link i {
+    margin-right: 0.5rem;
+}
+
+.nav-tabs .nav-link.active i {
+    color: #ffffff;
+}
 </style>
 
 @endsection

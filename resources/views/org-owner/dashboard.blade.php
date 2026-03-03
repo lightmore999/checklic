@@ -47,14 +47,31 @@
     <!-- Информация об организации -->
     <div class="col-md-8">
         <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">
-                    <i class="bi bi-building text-success me-2"></i>
-                    Организация: <strong class="ms-1">{{ $organization->name }}</strong>
-                </h6>
-                @if($organization->inn)
-                    <span class="badge bg-info">ИНН: {{ $organization->inn }}</span>
-                @endif
+            <div class="card-header bg-white border-bottom">
+                <div class="d-flex flex-wrap justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-0">
+                            <i class="bi bi-building text-success me-2"></i>
+                            Организация: <strong class="ms-1">{{ $organization->name }}</strong>
+                        </h6>
+                        @if($organization->our_organization)
+                            <div class="mt-1 small">
+                                <span class="badge bg-info me-1">Наша организация:</span>
+                                <span class="fw-semibold">{{ $organization->our_organization }}</span>
+                            </div>
+                        @endif
+                    </div>
+                    @if($organization->inn)
+                        <span class="badge bg-info">ИНН: {{ $organization->inn }}</span>
+                    @endif
+                    @if($organization->our_organization)
+                    <div class="mb-3">
+                        <strong>Наша организация:</strong>
+                        <span class="ms-2">{{ $organization->our_organization }}</span>
+                    </div>
+                    @endif
+
+                </div>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -115,25 +132,6 @@
                     </div>
                     
                     <div class="col-md-6">
-                        <div class="mb-3">
-                            <strong>Подписка до:</strong>
-                            @if($organization->subscription_ends_at)
-                                <span class="ms-2 {{ $organization->isExpired() ? 'text-danger' : 'text-success' }}">
-                                    {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                                </span>
-                            @else
-                                <span class="ms-2 text-muted">Бессрочно</span>
-                            @endif
-                        </div>
-                        
-                        @if($organization->subscription_ends_at && !$organization->isExpired())
-                        <div class="mb-3">
-                            <strong>Осталось дней:</strong>
-                            <span class="ms-2 text-primary fw-bold">
-                                {{ $organization->getRemainingSubscriptionDays() }}
-                            </span>
-                        </div>
-                        @endif
                         
                         <div class="mb-3">
                             <strong>Макс. сотрудников:</strong>
@@ -162,21 +160,7 @@
                             </span>
                         </div>
                     </div>
-                </div>
-                
-                @if($organization->isSubscriptionExpiringSoon())
-                    <div class="alert alert-warning mt-2 mb-0">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        Подписка истекает через {{ $organization->getRemainingSubscriptionDays() }} дней
-                    </div>
-                @endif
-                
-                @if($organization->isExpired())
-                    <div class="alert alert-danger mt-2 mb-0">
-                        <i class="bi bi-x-circle me-2"></i>
-                        Подписка истекла! Обратитесь к менеджеру
-                    </div>
-                @endif
+                </div> 
                 
                 @if($organization->max_employees && $membersCount >= $organization->max_employees)
                     <div class="alert alert-warning mt-2 mb-0">

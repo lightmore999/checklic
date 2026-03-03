@@ -211,159 +211,345 @@
 
     <!-- Таблица подписок -->
     <div class="card border-0 shadow-sm">
-        <div class="card-body">
+        <div class="card-body p-0">
             @if(isset($subscriptions) && $subscriptions->count() > 0)
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th>ID</th>
-                                <th>Пользователь</th>
-                                <th>Организация</th>
-                                <th>Дата начала</th>
-                                <th>Дата окончания</th>
-                                <th>Статус</th>
-                                <th>Осталось дней</th>
-                                <th>Создана</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($subscriptions as $subscription)
-                                @php
-                                    $remainingDays = $subscription->getRemainingDays();
-                                    $statusClass = $subscription->status === 'active' ? 'success' : 
-                                                ($subscription->status === 'expired' ? 'danger' : 
-                                                ($subscription->status === 'pending' ? 'warning' : 
-                                                ($subscription->status === 'cancelled' ? 'secondary' : 'info')));
-                                    
-                                    $user = $subscription->user;
-                                    $userRoleDisplay = $user ? $user->getRoleDisplayName() : 'Неизвестно';
-                                    $userInitial = $user ? strtoupper(substr($user->name, 0, 1)) : '?';
-                                    
-                                    // Определяем организацию пользователя
-                                    $userOrg = null;
-                                    if ($user) {
-                                        if ($user->isOrgOwner() && $user->orgOwnerProfile) {
-                                            $userOrg = $user->orgOwnerProfile->organization;
-                                        } elseif ($user->isOrgMember() && $user->orgMemberProfile) {
-                                            $userOrg = $user->orgMemberProfile->organization;
-                                        }
-                                    }
-                                    
-                                    // Определяем маршрут к профилю пользователя в зависимости от роли
-                                    $userProfileRoute = null;
-                                    if ($user) {
-                                        if ($user->isAdmin()) {
-                                            $userProfileRoute = route('admin.dashboard'); // или другой маршрут для админа
-                                        } elseif ($user->isManager()) {
-                                            $userProfileRoute = route('admin.managers.show', $user->id);
-                                        } elseif ($user->isOrgOwner()) {
-                                            $userProfileRoute = route('admin.organization.show', $userOrg->id ?? 0);
-                                        } elseif ($user->isOrgMember()) {
-                                            $userProfileRoute = $userOrg ? route('admin.org-members.show', [$userOrg->id, $user->orgMemberProfile->id]) : null;
-                                        }
-                                    }
-                                @endphp
-                                <tr>
-                                    <td class="fw-bold">#{{ $subscription->id }}</td>
-                                    <td>
-                                        @if($user)
-                                            <div class="d-flex align-items-center">
-                                                <div class="rounded-circle bg-{{ $user->getRoleColor() }} d-flex align-items-center justify-content-center me-2" 
-                                                    style="width: 36px; height: 36px; color: white; font-size: 0.9rem;">
-                                                    {{ $userInitial }}
+                <div class="accordion" id="subscriptionsAccordion">
+                    @foreach($subscriptions as $subscription)
+                        @php
+                            $remainingDays = $subscription->getRemainingDays();
+                            $statusClass = $subscription->status === 'active' ? 'success' : 
+                                        ($subscription->status === 'expired' ? 'danger' : 
+                                        ($subscription->status === 'pending' ? 'warning' : 
+                                        ($subscription->status === 'cancelled' ? 'secondary' : 'info')));
+                            
+                            $user = $subscription->user;
+                            $userRoleDisplay = $user ? $user->getRoleDisplayName() : 'Неизвестно';
+                            $userInitial = $user ? strtoupper(substr($user->name, 0, 1)) : '?';
+                            
+                            // Определяем организацию пользователя
+                            $userOrg = null;
+                            if ($user) {
+                                if ($user->isOrgOwner() && $user->orgOwnerProfile) {
+                                    $userOrg = $user->orgOwnerProfile->organization;
+                                } elseif ($user->isOrgMember() && $user->orgMemberProfile) {
+                                    $userOrg = $user->orgMemberProfile->organization;
+                                }
+                            }
+                            
+                            // Определяем маршрут к профилю пользователя в зависимости от роли
+                            $userProfileRoute = null;
+                            if ($user) {
+                                if ($user->isAdmin()) {
+                                    $userProfileRoute = route('admin.dashboard');
+                                } elseif ($user->isManager()) {
+                                    $userProfileRoute = route('admin.managers.show', $user->id);
+                                } elseif ($user->isOrgOwner()) {
+                                    $userProfileRoute = $userOrg ? route('admin.organization.show', $userOrg->id ?? 0) : null;
+                                } elseif ($user->isOrgMember()) {
+                                    $userProfileRoute = $userOrg ? route('admin.org-members.show', [$userOrg->id, $user->orgMemberProfile->id]) : null;
+                                }
+                            }
+                            
+                            // Получаем лимиты для этой подписки
+                            $limits = $subscription->limits()->with('reportType')->get();
+                            $hasLimits = $limits->count() > 0;
+                            $totalLimits = $limits->sum('quantity');
+                            $totalUsed = $limits->sum('used_quantity');
+                            $totalAvailable = $totalLimits - $totalUsed;
+                        @endphp
+                        
+                        <div class="accordion-item border-0 border-bottom">
+                            <h2 class="accordion-header" id="heading{{ $subscription->id }}">
+                                <button class="accordion-button collapsed px-4 py-3" type="button" 
+                                        data-bs-toggle="collapse" 
+                                        data-bs-target="#collapse{{ $subscription->id }}" 
+                                        aria-expanded="false" 
+                                        aria-controls="collapse{{ $subscription->id }}">
+                                    <div class="row w-100 align-items-center">
+                                        <!-- ID -->
+                                        <div class="col-md-1">
+                                            <span class="fw-bold">#{{ $subscription->id }}</span>
+                                        </div>
+                                        
+                                        <!-- Пользователь (только имя, без ссылки) -->
+                                        <div class="col-md-3">
+                                            @if($user)
+                                                <div class="d-flex align-items-center">
+                                                    <div class="rounded-circle bg-{{ $user->getRoleColor() }} d-flex align-items-center justify-content-center me-2" 
+                                                         style="width: 32px; height: 32px; color: white; font-size: 0.8rem; flex-shrink: 0;">
+                                                        {{ $userInitial }}
+                                                    </div>
+                                                    <div class="text-truncate" style="max-width: calc(100% - 42px);">
+                                                        <span class="fw-semibold">{{ $user->name }}</span>
+                                                        <small class="text-muted d-block">{{ $user->email }}</small>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    @if($userProfileRoute)
-                                                        <a href="{{ $userProfileRoute }}" class="fw-bold text-decoration-none">{{ $user->name }}</a>
-                                                    @else
-                                                        <div class="fw-bold">{{ $user->name }}</div>
-                                                    @endif
-                                                    <small class="text-muted">{{ $user->email }}</small>
-                                                    <div>
-                                                        <span class="badge bg-{{ $user->getRoleColor() }} mt-1">
-                                                            {{ $userRoleDisplay }}
+                                            @else
+                                                <span class="text-muted">Пользователь удален</span>
+                                            @endif
+                                        </div>
+                                        
+                                        <!-- Организация (только название, без ссылки) -->
+                                        <div class="col-md-2">
+                                            @if($userOrg)
+                                                <div class="d-flex align-items-center">
+                                                    <div class="rounded-circle bg-success d-flex align-items-center justify-content-center me-1" 
+                                                         style="width: 24px; height: 24px; color: white; font-size: 0.6rem; flex-shrink: 0;">
+                                                        <i class="bi bi-building"></i>
+                                                    </div>
+                                                    <div class="text-truncate" style="max-width: calc(100% - 30px);">
+                                                        <span class="small">{{ Str::limit($userOrg->name, 20) }}</span>
+                                                    </div>
+                                                </div>
+                                            @else
+                                                <span class="text-muted small">—</span>
+                                            @endif
+                                        </div>
+                                        
+                                        <!-- Статус и даты (компактно) -->
+                                        <div class="col-md-2">
+                                            <span class="badge bg-{{ $statusClass }}">{{ $subscription->getStatusTextAttribute() }}</span>
+                                            @if($subscription->ends_at)
+                                                <small class="d-block text-muted">
+                                                    до {{ $subscription->ends_at->format('d.m.Y') }}
+                                                    @if($remainingDays !== null && $subscription->isActive())
+                                                        <span class="badge bg-{{ $remainingDays <= 7 ? 'warning' : 'success' }} ms-1">
+                                                            {{ $remainingDays }} дн.
                                                         </span>
+                                                    @endif
+                                                </small>
+                                            @else
+                                                <small class="d-block text-muted">бессрочно</small>
+                                            @endif
+                                        </div>
+                                        
+                                        <!-- Сводка по лимитам -->
+                                        <div class="col-md-3">
+                                            @if($hasLimits)
+                                                <div class="d-flex align-items-center">
+                                                    <div class="me-2">
+                                                        <span class="badge bg-primary">{{ $totalLimits }} шт.</span>
+                                                        <span class="badge bg-info">{{ $totalUsed }} исп.</span>
+                                                    </div>
+                                                    <div class="progress flex-grow-1" style="height: 6px; width: 80px;">
+                                                        @php $percentage = $totalLimits > 0 ? round(($totalUsed / $totalLimits) * 100) : 0; @endphp
+                                                        <div class="progress-bar bg-{{ $percentage >= 90 ? 'danger' : ($percentage >= 70 ? 'warning' : 'success') }}" 
+                                                             style="width: {{ $percentage }}%">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <small class="text-muted">доступно {{ $totalAvailable }}</small>
+                                            @else
+                                                <span class="badge bg-secondary">Нет лимитов</span>
+                                            @endif
+                                        </div>
+                                        
+                                        <!-- Индикатор раскрытия -->
+                                        <div class="col-md-1 text-end">
+                                            <i class="bi bi-chevron-down text-muted"></i>
+                                        </div>
+                                    </div>
+                                </button>
+                            </h2>
+                            
+                            <div id="collapse{{ $subscription->id }}" 
+                                 class="accordion-collapse collapse" 
+                                 aria-labelledby="heading{{ $subscription->id }}" 
+                                 data-bs-parent="#subscriptionsAccordion">
+                                <div class="accordion-body p-4 bg-light">
+                                    <!-- Детальная информация о подписке -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Дата начала</small>
+                                            <span class="fw-semibold">{{ $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : '—' }}</span>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Дата окончания</small>
+                                            <span class="fw-semibold">{{ $subscription->ends_at ? $subscription->ends_at->format('d.m.Y') : 'Бессрочно' }}</span>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Создана</small>
+                                            <span class="fw-semibold">{{ $subscription->created_at->format('d.m.Y H:i') }}</span>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <small class="text-muted d-block">Действия</small>
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-sm btn-outline-primary" 
+                                                        onclick="editSubscription({{ $subscription->id }})"
+                                                        title="Редактировать">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" 
+                                                        onclick="deleteSubscription({{ $subscription->id }})"
+                                                        title="Удалить">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                                <a href="{{ route('limits.create', ['subscription_id' => $subscription->id]) }}" 
+                                                   class="btn btn-sm btn-outline-success"
+                                                   title="Добавить лимиты">
+                                                    <i class="bi bi-plus-lg"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- БЛОК СО ССЫЛКАМИ НА ПОЛЬЗОВАТЕЛЯ И ОРГАНИЗАЦИЮ -->
+                                    <div class="row mb-3">
+                                        @if($user)
+                                        <div class="col-md-6">
+                                            <div class="card border-0 bg-white p-3">
+                                                <small class="text-muted d-block mb-2">Пользователь</small>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="rounded-circle bg-{{ $user->getRoleColor() }} d-flex align-items-center justify-content-center me-3" 
+                                                         style="width: 48px; height: 48px; color: white; font-size: 1.2rem;">
+                                                        {{ $userInitial }}
+                                                    </div>
+                                                    <div>
+                                                        @if($userProfileRoute)
+                                                            <a href="{{ $userProfileRoute }}" class="fw-semibold text-decoration-none fs-5">
+                                                                {{ $user->name }}
+                                                            </a>
+                                                        @else
+                                                            <span class="fw-semibold fs-5">{{ $user->name }}</span>
+                                                        @endif
+                                                        <div class="mt-1">
+                                                            <i class="bi bi-envelope text-muted me-1"></i>
+                                                            <small class="text-muted">{{ $user->email }}</small>
+                                                        </div>
+                                                        <div class="mt-1">
+                                                            <span class="badge bg-{{ $user->getRoleColor() }}">{{ $userRoleDisplay }}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        @else
-                                            <span class="text-muted">Пользователь удален</span>
+                                        </div>
                                         @endif
-                                    </td>
-                                    <td>
+                                        
                                         @if($userOrg)
-                                            <div class="d-flex align-items-center">
-                                                <div class="rounded-circle bg-success d-flex align-items-center justify-content-center me-2" 
-                                                    style="width: 28px; height: 28px; color: white; font-size: 0.7rem;">
-                                                    <i class="bi bi-building"></i>
-                                                </div>
-                                                <div>
-                                                    <a href="{{ route('admin.organization.show', $userOrg->id) }}" class="text-decoration-none">
-                                                        {{ $userOrg->name }}
-                                                    </a>
-                                                    @if($user && $user->isOrgOwner())
-                                                        <small class="badge bg-primary">Руководитель</small>
-                                                    @elseif($user && $user->isOrgMember())
-                                                        <small class="badge bg-info">Сотрудник</small>
-                                                    @endif
+                                        <div class="col-md-6">
+                                            <div class="card border-0 bg-white p-3">
+                                                <small class="text-muted d-block mb-2">Организация</small>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="rounded-circle bg-success d-flex align-items-center justify-content-center me-3" 
+                                                         style="width: 48px; height: 48px; color: white; font-size: 1.2rem;">
+                                                        <i class="bi bi-building"></i>
+                                                    </div>
+                                                    <div>
+                                                        <a href="{{ route('admin.organization.show', $userOrg->id) }}" class="fw-semibold text-decoration-none fs-5">
+                                                            {{ $userOrg->name }}
+                                                        </a>
+                                                        @if($userOrg->our_organization)
+                                                            <div class="mt-1">
+                                                                <i class="bi bi-tag text-muted me-1"></i>
+                                                                <small class="text-muted">{{ $userOrg->our_organization }}</small>
+                                                            </div>
+                                                        @endif
+                                                        @if($userOrg->inn)
+                                                            <div class="mt-1">
+                                                                <i class="bi bi-file-text text-muted me-1"></i>
+                                                                <small class="text-muted">ИНН: {{ $userOrg->inn }}</small>
+                                                            </div>
+                                                        @endif
+                                                        <div class="mt-1">
+                                                            <span class="badge bg-{{ $userOrg->status === 'active' ? 'success' : ($userOrg->status === 'suspended' ? 'warning' : 'danger') }}">
+                                                                {{ $userOrg->status === 'active' ? 'Активна' : ($userOrg->status === 'suspended' ? 'Приостановлена' : 'Истекла') }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        @elseif($user && $user->isManager())
-                                            <span class="badge bg-secondary">Менеджер</span>
-                                        @else
-                                            <span class="text-muted fst-italic">Не указана</span>
+                                        </div>
                                         @endif
-                                    </td>
-                                    <td>
-                                        @if($subscription->starts_at)
-                                            {{ $subscription->starts_at->format('d.m.Y') }}
-                                        @else
-                                            <span class="text-muted">—</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($subscription->ends_at)
-                                            {{ $subscription->ends_at->format('d.m.Y') }}
-                                            @if($subscription->isExpiringSoon() && $subscription->isActive())
-                                                <span class="badge bg-warning ms-1">скоро</span>
-                                            @endif
-                                        @else
-                                            <span class="text-muted">Бессрочно</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-{{ $statusClass }}">
-                                            {{ $subscription->getStatusTextAttribute() }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        @if($remainingDays !== null)
-                                            @if($subscription->isActive())
-                                                <span class="badge bg-{{ $remainingDays <= 7 ? 'warning' : 'success' }}">
-                                                    {{ $remainingDays }} дн.
-                                                </span>
-                                            @elseif($subscription->status === 'expired' || ($subscription->ends_at && $subscription->ends_at->isPast()))
-                                                <span class="badge bg-danger">Истекла</span>
-                                            @else
-                                                <span class="text-muted">—</span>
-                                            @endif
-                                        @else
-                                            <span class="text-muted">∞</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        {{ $subscription->created_at->format('d.m.Y') }}<br>
-                                        <small class="text-muted">{{ $subscription->created_at->format('H:i') }}</small>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                                    </div>
+                                    
+                                    <!-- Лимиты подписки -->
+                                    @if($hasLimits)
+                                        <div class="mt-4">
+                                            <h6 class="mb-3">
+                                                <i class="bi bi-file-text me-2"></i>
+                                                Лимиты по типам отчетов
+                                                <span class="badge bg-primary ms-2">{{ $limits->count() }}</span>
+                                            </h6>
+                                            
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-bordered bg-white">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Тип отчета</th>
+                                                            <th class="text-center" width="100">Всего</th>
+                                                            <th class="text-center" width="100">Использовано</th>
+                                                            <th class="text-center" width="100">Доступно</th>
+                                                            <th class="text-center" width="150">Прогресс</th>
+                                                            <th class="text-center" width="100">Дата</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach($limits as $limit)
+                                                            @php
+                                                                $available = $limit->getAvailableQuantity();
+                                                                $percentage = $limit->quantity > 0 ? round(($limit->used_quantity / $limit->quantity) * 100) : 0;
+                                                                $progressClass = $percentage >= 90 ? 'danger' : ($percentage >= 70 ? 'warning' : 'success');
+                                                            @endphp
+                                                            <tr>
+                                                                <td>
+                                                                    <div class="d-flex align-items-center">
+                                                                        <strong>{{ $limit->reportType->name ?? 'Неизвестный тип' }}</strong>
+                                                                        @if($limit->reportType && $limit->reportType->only_api)
+                                                                            <span class="badge bg-warning ms-2">API</span>
+                                                                        @endif
+                                                                    </div>
+                                                                </td>
+                                                                <td class="text-center">{{ $limit->quantity }}</td>
+                                                                <td class="text-center">{{ $limit->used_quantity }}</td>
+                                                                <td class="text-center">
+                                                                    <span class="badge bg-{{ $available > 0 ? 'success' : 'danger' }}">
+                                                                        {{ $available }}
+                                                                    </span>
+                                                                </td>
+                                                                <td>
+                                                                    <div class="d-flex align-items-center gap-2">
+                                                                        <div class="progress flex-grow-1" style="height: 8px;">
+                                                                            <div class="progress-bar bg-{{ $progressClass }}" 
+                                                                                 style="width: {{ $percentage }}%">
+                                                                            </div>
+                                                                        </div>
+                                                                        <small class="text-muted" style="min-width: 40px;">{{ $percentage }}%</small>
+                                                                    </div>
+                                                                </td>
+                                                                <td class="text-center">{{ $limit->date_created->format('d.m.Y') }}</td>
+                                                            </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                    <tfoot class="table-light">
+                                                        <tr>
+                                                            <td><strong>Итого:</strong></td>
+                                                            <td class="text-center"><strong>{{ $totalLimits }}</strong></td>
+                                                            <td class="text-center"><strong>{{ $totalUsed }}</strong></td>
+                                                            <td class="text-center"><strong>{{ $totalAvailable }}</strong></td>
+                                                            <td colspan="2"></td>
+                                                        </tr>
+                                                    </tfoot>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    @else
+                                        <div class="alert alert-light text-center py-3 mb-0">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            В этой подписке пока нет лимитов
+                                            <a href="{{ route('limits.create', ['subscription_id' => $subscription->id]) }}" 
+                                               class="btn btn-sm btn-success ms-3">
+                                                <i class="bi bi-plus-lg"></i> Добавить лимиты
+                                            </a>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
                 
                 <!-- Пагинация -->
-                <div class="d-flex justify-content-between align-items-center mt-4">
+                <div class="d-flex justify-content-between align-items-center mt-4 px-4 pb-4">
                     <div>
                         <p class="text-muted mb-0">
                             Показано {{ $subscriptions->firstItem() ?? 0 }} - {{ $subscriptions->lastItem() ?? 0 }} 
@@ -430,6 +616,27 @@
     </div>
 </div>
 
+<!-- Модальное окно редактирования подписки (заглушка) -->
+<div class="modal fade" id="editSubscriptionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil me-2"></i>
+                    Редактирование подписки
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-center py-3">Функция редактирования в разработке</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
@@ -448,17 +655,47 @@
     .select2-container--default .select2-selection--single .select2-selection__arrow {
         height: 38px;
     }
-    .table td, .table th {
-        vertical-align: middle;
+    
+    /* Стили для аккордеона */
+    .accordion-button:not(.collapsed) {
+        background-color: #e7f1ff;
+        color: #0d6efd;
+        box-shadow: none;
     }
+    
+    .accordion-button:focus {
+        box-shadow: none;
+        border-color: rgba(0,0,0,0.125);
+    }
+    
+    .accordion-button .row {
+        transition: all 0.2s;
+    }
+    
+    .accordion-button:not(.collapsed) .row {
+        font-weight: 500;
+    }
+    
+    .progress {
+        background-color: #e9ecef;
+        border-radius: 10px;
+    }
+    
     .badge {
         font-size: 85%;
     }
-    .btn-sm {
-        line-height: 1;
+    
+    .table-sm th, .table-sm td {
+        padding: 0.5rem 0.5rem;
     }
-    .btn-sm i {
-        font-size: 1rem;
+    
+    /* Анимация для иконки */
+    .accordion-button .bi-chevron-down {
+        transition: transform 0.3s;
+    }
+    
+    .accordion-button:not(.collapsed) .bi-chevron-down {
+        transform: rotate(180deg);
     }
 </style>
 @endpush
@@ -528,18 +765,23 @@
             $('#filterForm').submit();
         });
 
-        // Функция для открытия модалки удаления
-        window.deleteSubscription = function(id) {
-            document.getElementById('deleteSubscriptionForm').action = '/subscriptions/' + id;
-            new bootstrap.Modal(document.getElementById('deleteSubscriptionModal')).show();
-        };
-
         // Инициализация тултипов
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
     });
+
+    // Функция для открытия модалки удаления
+    window.deleteSubscription = function(id) {
+        document.getElementById('deleteSubscriptionForm').action = '/subscriptions/' + id;
+        new bootstrap.Modal(document.getElementById('deleteSubscriptionModal')).show();
+    };
+
+    // Функция для открытия модалки редактирования
+    window.editSubscription = function(id) {
+        new bootstrap.Modal(document.getElementById('editSubscriptionModal')).show();
+    };
 </script>
 @endpush
 @endsection

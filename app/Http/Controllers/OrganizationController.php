@@ -51,28 +51,11 @@ class OrganizationController extends Controller
             $searchTerm = $request->search;
             $query->where(function($q) use ($searchTerm) {
                 $q->where('name', 'ILIKE', "%{$searchTerm}%")
-                  ->orWhere('inn', 'ILIKE', "%{$searchTerm}%"); // Добавлен поиск по ИНН
+                  ->orWhere('inn', 'ILIKE', "%{$searchTerm}%");
             });
         }
         
-        // 2. Фильтр по оставшимся дням подписки
-        if ($request->filled('subscription_days')) {
-            $days = (int) $request->subscription_days;
-            $targetDate = now()->addDays($days);
-            
-            $query->where(function($q) use ($targetDate, $days) {
-                // Организации, у которых подписка истекает через $days дней или меньше
-                $q->whereNotNull('subscription_ends_at')
-                ->where('subscription_ends_at', '<=', $targetDate);
-                
-                // Если $days = 0, показываем уже истекшие
-                if ($days == 0) {
-                    $q->orWhere('subscription_ends_at', '<', now());
-                }
-            });
-        }
-        
-        // 3. Поиск по владельцу (имя или email)
+        // 2. Поиск по владельцу (имя или email)
         if ($request->filled('owner_search')) {
             $ownerSearch = $request->owner_search;
             $query->whereHas('owner.user', function($q) use ($ownerSearch) {
@@ -83,7 +66,7 @@ class OrganizationController extends Controller
             });
         }
         
-        // 4. Фильтр по менеджеру
+        // 3. Фильтр по менеджеру
         if ($request->filled('manager_id')) {
             $managerId = $request->manager_id;
             
@@ -103,17 +86,17 @@ class OrganizationController extends Controller
             }
         }
         
-        // 5. Фильтр по статусу
+        // 4. Фильтр по статусу
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
         
-        // 6. Сортировка
+        // 5. Сортировка
         $sortField = $request->get('sort', 'created_at');
         $sortDirection = $request->get('direction', 'desc');
         
         // Разрешенные поля для сортировки
-        $allowedSorts = ['created_at', 'name', 'status', 'subscription_ends_at'];
+        $allowedSorts = ['created_at', 'name', 'status'];
         if (in_array($sortField, $allowedSorts)) {
             $query->orderBy($sortField, $sortDirection);
         } else {
@@ -191,12 +174,12 @@ class OrganizationController extends Controller
         // Базовые правила валидации с новыми полями
         $validationRules = [
             'organization.name' => 'required|string|max:255|unique:organizations,name',
+            'organization.our_organization' => 'nullable|string|max:255', // ДОБАВЛЕНО
             'organization.inn' => 'nullable|string|max:12|unique:organizations,inn',
             'organization.max_employees' => 'nullable|integer|min:1|max:999999',
-            'organization.subscription_ends_at' => 'nullable|date|after:today',
             'user.name' => 'required|string|max:255',
             'user.email' => 'required|email|unique:users,email',
-            'user.phone' => 'nullable|string|max:20', // ДОБАВЛЕНО поле phone
+            'user.phone' => 'nullable|string|max:20',
             'user.password' => 'required|string|min:8|confirmed',
         ];
         
@@ -238,24 +221,24 @@ class OrganizationController extends Controller
                 $managerUserId = $user->id;
             }
             
-            // 2. Создаем пользователя для владельца организации (с телефоном)
+            // 2. Создаем пользователя для владельца организации
             $ownerUser = User::create([
                 'name' => $validated['user']['name'],
                 'email' => $validated['user']['email'],
-                'phone' => $validated['user']['phone'] ?? null, // ДОБАВЛЕНО поле phone
+                'phone' => $validated['user']['phone'] ?? null,
                 'password' => Hash::make($validated['user']['password']),
                 'role' => 'org_owner',
                 'email_verified_at' => now(),
                 'is_active' => true,
             ]);
             
-            // 3. Создаем организацию
+            // 3. Создаем организацию (УДАЛЕНО subscription_ends_at)
             $organization = Organization::create([
                 'name' => $validated['organization']['name'],
+                'our_organization' => $validated['organization']['our_organization'] ?? null, // ДОБАВЛЕНО
                 'inn' => $validated['organization']['inn'] ?? null,
                 'max_employees' => $validated['organization']['max_employees'] ?? null,
                 'manager_id' => $managerUserId,
-                'subscription_ends_at' => $validated['organization']['subscription_ends_at'] ?? null,
                 'status' => $validated['organization']['status'],
             ]);
             
@@ -319,7 +302,7 @@ class OrganizationController extends Controller
         
         // === ПОДПИСКИ ВЛАДЕЛЬЦА ОРГАНИЗАЦИИ ===
         $subscriptions = collect();
-        $groupedLimits = []; // ИСПРАВЛЕНО: теперь ассоциативный массив с ключом по ID подписки
+        $groupedLimits = [];
         $delegatedLimits = collect();
         $availableEmployees = collect();
         
@@ -331,7 +314,7 @@ class OrganizationController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->get();
             
-            // === ИСПРАВЛЕНО: ГРУППИРУЕМ ЛИМИТЫ ПО КАЖДОЙ ПОДПИСКЕ ===
+            // Группируем лимиты по каждой подписке
             foreach ($subscriptions as $subscription) {
                 // Получаем обычные лимиты для ЭТОЙ подписки
                 $limits = Limit::where('subscription_id', $subscription->id)
@@ -387,7 +370,7 @@ class OrganizationController extends Controller
                 
                 // Добавляем в группировку, используя ID подписки как ключ
                 if (count($subscriptionLimits) > 0) {
-                    $groupedLimits[$subscription->id] = [ // ИСПРАВЛЕНО: используем ID как ключ
+                    $groupedLimits[$subscription->id] = [
                         'subscription' => $subscription,
                         'limits' => $subscriptionLimits,
                         'total_limits' => count($subscriptionLimits),
@@ -415,7 +398,7 @@ class OrganizationController extends Controller
             'organization', 
             'routePrefix',
             'subscriptions',
-            'groupedLimits',      // Теперь ассоциативный массив [subscription_id => данные]
+            'groupedLimits',
             'delegatedLimits',
             'availableEmployees',
             'currentEmployeesCount',
@@ -514,12 +497,12 @@ class OrganizationController extends Controller
         
         $owner = $organization->owner;
         
-        // Правила валидации
+        // Правила валидации (УДАЛЕНО subscription_ends_at)
         $validationRules = [
             'organization.name' => 'required|string|max:255|unique:organizations,name,' . $organization->id,
+            'organization.our_organization' => 'nullable|string|max:255', // ДОБАВЛЕНО
             'organization.inn' => 'nullable|string|max:12|unique:organizations,inn,' . $organization->id,
             'organization.max_employees' => 'nullable|integer|min:1|max:999999',
-            'organization.subscription_ends_at' => 'nullable|date',
             'organization.status' => 'required|in:active,suspended,expired',
         ];
         
@@ -547,12 +530,12 @@ class OrganizationController extends Controller
         if ($owner && $owner->user) {
             $validationRules['owner.name'] = 'required|string|max:255';
             $validationRules['owner.email'] = 'required|email|unique:users,email,' . $owner->user_id;
-            $validationRules['owner.phone'] = 'nullable|string|max:20'; // ДОБАВЛЕНО поле phone
+            $validationRules['owner.phone'] = 'nullable|string|max:20';
             $validationRules['owner.password'] = 'nullable|string|min:8|confirmed';
         } else {
             $validationRules['owner.name'] = 'required|string|max:255';
             $validationRules['owner.email'] = 'required|email|unique:users,email';
-            $validationRules['owner.phone'] = 'nullable|string|max:20'; // ДОБАВЛЕНО поле phone
+            $validationRules['owner.phone'] = 'nullable|string|max:20';
             $validationRules['owner.password'] = 'required|string|min:8|confirmed';
         }
         
@@ -561,12 +544,12 @@ class OrganizationController extends Controller
         DB::beginTransaction();
         
         try {
-            // Обновляем организацию
+            // Обновляем организацию (УДАЛЕНО subscription_ends_at)
             $organizationData = [
                 'name' => $validated['organization']['name'],
+                'our_organization' => $validated['organization']['our_organization'] ?? null, // ДОБАВЛЕНО
                 'inn' => $validated['organization']['inn'] ?? null,
                 'max_employees' => $validated['organization']['max_employees'] ?? null,
-                'subscription_ends_at' => $validated['organization']['subscription_ends_at'] ?? null,
                 'status' => $validated['organization']['status'],
             ];
             
@@ -581,7 +564,7 @@ class OrganizationController extends Controller
                 $ownerUserData = [
                     'name' => $validated['owner']['name'],
                     'email' => $validated['owner']['email'],
-                    'phone' => $validated['owner']['phone'] ?? null, // ДОБАВЛЕНО поле phone
+                    'phone' => $validated['owner']['phone'] ?? null,
                 ];
                 
                 if (!empty($validated['owner']['password'])) {
@@ -596,7 +579,7 @@ class OrganizationController extends Controller
                 $ownerUser = User::create([
                     'name' => $validated['owner']['name'],
                     'email' => $validated['owner']['email'],
-                    'phone' => $validated['owner']['phone'] ?? null, // ДОБАВЛЕНО поле phone
+                    'phone' => $validated['owner']['phone'] ?? null,
                     'password' => Hash::make($validated['owner']['password']),
                     'role' => 'org_owner',
                     'email_verified_at' => now(),
@@ -682,54 +665,6 @@ class OrganizationController extends Controller
         }
         
         return back()->with('success', "Организация {$statusText}");
-    }
-    
-    /**
-     * Продление подписки организации
-     */
-    public function extendSubscription(Request $request, $id)
-    {
-        $user = Auth::user();
-        
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
-        if ($user->isAdmin()) {
-            $organization = Organization::where('id', $id)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->whereHas('managerProfile', function($subQuery) use ($user) {
-                        $subQuery->where('admin_id', $user->id);
-                    });
-                })
-                ->firstOrFail();
-        } else {
-            // Для менеджера
-            $organization = Organization::where('id', $id)
-                ->where('manager_id', $user->id)
-                ->firstOrFail();
-        }
-        
-        $validated = $request->validate([
-            'days' => 'required|integer|min:1|max:365',
-        ]);
-        
-        // Продлеваем подписку
-        if (!$organization->subscription_ends_at) {
-            $organization->subscription_ends_at = now()->addDays($validated['days']);
-        } else {
-            $organization->subscription_ends_at = $organization->subscription_ends_at->addDays($validated['days']);
-        }
-        $organization->save();
-        
-        // Редирект в зависимости от роли
-        if ($user->isAdmin()) {
-            return redirect()->route('admin.organization.show', $organization->id)
-                ->with('success', "Подписка продлена на {$validated['days']} дней");
-        } else {
-            return redirect()->route('manager.organization.show', $organization->id)
-                ->with('success', "Подписка продлена на {$validated['days']} дней");
-        }
     }
     
     /**
@@ -951,7 +886,7 @@ class OrganizationController extends Controller
             'membersCount', 
             'activeMembersCount',
             'subscriptions',
-            'groupedLimits', // Добавлено
+            'groupedLimits',
             'delegatedLimits',
             'availableEmployees',
             'currentEmployeesCount',

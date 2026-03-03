@@ -18,6 +18,7 @@ class Subscription extends Model
      */
     protected $fillable = [
         'user_id',           // FK на пользователя (владельца организации)
+        'name',              // Название подписки (ДОБАВЛЕНО)
         'ends_at',           // дата окончания подписки
         'starts_at',         // дата начала подписки
         'status',            // статус: active, suspended, expired, cancelled, pending
@@ -159,6 +160,18 @@ class Subscription extends Model
             'pending' => 'info',
             default => 'secondary',
         };
+    }
+
+    /**
+     * Получить отображаемое название подписки
+     */
+    public function getDisplayNameAttribute(): string
+    {
+        if ($this->name) {
+            return $this->name;
+        }
+        
+        return 'Подписка #' . $this->id;
     }
 
     public function limits()

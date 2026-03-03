@@ -47,26 +47,6 @@
                                 <small class="text-muted">Поиск по названию организации или ИНН</small>
                             </div>
                             
-                            <!-- Фильтр по дням подписки -->
-                            <div class="col-md-2">
-                                <label class="form-label">Дней до конца подписки</label>
-                                <select name="subscription_days" class="form-select" onchange="this.form.submit()">
-                                    <option value="">Все</option>
-                                    <option value="0" {{ request('subscription_days') == '0' ? 'selected' : '' }}>
-                                        Истекшие (0 дней)
-                                    </option>
-                                    <option value="7" {{ request('subscription_days') == '7' ? 'selected' : '' }}>
-                                        Менее 7 дней
-                                    </option>
-                                    <option value="14" {{ request('subscription_days') == '14' ? 'selected' : '' }}>
-                                        Менее 14 дней
-                                    </option>
-                                    <option value="30" {{ request('subscription_days') == '30' ? 'selected' : '' }}>
-                                        Менее 30 дней
-                                    </option>
-                                </select>
-                            </div>
-                            
                             <!-- Поиск по владельцу -->
                             <div class="col-md-3">
                                 <label class="form-label">Владелец (имя или email)</label>
@@ -114,7 +94,6 @@
                                 <select name="sort" class="form-select" onchange="this.form.submit()">
                                     <option value="created_at" {{ request('sort') == 'created_at' ? 'selected' : '' }}>По дате создания</option>
                                     <option value="name" {{ request('sort') == 'name' ? 'selected' : '' }}>По названию</option>
-                                    <option value="subscription_ends_at" {{ request('sort') == 'subscription_ends_at' ? 'selected' : '' }}>По дате подписки</option>
                                     <option value="status" {{ request('sort') == 'status' ? 'selected' : '' }}>По статусу</option>
                                 </select>
                             </div>
@@ -137,18 +116,13 @@
                     </form>
                     
                     <!-- Активные фильтры -->
-                    @if(request()->anyFilled(['search', 'subscription_days', 'owner_search', 'manager_id', 'status']))
+                    @if(request()->anyFilled(['search', 'owner_search', 'manager_id', 'status']))
                         <div class="alert alert-info py-2 mb-3">
                             <div class="d-flex align-items-center flex-wrap gap-2">
                                 <i class="bi bi-funnel me-1"></i>
                                 <span>Активные фильтры:</span>
                                 @if(request('search'))
                                     <span class="badge bg-info text-white">Поиск: "{{ request('search') }}"</span>
-                                @endif
-                                @if(request('subscription_days'))
-                                    <span class="badge bg-info text-white">
-                                        Подписка ≤ {{ request('subscription_days') }} дней
-                                    </span>
                                 @endif
                                 @if(request('owner_search'))
                                     <span class="badge bg-info text-white">Владелец: "{{ request('owner_search') }}"</span>
@@ -173,13 +147,12 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Название / ИНН</th>
+                                    <th>Наша организация</th>
                                     <th>Владелец</th>
                                     @if($user->isAdmin())
                                         <th>Менеджер</th>
                                     @endif
                                     <th>Статус</th>
-                                    <th>Подписка до</th>
-                                    <th>Осталось дней</th>
                                     <th class="text-center">Сотрудников</th>
                                     <th class="text-center">Лимит</th>
                                     <th>Создана</th>
@@ -189,17 +162,6 @@
                             <tbody>
                                 @forelse($organizations as $org)
                                     @php
-                                        $remainingDays = $org->subscription_ends_at 
-                                            ? now()->diffInDays($org->subscription_ends_at, false) 
-                                            : null;
-                                            
-                                        $daysClass = 'success';
-                                        if ($remainingDays !== null) {
-                                            if ($remainingDays < 0) $daysClass = 'danger';
-                                            elseif ($remainingDays <= 7) $daysClass = 'warning';
-                                            elseif ($remainingDays <= 30) $daysClass = 'info';
-                                        }
-                                        
                                         $currentEmployees = $org->members ? $org->members->count() : 0;
                                     @endphp
                                     <tr>
@@ -211,18 +173,21 @@
                                                     <i class="bi bi-file-text"></i> ИНН: {{ $org->inn }}
                                                 </small>
                                             @endif
-                                            @if($org->subscription_ends_at && $remainingDays !== null && $remainingDays < 0)
-                                                <div class="mt-1">
-                                                    <span class="badge bg-danger">
-                                                        <i class="bi bi-exclamation-triangle"></i> Просрочена
-                                                    </span>
-                                                </div>
+                                        </td>
+                                        <td>
+                                            @if($org->our_organization)
+                                                <span class="fw-bold">{{ $org->our_organization }}</span>
+                                            @else
+                                                <span class="text-muted fst-italic">Не указано</span>
                                             @endif
                                         </td>
                                         <td>
                                             @if($org->owner && $org->owner->user)
                                                 <div class="fw-bold">{{ $org->owner->user->name }}</div>
                                                 <small class="text-muted">{{ $org->owner->user->email }}</small>
+                                                @if($org->owner->user->phone)
+                                                    <div><small class="text-muted">{{ $org->owner->user->phone }}</small></div>
+                                                @endif
                                             @else
                                                 <span class="text-muted fst-italic">Не назначен</span>
                                             @endif
@@ -255,27 +220,6 @@
                                             </span>
                                         </td>
                                         
-                                        <td>
-                                            @if($org->subscription_ends_at)
-                                                {{ $org->subscription_ends_at->format('d.m.Y') }}
-                                            @else
-                                                <span class="text-muted fst-italic">Бессрочно</span>
-                                            @endif
-                                        </td>
-                                        
-                                        <td>
-                                            @if($remainingDays !== null)
-                                                <span class="badge bg-{{ $daysClass }}">
-                                                    {{ $remainingDays >= 0 ? $remainingDays : 0 }} дн.
-                                                </span>
-                                                @if($remainingDays < 0)
-                                                    <br><small class="text-danger">просрочено на {{ abs($remainingDays) }} дн.</small>
-                                                @endif
-                                            @else
-                                                <span class="text-muted">∞</span>
-                                            @endif
-                                        </td>
-                                        
                                         <td class="text-center">
                                             <span class="badge bg-info">{{ $currentEmployees }}</span>
                                         </td>
@@ -296,15 +240,15 @@
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
                                                 <a href="{{ route($user->isAdmin() ? 'admin.organization.show' : 'manager.organization.show', $org->id) }}" 
-                                                class="btn btn-sm btn-info" 
-                                                title="Просмотр"
-                                                data-bs-toggle="tooltip">
+                                                   class="btn btn-sm btn-info" 
+                                                   title="Просмотр"
+                                                   data-bs-toggle="tooltip">
                                                     <i class="bi bi-eye"></i>
                                                 </a>
                                                 <a href="{{ route($user->isAdmin() ? 'admin.organization.edit' : 'manager.organization.edit', $org->id) }}" 
-                                                class="btn btn-sm btn-warning"  
-                                                title="Редактировать"
-                                                data-bs-toggle="tooltip">
+                                                   class="btn btn-sm btn-warning"  
+                                                   title="Редактировать"
+                                                   data-bs-toggle="tooltip">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
                                                 @if($user->isAdmin())
@@ -321,7 +265,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="{{ $user->isAdmin() ? 11 : 10 }}" class="text-center py-5">
+                                        <td colspan="{{ $user->isAdmin() ? 10 : 9 }}" class="text-center py-5">
                                             <i class="bi bi-building fs-1 text-muted mb-3 d-block"></i>
                                             <p class="text-muted mb-0">Организации не найдены</p>
                                         </td>

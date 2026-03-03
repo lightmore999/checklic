@@ -67,6 +67,21 @@
                             @enderror
                         </div>
 
+                        <!-- НОВОЕ ПОЛЕ: Наша организация -->
+                        <div class="mb-3">
+                            <label for="organization_our_organization" class="form-label">
+                                Наша организация <small class="text-muted">(необязательно)</small>
+                            </label>
+                            <input type="text" class="form-control @error('organization.our_organization') is-invalid @enderror" 
+                                   id="organization_our_organization" name="organization[our_organization]" 
+                                   value="{{ old('organization.our_organization', $organization->our_organization) }}" 
+                                   placeholder="Например: ООО Ромашка">
+                            @error('organization.our_organization')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <div class="form-text">Полное название или бренд организации (как вы хотите её видеть)</div>
+                        </div>
+
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="organization_inn" class="form-label">ИНН</label>
@@ -109,17 +124,6 @@
                                         <option value="expired" {{ old('organization.status', $organization->status) == 'expired' ? 'selected' : '' }}>Истекла</option>
                                     </select>
                                     @error('organization.status')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="subscription_ends_at" class="form-label">Подписка до</label>
-                                    <input type="date" class="form-control @error('organization.subscription_ends_at') is-invalid @enderror" 
-                                           id="subscription_ends_at" name="organization[subscription_ends_at]"
-                                           value="{{ old('organization.subscription_ends_at', $organization->subscription_ends_at ? $organization->subscription_ends_at->format('Y-m-d') : '') }}">
-                                    @error('organization.subscription_ends_at')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
                                 </div>
@@ -205,7 +209,7 @@
                             @enderror
                         </div>
 
-                        <!-- НОВОЕ ПОЛЕ: Номер телефона владельца (улучшенный дизайн) -->
+                        <!-- Номер телефона владельца -->
                         <div class="mb-3">
                             <label for="owner_phone" class="form-label">
                                 Номер телефона <small class="text-muted">(необязательно)</small>
@@ -366,16 +370,6 @@
                         <input type="number" class="form-control" id="days" name="days" min="1" max="365" value="30" required>
                         <div class="form-text">Максимум 365 дней</div>
                     </div>
-                    <div class="alert alert-info">
-                        <h6 class="alert-heading">Текущая подписка:</h6>
-                        <p class="mb-0">
-                            @if($organization->subscription_ends_at)
-                                Действует до: <strong>{{ $organization->subscription_ends_at->format('d.m.Y') }}</strong>
-                            @else
-                                <strong>Бессрочная</strong>
-                            @endif
-                        </p>
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
@@ -446,6 +440,13 @@ function confirmDelete(id, name) {
             }
         });
 
+        // Валидация поля "Наша организация" (необязательное)
+        document.getElementById('organization_our_organization')?.addEventListener('input', function(e) {
+            // Можно добавить автоматическое форматирование, если нужно
+            // Например, удалить лишние пробелы
+            // this.value = this.value.replace(/\s+/g, ' ').trim();
+        });
+
         // Предотвращаем двойную отправку формы
         document.querySelector('form[action*="update"]')?.addEventListener('submit', function(e) {
             const submitBtn = this.querySelector('button[type="submit"]');
@@ -465,6 +466,15 @@ function confirmDelete(id, name) {
                 e.preventDefault();
                 alert('Максимальное количество сотрудников должно быть не менее 1');
                 document.getElementById('organization_max_employees')?.focus();
+                return false;
+            }
+            
+            // Проверка поля "Наша организация" (необязательное, только предупреждение)
+            const ourOrg = document.getElementById('organization_our_organization')?.value;
+            if (ourOrg && ourOrg.length > 255) {
+                e.preventDefault();
+                alert('Название "Наша организация" слишком длинное (максимум 255 символов)');
+                document.getElementById('organization_our_organization')?.focus();
                 return false;
             }
             

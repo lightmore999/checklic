@@ -15,6 +15,45 @@ use Illuminate\Support\Facades\DB;
 
 class ManagerController extends Controller
 {
+
+    public function index()
+    {
+        $admin = Auth::user();
+        
+        if (!$admin->isAdmin()) {
+            abort(403, 'Доступ запрещен');
+        }
+        
+        // Получаем менеджеров этого админа с пагинацией
+        $managers = User::where('role', 'manager')
+            ->whereHas('managerProfile', function($query) use ($admin) {
+                $query->where('admin_id', $admin->id);
+            })
+            ->with('managerProfile')
+            ->orderBy('created_at', 'desc')
+            ->paginate(15); // Добавлена пагинация
+        
+        // Добавляем статистику по организациям для каждого менеджера
+        foreach ($managers as $manager) {
+            $manager->organizations_count = Organization::where('manager_id', $manager->id)->count();
+            $manager->active_organizations_count = Organization::where('manager_id', $manager->id)
+                ->where('status', 'active')
+                ->count();
+            
+            // Добавляем статистику по подпискам
+            $manager->subscriptions_count = Subscription::where('user_id', $manager->id)->count();
+            $manager->active_subscriptions_count = Subscription::where('user_id', $manager->id)
+                ->where('status', 'active')
+                ->where(function($q) {
+                    $q->whereNull('ends_at')
+                    ->orWhere('ends_at', '>', now());
+                })
+                ->count();
+        }
+        
+        return view('managers.index', compact('admin', 'managers'));
+    }
+
     /**
      * Форма создания менеджера (для админа)
      */
@@ -486,34 +525,4 @@ class ManagerController extends Controller
             ->with('success', 'Профиль успешно обновлен');
     }
     
-    /**
-     * Список всех менеджеров админа (для админа)
-     */
-    public function index()
-    {
-        $admin = Auth::user();
-        
-        if (!$admin->isAdmin()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
-        // ИСПРАВЛЕНО: Получаем менеджеров этого админа
-        $managers = User::where('role', 'manager')
-            ->whereHas('managerProfile', function($query) use ($admin) {
-                $query->where('admin_id', $admin->id);
-            })
-            ->with('managerProfile')
-            ->orderBy('created_at', 'desc')
-            ->get();
-        
-        // Добавляем статистику по организациям для каждого менеджера
-        foreach ($managers as $manager) {
-            $manager->organizations_count = Organization::where('manager_id', $manager->id)->count();
-            $manager->active_organizations_count = Organization::where('manager_id', $manager->id)
-                ->where('status', 'active')
-                ->count();
-        }
-        
-        return view('managers.index', compact('admin', 'managers'));
-    }
 }

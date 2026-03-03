@@ -188,16 +188,113 @@
                             </div>
                         </div>
                         
-                        <!-- Предупреждение об активной подписке -->
-                        <div class="row mt-3" id="activeSubscriptionWarning" style="display: none;">
-                            <div class="col-12">
-                                <div class="alert alert-warning">
-                                    <i class="bi bi-exclamation-triangle me-2"></i>
-                                    <strong>Внимание!</strong> У выбранного пользователя уже есть активная подписка.
-                                    <div id="activeSubscriptionDetails" class="mt-2 small"></div>
+
+                        
+                        <!-- БЛОК С ТИПАМИ ОТЧЕТОВ ДЛЯ ЛИМИТОВ -->
+                        <div class="card mt-4 mb-4">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-file-text me-2"></i>
+                                    Лимиты по типам отчетов
+                                    <small class="text-white-50 ms-2">(необязательно, можно добавить позже)</small>
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small mb-3">
+                                    Укажите количество отчетов для каждого типа. Если оставить 0, лимит создан не будет.
+                                </p>
+                                
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Тип отчета</th>
+                                                <th width="200">Количество</th>
+                                                <th width="150">Действия</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="reportTypesBody">
+                                            @foreach($reportTypes as $type)
+                                            <tr>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <strong>{{ $type->name }}</strong>
+                                                        @if($type->only_api)
+                                                            <span class="badge bg-warning ms-2">только API</span>
+                                                        @endif
+                                                    </div>
+                                                    @if($type->description)
+                                                        <small class="text-muted">{{ $type->description }}</small>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    <div class="input-group">
+                                                        <input type="number" 
+                                                               name="quantities[{{ $type->id }}]" 
+                                                               id="quantity_{{ $type->id }}"
+                                                               class="form-control form-control-sm quantity-input" 
+                                                               value="{{ old('quantities.' . $type->id, 0) }}"
+                                                               min="0"
+                                                               max="999999"
+                                                               step="1"
+                                                               data-type-id="{{ $type->id }}">
+                                                        <span class="input-group-text">шт.</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="d-flex gap-1">
+                                                        <button type="button" class="btn btn-sm btn-outline-primary btn-quick" onclick="setQuantity({{ $type->id }}, 1)">
+                                                            +1
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary btn-quick" onclick="setQuantity({{ $type->id }}, 5)">
+                                                            +5
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary btn-quick" onclick="setQuantity({{ $type->id }}, 10)">
+                                                            +10
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            @endforeach
+                                        </tbody>
+                                        <tfoot>
+                                            <tr class="table-light">
+                                                <td colspan="3">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <i class="bi bi-info-circle me-1"></i>
+                                                            <span class="text-muted">Всего выбрано: <strong id="totalSelected">0</strong> отчетов</span>
+                                                        </div>
+                                                        <div>
+                                                            <button type="button" class="btn btn-sm btn-outline-success me-2" onclick="setAllQuantities(1)">
+                                                                +1 для всех
+                                                            </button>
+                                                            <button type="button" class="btn btn-sm btn-outline-success me-2" onclick="setAllQuantities(5)">
+                                                                +5 для всех
+                                                            </button>
+                                                            <button type="button" class="btn btn-sm btn-outline-success me-2" onclick="setAllQuantities(10)">
+                                                                +10 для всех
+                                                            </button>
+                                                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="resetAllQuantities()">
+                                                                Сбросить все
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Скрытое поле для передачи выбранных типов отчетов -->
+                        <div id="reportTypesContainer"></div>
+                        
+                        <!-- Если есть redirect_to_organization -->
+                        @if(request()->has('organization_id'))
+                            <input type="hidden" name="redirect_to_organization" value="{{ request('organization_id') }}">
+                        @endif
                         
                         <!-- Кнопки -->
                         <div class="d-flex justify-content-between mt-4">
@@ -263,6 +360,25 @@
         font-size: 0.75rem;
         margin-left: 6px;
         white-space: nowrap;
+    }
+    /* Стили для таблицы типов отчетов */
+    .table-success {
+        background-color: rgba(40, 167, 69, 0.1) !important;
+    }
+    .quantity-input {
+        text-align: center;
+        font-weight: bold;
+    }
+    .btn-outline-primary {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    .btn-outline-success, .btn-outline-danger {
+        font-size: 0.8rem;
+    }
+    #totalSelected {
+        font-size: 1.1rem;
+        color: #28a745;
     }
 </style>
 @endpush
@@ -453,6 +569,100 @@ $(document).ready(function() {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Создание...';
     });
+});
+
+// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ТИПАМИ ОТЧЕТОВ ==========
+
+// Обновление выбранных типов и подсчет общего количества
+function updateSelectedTypes() {
+    const quantities = document.querySelectorAll('.quantity-input');
+    const container = document.getElementById('reportTypesContainer');
+    let total = 0;
+    
+    // Очищаем контейнер
+    container.innerHTML = '';
+    
+    quantities.forEach(input => {
+        const typeId = input.dataset.typeId;
+        const value = parseInt(input.value) || 0;
+        
+        if (value > 0) {
+            total += value;
+            
+            // Добавляем скрытое поле для каждого выбранного типа
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = `report_types[]`;
+            hiddenInput.value = typeId;
+            container.appendChild(hiddenInput);
+        }
+    });
+    
+    // Обновляем общее количество
+    document.getElementById('totalSelected').textContent = total;
+    
+    // Подсвечиваем строки с выбранными значениями
+    quantities.forEach(input => {
+        const row = input.closest('tr');
+        if (parseInt(input.value) > 0) {
+            row.classList.add('table-success');
+        } else {
+            row.classList.remove('table-success');
+        }
+    });
+}
+// Установка количества для конкретного типа
+function setQuantity(typeId, amount) {
+    const input = document.getElementById(`quantity_${typeId}`);
+    if (input) {
+        const current = parseInt(input.value) || 0;
+        const max = parseInt(input.getAttribute('max')) || 999999;
+        let newValue = current + amount;
+        
+        if (newValue < 0) newValue = 0;
+        if (newValue > max) newValue = max;
+        
+        input.value = newValue;
+        updateSelectedTypes();
+    }
+}
+
+// Установка количества для всех типов
+function setAllQuantities(amount) {
+    const inputs = document.querySelectorAll('.quantity-input');
+    inputs.forEach(input => {
+        const current = parseInt(input.value) || 0;
+        const max = parseInt(input.getAttribute('max')) || 999999;
+        let newValue = current + amount;
+        
+        if (newValue < 0) newValue = 0;
+        if (newValue > max) newValue = max;
+        
+        input.value = newValue;
+    });
+    updateSelectedTypes();
+}
+
+// Сброс всех количеств
+function resetAllQuantities() {
+    const inputs = document.querySelectorAll('.quantity-input');
+    inputs.forEach(input => {
+        input.value = 0;
+    });
+    updateSelectedTypes();
+}
+
+// Добавляем обработчики событий после загрузки страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Добавляем обработчики для всех инпутов
+    const inputs = document.querySelectorAll('.quantity-input');
+    inputs.forEach(input => {
+        input.addEventListener('input', updateSelectedTypes);
+        input.addEventListener('change', updateSelectedTypes);
+    });
+    
+    // Инициализируем скрытое поле
+    updateSelectedTypes();
 });
 </script>
 @endpush

@@ -42,6 +42,13 @@
             </div>
             <div>
                 <h1 class="h3 mb-0">{{ $organization->name }}</h1>
+                <!-- ДОБАВЛЕНО: Отображение "Наша организация" -->
+                @if($organization->our_organization)
+                    <div class="d-flex align-items-center mt-1">
+                        <span class="badge bg-info me-2">Наша организация:</span>
+                        <span class="fw-semibold">{{ $organization->our_organization }}</span>
+                    </div>
+                @endif
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb mb-0">
                         @if($isAdmin)
@@ -109,22 +116,6 @@
         <div class="col-md-3 col-sm-6 mb-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body text-center py-4">
-                    @if($organization->subscription_ends_at)
-                        <div class="{{ $organization->subscription_ends_at->isPast() ? 'text-danger' : 'text-success' }} display-4 mb-2">
-                            {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                        </div>
-                        <div class="text-muted">Подписка до</div>
-                    @else
-                        <div class="display-4 text-success mb-2">∞</div>
-                        <div class="text-muted">Подписка</div>
-                    @endif
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body text-center py-4">
                     @if($organization->status === 'active')
                         <span class="badge bg-success fs-5 px-3 py-2">Активна</span>
                     @elseif($organization->status === 'suspended')
@@ -153,6 +144,18 @@
                         <div class="col-md-6">
                             <div class="mb-4">
                                 <h5 class="text-primary mb-3">{{ $organization->name }}</h5>
+                                <!-- ДОБАВЛЕНО: Отображение "Наша организация" в деталях -->
+                                @if($organization->our_organization)
+                                <div class="mb-3 p-3 bg-light rounded">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-building fs-4 text-info me-3"></i>
+                                        <div>
+                                            <small class="text-muted d-block">Наша организация</small>
+                                            <span class="fw-bold">{{ $organization->our_organization }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                @endif
                                 <div class="d-flex align-items-center mb-2">
                                     <i class="bi bi-hash text-muted me-2" style="width: 20px;"></i>
                                     <span class="text-muted">ID:</span>
@@ -172,33 +175,7 @@
                         </div>
                         
                         <div class="col-md-6">
-                            <div class="mb-3">
-                                <div class="d-flex align-items-center mb-2">
-                                    <i class="bi bi-calendar-check text-muted me-2" style="width: 20px;"></i>
-                                    <span class="text-muted">Подписка до:</span>
-                                    <div class="ms-2">
-                                        @if($organization->subscription_ends_at)
-                                            @if($organization->subscription_ends_at->isPast())
-                                                <span class="badge bg-danger">
-                                                    <i class="bi bi-exclamation-triangle me-1"></i>
-                                                    {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                                                </span>
-                                            @elseif($organization->subscription_ends_at->diffInDays(now()) < 7)
-                                                <span class="badge bg-warning">
-                                                    <i class="bi bi-clock me-1"></i>
-                                                    {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                                                </span>
-                                            @else
-                                                <span class="badge bg-success">
-                                                    {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                                                </span>
-                                            @endif
-                                        @else
-                                            <span class="badge bg-secondary">Бессрочно</span>
-                                        @endif
-                                    </div>
-                                </div>
-                                
+                            <div class="mb-3">                                
                                 <div class="d-flex align-items-center mb-2">
                                     <i class="bi bi-people text-muted me-2" style="width: 20px;"></i>
                                     <span class="text-muted">Лимит сотрудников:</span>
@@ -290,6 +267,12 @@
                                     <i class="bi bi-envelope text-muted me-2"></i>
                                     <span>{{ $organization->owner->user->email }}</span>
                                 </div>
+                                @if($organization->owner->user->phone)
+                                <div class="d-flex align-items-center mb-3">
+                                    <i class="bi bi-telephone text-muted me-2"></i>
+                                    <span>{{ $organization->owner->user->phone }}</span>
+                                </div>
+                                @endif
                                 <div class="d-flex align-items-center mb-3">
                                     <i class="bi bi-calendar text-muted me-2"></i>
                                     <span>Зарегистрирован: {{ $organization->owner->user->created_at->format('d.m.Y') }}</span>
@@ -1173,6 +1156,7 @@ function confirmDelete(id, name) {
 @endif
 
 @push('scripts')
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     // Данные для делегирования
     let limits = {

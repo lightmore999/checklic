@@ -353,7 +353,6 @@
                                     <th>Организация / ИНН</th>
                                     <th>Владелец</th>
                                     <th>Статус</th>
-                                    <th>Подписка до</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -404,24 +403,6 @@
                                         <span class="badge bg-{{ $config['class'] }}">
                                             {{ $config['text'] }}
                                         </span>
-                                    </td>
-                                    <td>
-                                        @if($organization->subscription_ends_at)
-                                            @if($organization->subscription_ends_at->isPast())
-                                                <span class="text-danger small fw-bold">
-                                                    {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                                                </span>
-                                            @else
-                                                <span class="text-success small">
-                                                    {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                                                </span>
-                                                @if($organization->isSubscriptionExpiringSoon())
-                                                    <span class="badge bg-warning ms-1">скоро</span>
-                                                @endif
-                                            @endif
-                                        @else
-                                            <span class="text-muted small">Бессрочно</span>
-                                        @endif
                                     </td>
                                 </tr>
                                 @endforeach

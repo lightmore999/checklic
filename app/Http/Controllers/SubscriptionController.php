@@ -6,10 +6,13 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Organization;
 use App\Models\Limit;
+use App\Models\ReportType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+
 
 class SubscriptionController extends Controller
 {
@@ -167,23 +170,21 @@ class SubscriptionController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
-        $organizations = collect(); // По умолчанию пустая коллекция
+        // Получаем все типы отчетов
+        $reportTypes = ReportType::orderBy('name')->get();
         
+        // Получаем организации для фильтра
         if ($user->isAdmin()) {
-            // Для админа - все организации
-            $organizations = Organization::whereIn('status', ['active', 'suspended'])
-                ->orderBy('name')
-                ->get(['id', 'name', 'inn']);
-        } else {
-            // Для менеджера - только его организации
+            $organizations = Organization::orderBy('name')->get();
+        } elseif ($user->isManager()) {
             $organizations = Organization::where('manager_id', $user->id)
-                ->whereIn('status', ['active', 'suspended'])
                 ->orderBy('name')
-                ->get(['id', 'name', 'inn']);
+                ->get();
+        } else {
+            $organizations = collect();
         }
         
-        // Не передаем users, так как используем AJAX поиск
-        return view('subscriptions.create', compact('organizations'));
+        return view('subscriptions.create', compact('user', 'reportTypes', 'organizations'));
     }
 
     /**
@@ -203,6 +204,10 @@ class SubscriptionController extends Controller
             'ends_at' => 'nullable|date|after:starts_at',
             'status' => 'required|in:active,suspended,expired,cancelled,pending',
             'redirect_to_organization' => 'nullable|integer|exists:organizations,id',
+            'report_types' => 'nullable|array',
+            'report_types.*' => 'exists:report_types,id',
+            'quantities' => 'nullable|array',
+            'quantities.*' => 'integer|min:0',
         ]);
         
         if ($validator->fails()) {
@@ -211,17 +216,13 @@ class SubscriptionController extends Controller
                 ->withInput();
         }
         
-        // Проверяем, нет ли уже активной подписки у пользователя
-        $targetUser = User::find($request->user_id);
-        $activeSubscription = $targetUser->activeSubscription();
+        // ИСПРАВЛЕНО: убираем проверку на наличие активной подписки
+        // Теперь можно создавать несколько активных подписок
         
-        if ($activeSubscription && $request->status == 'active') {
-            return redirect()->back()
-                ->with('error', 'У пользователя уже есть активная подписка')
-                ->withInput();
-        }
+        DB::beginTransaction();
         
         try {
+            // 1. Создаем подписку
             $subscription = Subscription::create([
                 'user_id' => $request->user_id,
                 'starts_at' => $request->starts_at ? Carbon::parse($request->starts_at) : now(),
@@ -229,23 +230,65 @@ class SubscriptionController extends Controller
                 'status' => $request->status,
             ]);
             
+            // 2. Создаем лимиты
+            $createdLimits = [];
+            if ($request->has('report_types') && is_array($request->report_types) && count($request->report_types) > 0) {
+                foreach ($request->report_types as $reportTypeId) {
+                    $quantity = isset($request->quantities[$reportTypeId]) 
+                        ? (int)$request->quantities[$reportTypeId] 
+                        : 0;
+                    
+                    if ($quantity > 0) {
+                        $limit = Limit::create([
+                            'subscription_id' => $subscription->id,
+                            'report_type_id' => $reportTypeId,
+                            'quantity' => $quantity,
+                            'used_quantity' => 0,
+                            'date_created' => now()->format('Y-m-d'),
+                            'created_by' => auth()->id(),
+                        ]);
+                        
+                        $createdLimits[] = $limit;
+                    }
+                }
+            }
+            
+            DB::commit();
+            
+            // Убираем dd() после отладки
+            // dd([
+            //     'subscription' => $subscription->toArray(),
+            //     'limits_created_count' => count($createdLimits),
+            //     'limits' => array_map(function($limit) {
+            //         return $limit->toArray();
+            //     }, $createdLimits),
+            //     'report_types_from_form' => $request->report_types,
+            //     'quantities_from_form' => $request->quantities,
+            // ]);
+            
+            $message = 'Подписка успешно создана';
+            if (count($createdLimits) > 0) {
+                $message .= ' с ' . count($createdLimits) . ' лимитами';
+            }
+            
             // Если есть redirect_to_organization, возвращаемся к организации
             if ($request->filled('redirect_to_organization')) {
                 $route = $user->isAdmin() ? 'admin.organization.show' : 'manager.organization.show';
                 return redirect()->route($route, $request->redirect_to_organization)
-                    ->with('success', 'Подписка успешно создана');
+                    ->with('success', $message);
             }
             
             return redirect()->route('subscriptions.index')
-                ->with('success', 'Подписка успешно создана');
+                ->with('success', $message);
                 
         } catch (\Exception $e) {
+            DB::rollBack();
+            
             return redirect()->back()
                 ->with('error', 'Ошибка: ' . $e->getMessage())
                 ->withInput();
         }
     }
-
     /**
      * Просмотр подписки
      */

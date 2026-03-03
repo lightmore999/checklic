@@ -152,7 +152,7 @@
                 <!-- Navigation -->
                 <nav class="nav flex-column p-3">
                     @auth
-                        <!-- Admin Section -->
+                    <!-- Admin Section -->
                     @if(Auth::user()->isAdmin())
                         <div class="sidebar-section px-3 py-2">Администрирование</div>
                         <a href="{{ route('admin.dashboard') }}" 
@@ -160,6 +160,13 @@
                             <i class="nav-icon bi bi-speedometer2"></i>
                             Панель админа
                         </a>   
+                        
+                        <!-- ДОБАВЛЕНО: Список менеджеров -->
+                        <a href="{{ route('admin.managers.index') }}" 
+                        class="nav-link {{ request()->routeIs('admin.managers.index') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-people"></i>
+                            Управление менеджерами
+                        </a>
                         
                         <!-- ДОБАВЛЕНО: Список организаций -->
                         <a href="{{ route('admin.organizations.list') }}" 

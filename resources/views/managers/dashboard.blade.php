@@ -442,7 +442,6 @@
                             <th>Организация / ИНН</th>
                             <th>Владелец</th>
                             <th width="100">Статус</th>
-                            <th width="140">Подписка до</th>
                             <th width="120" class="text-center">Действия</th>
                         </tr>
                     </thead>
@@ -495,27 +494,6 @@
                                     <i class="bi bi-{{ $config['icon'] }} me-1"></i>
                                     {{ $config['text'] }}
                                 </span>
-                            </td>
-                            <td>
-                                @if($organization->subscription_ends_at)
-                                    @if($organization->subscription_ends_at->isPast())
-                                        <span class="badge bg-danger">
-                                            <i class="bi bi-exclamation-triangle me-1"></i>
-                                            {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                                        </span>
-                                    @elseif($organization->subscription_ends_at->diffInDays(now()) < 7)
-                                        <span class="badge bg-warning">
-                                            <i class="bi bi-clock me-1"></i>
-                                            {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                                        </span>
-                                    @else
-                                        <span class="badge bg-success">
-                                            {{ $organization->subscription_ends_at->format('d.m.Y') }}
-                                        </span>
-                                    @endif
-                                @else
-                                    <span class="badge bg-secondary">Бессрочно</span>
-                                @endif
                             </td>
                             <td class="text-center">
                                 <div class="d-flex justify-content-center gap-1">

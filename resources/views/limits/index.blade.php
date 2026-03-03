@@ -13,16 +13,6 @@
                         <i class="bi bi-file-text text-primary me-2"></i>
                         Отчеты
                     </h3>
-                    <div class="d-flex gap-2">
-                        @if(auth()->user()->isAdmin() || auth()->user()->isManager())
-                            <a href="{{ route('limits.create') }}" class="btn btn-primary btn-sm">
-                                <i class="bi bi-plus-circle me-1"></i> Создать отчет
-                            </a>
-                            <a href="{{ route('limits.bulk-create') }}" class="btn btn-success btn-sm">
-                                <i class="bi bi-files me-1"></i> Массовое создание
-                            </a>
-                        @endif
-                    </div>
                 </div>
                 
                 <div class="card-body">
@@ -85,7 +75,7 @@
                                     <button type="submit" class="btn btn-info">
                                         <i class="bi bi-funnel me-1"></i> Применить фильтры
                                     </button>
-                                    <a href="{{ route('limits.index') }}" class="btn btn-outline-secondary">
+                                    <a href="{{ route('limits.index') }}" class="btn btn-secondary">
                                         <i class="bi bi-arrow-counterclockwise me-1"></i> Сбросить
                                     </a>
                                 </div>
@@ -171,6 +161,39 @@
                                                                   ($subscriptionStatus === 'expired' ? 'danger' : 
                                                                   ($subscriptionStatus === 'pending' ? 'warning' : 'secondary'));
                                         $subscriptionStatusText = $subscription ? $subscription->getStatusTextAttribute() : 'Нет подписки';
+                                        
+                                        // Определяем маршрут к профилю пользователя
+                                        $userProfileRoute = null;
+                                        if ($user) {
+                                            if ($user->isOrgOwner() && $user->orgOwnerProfile) {
+                                                $userProfileRoute = route('admin.organization.show', $user->orgOwnerProfile->organization_id);
+                                            } elseif ($user->isOrgMember() && $user->orgMemberProfile) {
+                                                $userProfileRoute = route('admin.org-members.show', [
+                                                    $user->orgMemberProfile->organization_id,
+                                                    $user->orgMemberProfile->id
+                                                ]);
+                                            } elseif ($user->isManager()) {
+                                                $userProfileRoute = route('admin.managers.show', $user->id);
+                                            }
+                                        }
+                                        
+                                        // Определяем маршрут к профилю создателя
+                                        $creator = $limit->creator;
+                                        $creatorProfileRoute = null;
+                                        if ($creator) {
+                                            if ($creator->isOrgOwner() && $creator->orgOwnerProfile) {
+                                                $creatorProfileRoute = route('admin.organization.show', $creator->orgOwnerProfile->organization_id);
+                                            } elseif ($creator->isOrgMember() && $creator->orgMemberProfile) {
+                                                $creatorProfileRoute = route('admin.org-members.show', [
+                                                    $creator->orgMemberProfile->organization_id,
+                                                    $creator->orgMemberProfile->id
+                                                ]);
+                                            } elseif ($creator->isManager()) {
+                                                $creatorProfileRoute = route('admin.managers.show', $creator->id);
+                                            } elseif ($creator->isAdmin()) {
+                                                $creatorProfileRoute = route('admin.dashboard');
+                                            }
+                                        }
                                     @endphp
                                     <tr>
                                         <td class="fw-bold">#{{ $limit->id }}</td>
@@ -182,7 +205,13 @@
                                                         {{ strtoupper(substr($user->name, 0, 1)) }}
                                                     </div>
                                                     <div>
-                                                        <div class="fw-bold">{{ $user->name }}</div>
+                                                        @if($userProfileRoute)
+                                                            <a href="{{ $userProfileRoute }}" class="fw-bold text-decoration-none">
+                                                                {{ $user->name }}
+                                                            </a>
+                                                        @else
+                                                            <div class="fw-bold">{{ $user->name }}</div>
+                                                        @endif
                                                         <small class="text-muted">{{ $user->email }}</small>
                                                         <div>
                                                             <span class="badge bg-{{ $user->getRoleColor() ?? 'secondary' }}" style="font-size: 0.7rem;">
@@ -203,7 +232,9 @@
                                                         <i class="bi bi-building"></i>
                                                     </div>
                                                     <div>
-                                                        <div>{{ $userOrg->name }}</div>
+                                                        <a href="{{ route('admin.organization.show', $userOrg->id) }}" class="text-decoration-none">
+                                                            {{ $userOrg->name }}
+                                                        </a>
                                                         @if($user && $user->isOrgOwner())
                                                             <small class="badge bg-primary">Руководитель</small>
                                                         @elseif($user && $user->isOrgMember())
@@ -237,15 +268,21 @@
                                             @endif
                                         </td>
                                         <td>
-                                            @if($limit->creator)
+                                            @if($creator)
                                                 <div class="d-flex align-items-center">
                                                     <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-2" 
                                                          style="width: 28px; height: 28px; color: white; font-size: 0.7rem;">
-                                                        {{ strtoupper(substr($limit->creator->name, 0, 1)) }}
+                                                        {{ strtoupper(substr($creator->name, 0, 1)) }}
                                                     </div>
                                                     <div>
-                                                        <div>{{ $limit->creator->name }}</div>
-                                                        <small class="text-muted">{{ $limit->creator->email }}</small>
+                                                        @if($creatorProfileRoute)
+                                                            <a href="{{ $creatorProfileRoute }}" class="text-decoration-none">
+                                                                {{ $creator->name }}
+                                                            </a>
+                                                        @else
+                                                            <div>{{ $creator->name }}</div>
+                                                        @endif
+                                                        <small class="text-muted">{{ $creator->email }}</small>
                                                     </div>
                                                 </div>
                                             @else
@@ -281,7 +318,7 @@
                                         <td>
                                             @if($limit->delegatedVersions && $limit->delegatedVersions->count() > 0)
                                                 <div class="delegated-info">
-                                                    <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" 
+                                                    <button type="button" class="btn btn-sm btn-info" data-bs-toggle="collapse" 
                                                             data-bs-target="#delegated-{{ $limit->id }}">
                                                         <i class="bi bi-share"></i> 
                                                         {{ $limit->delegatedVersions->count() }}
@@ -310,25 +347,22 @@
                                         <td>
                                             <div class="d-flex justify-content-center gap-1">
                                                 @if(auth()->user()->isAdmin())
-                                                    <a href="{{ route('limits.edit', $limit) }}" class="btn btn-sm btn-outline-warning" title="Редактировать">
-                                                        <i class="bi bi-pencil"></i>
-                                                    </a>
                                                     <form action="{{ route('limits.destroy', $limit) }}" method="POST" class="d-inline" 
                                                           onsubmit="return confirm('Вы уверены, что хотите удалить этот отчет?')">
                                                         @csrf
                                                         @method('DELETE')
-                                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Удалить">
+                                                        <button type="submit" class="btn btn-sm btn-danger" title="Удалить">
                                                             <i class="bi bi-trash"></i>
                                                         </button>
                                                     </form>
                                                 @endif
-                                                @if($user)
-                                                    <a href="{{ route('users.limits', $user) }}" class="btn btn-sm btn-outline-info" title="Все отчеты пользователя">
+                                                @if($user && $userProfileRoute)
+                                                    <a href="{{ $userProfileRoute }}" class="btn btn-sm btn-info" title="Профиль пользователя">
                                                         <i class="bi bi-person"></i>
                                                     </a>
                                                 @endif
                                                 @if((auth()->user()->isAdmin() || auth()->user()->isManager()) && $limit->getAvailableQuantity() > 0 && $subscription)
-                                                    <button type="button" class="btn btn-sm btn-outline-success" 
+                                                    <button type="button" class="btn btn-sm btn-success" 
                                                             data-bs-toggle="modal" data-bs-target="#delegateModal{{ $limit->id }}" 
                                                             title="Делегировать">
                                                         <i class="bi bi-share"></i>
@@ -372,6 +406,21 @@
                                                                                 $delUserOrg = $delUser->orgMemberProfile->organization;
                                                                             }
                                                                         }
+                                                                        
+                                                                        // Определяем маршрут к профилю делегированного пользователя
+                                                                        $delUserProfileRoute = null;
+                                                                        if ($delUser) {
+                                                                            if ($delUser->isOrgOwner() && $delUser->orgOwnerProfile) {
+                                                                                $delUserProfileRoute = route('admin.organization.show', $delUser->orgOwnerProfile->organization_id);
+                                                                            } elseif ($delUser->isOrgMember() && $delUser->orgMemberProfile) {
+                                                                                $delUserProfileRoute = route('admin.org-members.show', [
+                                                                                    $delUser->orgMemberProfile->organization_id,
+                                                                                    $delUser->orgMemberProfile->id
+                                                                                ]);
+                                                                            } elseif ($delUser->isManager()) {
+                                                                                $delUserProfileRoute = route('admin.managers.show', $delUser->id);
+                                                                            }
+                                                                        }
                                                                     @endphp
                                                                     <tr>
                                                                         <td>
@@ -382,7 +431,13 @@
                                                                                         {{ strtoupper(substr($delUser->name, 0, 1)) }}
                                                                                     </div>
                                                                                     <div>
-                                                                                        <div>{{ $delUser->name }}</div>
+                                                                                        @if($delUserProfileRoute)
+                                                                                            <a href="{{ $delUserProfileRoute }}" class="text-decoration-none">
+                                                                                                {{ $delUser->name }}
+                                                                                            </a>
+                                                                                        @else
+                                                                                            <div>{{ $delUser->name }}</div>
+                                                                                        @endif
                                                                                         <small class="text-muted">{{ $delUser->email }}</small>
                                                                                     </div>
                                                                                 </div>
@@ -392,7 +447,9 @@
                                                                         </td>
                                                                         <td>
                                                                             @if($delUserOrg)
-                                                                                {{ $delUserOrg->name }}
+                                                                                <a href="{{ route('admin.organization.show', $delUserOrg->id) }}" class="text-decoration-none">
+                                                                                    {{ $delUserOrg->name }}
+                                                                                </a>
                                                                             @elseif($delUser && $delUser->isManager())
                                                                                 <span class="badge bg-secondary">Менеджер</span>
                                                                             @else
@@ -464,6 +521,7 @@
 @foreach($limits as $limit)
     @php
         $subscription = $limit->subscription;
+        $user = $subscription->user ?? null;
     @endphp
     @if((auth()->user()->isAdmin() || auth()->user()->isManager()) && $limit->getAvailableQuantity() > 0 && $subscription)
         <div class="modal fade" id="delegateModal{{ $limit->id }}" tabindex="-1" aria-labelledby="delegateModalLabel{{ $limit->id }}" aria-hidden="true">
@@ -561,6 +619,16 @@
     }
     .collapse.show {
         display: table-row;
+    }
+    /* Стили для ссылок */
+    a.text-decoration-none:hover {
+        text-decoration: underline !important;
+    }
+    .table a {
+        color: #0d6efd;
+    }
+    .table a:hover {
+        color: #0a58ca;
     }
 </style>
 @endpush

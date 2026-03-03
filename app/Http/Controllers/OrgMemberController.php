@@ -31,22 +31,29 @@ class OrgMemberController extends Controller
         
         $organization = $memberProfile->organization;
         
-        // ===== ДОБАВЛЕНО: Получаем подписки сотрудника =====
+        // ===== ИСПРАВЛЕНО: Получаем подписки пользователя =====
         $subscriptions = Subscription::where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
             ->get();
         
-        // Получаем делегированные лимиты сотрудника
+        // ===== ИСПРАВЛЕНО: Получаем лимиты через подписки =====
+        // Собственные лимиты - это лимиты из подписок пользователя
+        $personalLimits = collect();
+        foreach ($subscriptions as $subscription) {
+            $limits = $subscription->limits()
+                ->with(['reportType'])
+                ->orderBy('date_created', 'desc')
+                ->get();
+            $personalLimits = $personalLimits->merge($limits);
+        }
+        
+        // Делегированные лимиты - отдельная таблица
         $delegatedLimits = DelegatedLimit::where('user_id', $user->id)
             ->where('is_active', true)
-            ->with(['limit.reportType', 'limit.subscription.user'])
-            ->orderBy('created_at', 'desc')
-            ->get();
-        
-        // Получаем собственные лимиты сотрудника
-        $personalLimits = Limit::where('user_id', $user->id)
-            ->with(['reportType', 'subscription.user'])
-            ->orderBy('date_created', 'desc')
+            ->with([
+                'limit.reportType', 
+                'limit.subscription.user'
+            ])
             ->orderBy('created_at', 'desc')
             ->get();
         
@@ -103,11 +110,31 @@ class OrgMemberController extends Controller
             $personalLimitsByType[$reportTypeName]['count']++;
         }
         
+        // Статистика по отчетам
+        $reports = Report::where('user_id', $user->id)->get();
+        
+        $totalReports = $reports->count();
+        $thisMonthReports = $reports->where('created_at', '>=', now()->startOfMonth())->count();
+        $inProgressReports = $reports->whereIn('status', ['pending', 'processing'])->count();
+        $completedReports = $reports->where('status', 'completed')->count();
+        
+        // Статистика по типам отчетов
+        $reportsByType = $reports->groupBy('report_type_id')->map(function($group) {
+            return [
+                'count' => $group->count(),
+                'completed' => $group->where('status', 'completed')->count(),
+                'pending' => $group->whereIn('status', ['pending', 'processing'])->count()
+            ];
+        });
+        
+        // Получаем названия типов отчетов
+        $reportTypes = ReportType::whereIn('id', $reportsByType->keys())->pluck('name', 'id');
+        
         return view('org-members.profile', compact(
             'user',
             'memberProfile',
             'organization',
-            'subscriptions', // ДОБАВЛЕНО
+            'subscriptions',
             'delegatedLimits',
             'personalLimits',
             'totalDelegated',
@@ -120,7 +147,13 @@ class OrgMemberController extends Controller
             'totalAllUsed',
             'totalAllAvailable',
             'delegatedLimitsByType',
-            'personalLimitsByType'
+            'personalLimitsByType',
+            'totalReports',
+            'thisMonthReports',
+            'inProgressReports',
+            'completedReports',
+            'reportsByType',
+            'reportTypes'
         ));
     }
     
@@ -257,28 +290,32 @@ class OrgMemberController extends Controller
         // Получаем сотрудника с проверкой, что он принадлежит организации
         $member = OrgMemberProfile::where('id', $memberId)
             ->where('organization_id', $organizationId)
-            ->with(['user', 'boss', 'manager']) // manager теперь User
+            ->with(['user', 'boss', 'manager'])
             ->firstOrFail();
         
-        // ===== ДОБАВЛЕНО: Получаем подписки сотрудника =====
+        // ===== ИСПРАВЛЕНО: Получаем подписки сотрудника =====
         $subscriptions = Subscription::where('user_id', $member->user_id)
             ->orderBy('created_at', 'desc')
             ->get();
         
-        // Получаем делегированные лимиты сотрудника
+        // ===== ИСПРАВЛЕНО: Получаем лимиты через подписки =====
+        // Собственные лимиты сотрудника
+        $personalLimits = collect();
+        foreach ($subscriptions as $subscription) {
+            $limits = $subscription->limits()
+                ->with(['reportType'])
+                ->orderBy('date_created', 'desc')
+                ->get();
+            $personalLimits = $personalLimits->merge($limits);
+        }
+        
+        // Делегированные лимиты сотрудника
         $delegatedLimits = DelegatedLimit::where('user_id', $member->user_id)
             ->where('is_active', true)
             ->with([
                 'limit.reportType', 
-                'limit.subscription.user' // Исправлено: получаем пользователя через подписку
+                'limit.subscription.user'
             ])
-            ->orderBy('created_at', 'desc')
-            ->get();
-        
-        // Получаем собственные лимиты сотрудника
-        $personalLimits = Limit::where('user_id', $member->user_id)
-            ->with(['reportType', 'subscription.user']) // Исправлено: получаем пользователя через подписку
-            ->orderBy('date_created', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();
         
@@ -363,7 +400,7 @@ class OrgMemberController extends Controller
             'organization', 
             'member', 
             'routePrefix',
-            'subscriptions', // ДОБАВЛЕНО
+            'subscriptions',
             'delegatedLimits',
             'personalLimits',
             'totalDelegated',

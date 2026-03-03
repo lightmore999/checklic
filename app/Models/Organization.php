@@ -13,16 +13,15 @@ class Organization extends Model
 
     protected $fillable = [
         'name',
-        'inn', 
+        'our_organization', // ДОБАВЛЕНО (или company_name)
+        'inn',
         'manager_id',
-        'subscription_ends_at',
         'status',
-        'max_employees', 
+        'max_employees',
     ];
 
     protected $casts = [
-        'subscription_ends_at' => 'datetime',
-        'max_employees' => 'integer', 
+        'max_employees' => 'integer',
     ];
 
     /**
@@ -30,7 +29,6 @@ class Organization extends Model
      */
     public function manager(): BelongsTo
     {
-        // Менеджер - это пользователь (User), а не модель Manager
         return $this->belongsTo(User::class, 'manager_id');
     }
 
@@ -51,57 +49,11 @@ class Organization extends Model
     }
 
     /**
-     * Проверка, истекла ли подписка
-     */
-    public function isExpired(): bool
-    {
-        if (!$this->subscription_ends_at) {
-            return false;
-        }
-        
-        return $this->subscription_ends_at->isPast();
-    }
-
-    /**
-     * Получить оставшееся время подписки в днях
-     */
-    public function getRemainingSubscriptionDays(): ?int
-    {
-        if (!$this->subscription_ends_at) {
-            return null;
-        }
-        
-        return Carbon::now()->diffInDays($this->subscription_ends_at, false);
-    }
-
-    /**
-     * Проверка, скоро ли истечет подписка (менее 7 дней)
-     */
-    public function isSubscriptionExpiringSoon(): bool
-    {
-        $remainingDays = $this->getRemainingSubscriptionDays();
-        
-        return $remainingDays !== null && $remainingDays > 0 && $remainingDays <= 7;
-    }
-
-    /**
      * Обновить статус организации
      */
     public function updateStatus(string $status): void
     {
         $this->update(['status' => $status]);
-    }
-
-    /**
-     * Продлить подписку
-     */
-    public function extendSubscription(int $days): void
-    {
-        $newDate = $this->subscription_ends_at 
-            ? $this->subscription_ends_at->addDays($days)
-            : Carbon::now()->addDays($days);
-            
-        $this->update(['subscription_ends_at' => $newDate]);
     }
 
     public function members()
@@ -114,11 +66,10 @@ class Organization extends Model
      */
     public function canAddMoreEmployees(): bool
     {
-        // Если лимит не установлен (null), то можно добавлять без ограничений
         if ($this->max_employees === null) {
             return true;
         }
-        
+
         $currentCount = $this->members()->count();
         return $currentCount < $this->max_employees;
     }
@@ -129,9 +80,9 @@ class Organization extends Model
     public function getAvailableEmployeeSlots(): ?int
     {
         if ($this->max_employees === null) {
-            return null; // Безлимитно
+            return null;
         }
-        
+
         $currentCount = $this->members()->count();
         return max(0, $this->max_employees - $currentCount);
     }
@@ -142,5 +93,16 @@ class Organization extends Model
     public function hasInn(): bool
     {
         return !empty($this->inn);
+    }
+
+    /**
+     * Получить полное название организации (оба поля)
+     */
+    public function getFullNameAttribute(): string
+    {
+        if ($this->our_organization) {
+            return $this->our_organization . ' (' . $this->name . ')';
+        }
+        return $this->name;
     }
 }

@@ -70,6 +70,22 @@
                             </div>
                             
                             <div class="col-md-6 mb-3">
+                                <label for="organization_our_organization" class="form-label">
+                                    Наша организация <small class="text-muted">(необязательно)</small>
+                                </label>
+                                <input type="text" class="form-control @error('organization.our_organization') is-invalid @enderror" 
+                                       id="organization_our_organization" name="organization[our_organization]" 
+                                       value="{{ old('organization.our_organization') }}" 
+                                       placeholder="Например: ООО Ромашка">
+                                @error('organization.our_organization')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text text-muted">Полное название или бренд организации (как вы хотите её видеть)</div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
                                 <label for="organization_inn" class="form-label">
                                     ИНН
                                 </label>
@@ -85,9 +101,7 @@
                                 @enderror
                                 <div class="form-text text-muted">ИНН организации (10 цифр для юрлиц, 12 для ИП)</div>
                             </div>
-                        </div>
-                        
-                        <div class="row">
+                            
                             <div class="col-md-6 mb-3">
                                 <label for="status" class="form-label">
                                     Статус *
@@ -112,7 +126,9 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
-                            
+                        </div>
+                        
+                        <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="organization_max_employees" class="form-label">
                                     Максимальное количество сотрудников
@@ -127,22 +143,6 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                                 <div class="form-text text-muted">Оставьте пустым для безлимитного количества сотрудников</div>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="subscription_ends_at" class="form-label">
-                                    Окончание подписки
-                                </label>
-                                <input type="date" class="form-control @error('organization.subscription_ends_at') is-invalid @enderror" 
-                                       id="subscription_ends_at" name="organization[subscription_ends_at]" 
-                                       value="{{ old('organization.subscription_ends_at') }}"
-                                       min="{{ date('Y-m-d', strtotime('+1 day')) }}">
-                                @error('organization.subscription_ends_at')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                                <div class="form-text text-muted">Оставьте пустым для бессрочной подписки</div>
                             </div>
                             
                             <div class="col-md-6 mb-3">
@@ -213,7 +213,7 @@
                             </div>
                         </div>
                         
-                        <!-- НОВОЕ ПОЛЕ: Номер телефона владельца (улучшенный дизайн) -->
+                        <!-- Номер телефона владельца -->
                         <div class="row">
                             <div class="col-md-12 mb-3">
                                 <label for="user_phone" class="form-label">
@@ -259,6 +259,7 @@
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Обратите внимание:</strong>
                         <ul class="mb-0 mt-1 ps-3">
+                            <li><strong>Наша организация</strong> - полное название или бренд, под которым будет видна организация</li>
                             <li>ИНН должен содержать 10 цифр для юридических лиц или 12 для ИП</li>
                             <li>Лимит сотрудников можно указать для ограничения количества добавляемых сотрудников</li>
                             <li>Если лимит не указан, сотрудников можно добавлять без ограничений</li>
@@ -299,14 +300,6 @@
             }).mask(phoneField);
         }
 
-        // Устанавливаем минимальную дату для подписки
-        const subscriptionField = document.getElementById('subscription_ends_at');
-        if (subscriptionField) {
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            subscriptionField.min = tomorrow.toISOString().split('T')[0];
-        }
-        
         // Валидация ИНН (только цифры)
         const innField = document.getElementById('organization_inn');
         if (innField) {
@@ -323,6 +316,16 @@
                 if (value < 1) {
                     this.value = '';
                 }
+            });
+        }
+        
+        // Валидация поля "Наша организация" (необязательное)
+        const ourOrgField = document.getElementById('organization_our_organization');
+        if (ourOrgField) {
+            ourOrgField.addEventListener('input', function(e) {
+                // Можно добавить автоматическое форматирование, если нужно
+                // Например, удалить лишние пробелы
+                // this.value = this.value.replace(/\s+/g, ' ').trim();
             });
         }
         
@@ -356,6 +359,15 @@
                 e.preventDefault();
                 alert('Максимальное количество сотрудников должно быть не менее 1');
                 document.getElementById('organization_max_employees').focus();
+                return false;
+            }
+            
+            // Проверка поля "Наша организация" (необязательное, только предупреждение)
+            const ourOrg = document.getElementById('organization_our_organization').value;
+            if (ourOrg && ourOrg.length > 255) {
+                e.preventDefault();
+                alert('Название "Наша организация" слишком длинное (максимум 255 символов)');
+                document.getElementById('organization_our_organization').focus();
                 return false;
             }
             

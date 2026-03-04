@@ -140,6 +140,9 @@
                                         <option value="{{ $manager->id }}" 
                                                 {{ old('organization.manager_id', $organization->manager_id) == $manager->id ? 'selected' : '' }}>
                                             {{ $manager->name }} ({{ $manager->email }})
+                                            @if(isset($manager->is_admin) && $manager->is_admin)
+                                                <span class="text-primary">(Админ)</span>
+                                            @endif
                                         </option>
                                     @endforeach
                                 </select>
@@ -147,9 +150,12 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                                 <div class="form-text">
-                                    Текущий менеджер: 
+                                    Текущий ответственный: 
                                     @if($organization->manager)
                                         {{ $organization->manager->name }} ({{ $organization->manager->email }})
+                                        @if($organization->manager->id == Auth::id())
+                                            <span class="badge bg-danger ms-1">Вы</span>
+                                        @endif
                                     @else
                                         <span class="text-muted">не назначен</span>
                                     @endif

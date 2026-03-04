@@ -435,6 +435,14 @@ class OrganizationController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name', 'email']);
+            
+            // ИСПРАВЛЕНО: Добавляем текущего админа в список
+            $managers->prepend((object)[
+                'id' => $user->id,
+                'name' => $user->name . ' (Я)',
+                'email' => $user->email,
+                'is_admin' => true
+            ]);
                 
             // Добавляем текущего менеджера в список, если его там нет
             if ($organization->manager_id) {
@@ -512,15 +520,33 @@ class OrganizationController extends Controller
                 'integer',
                 function ($attribute, $value, $fail) use ($user) {
                     if ($value) {
-                        $exists = User::where('id', $value)
-                            ->where('role', 'manager')
-                            ->whereHas('managerProfile', function($query) use ($user) {
-                                $query->where('admin_id', $user->id);
-                            })
-                            ->exists();
+                        // ИСПРАВЛЕНО: Проверяем, что пользователь существует и либо является менеджером этого админа, либо самим админом
+                        $targetUser = User::find($value);
                         
-                        if (!$exists) {
-                            $fail('Выбранный менеджер не найден или не принадлежит вам');
+                        if (!$targetUser) {
+                            $fail('Выбранный пользователь не найден');
+                            return;
+                        }
+                        
+                        // Если выбран сам админ - разрешаем
+                        if ($targetUser->id == $user->id) {
+                            return;
+                        }
+                        
+                        // Если выбран менеджер - проверяем, что он принадлежит этому админу
+                        if ($targetUser->role == 'manager') {
+                            $exists = User::where('id', $value)
+                                ->where('role', 'manager')
+                                ->whereHas('managerProfile', function($query) use ($user) {
+                                    $query->where('admin_id', $user->id);
+                                })
+                                ->exists();
+                            
+                            if (!$exists) {
+                                $fail('Выбранный менеджер не найден или не принадлежит вам');
+                            }
+                        } else {
+                            $fail('Выбранный пользователь не является менеджером');
                         }
                     }
                 }

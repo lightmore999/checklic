@@ -258,6 +258,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>ID</th>
+                            <th>Название</th>
                             <th>Дата начала</th>
                             <th>Дата окончания</th>
                             <th>Статус</th>
@@ -283,9 +284,16 @@
                                     }
                                 }
                             }
+                            $subscriptionName = $subscription->name ?? 'Подписка #' . $subscription->id;
                         @endphp
                         <tr>
                             <td>#{{ $subscription->id }}</td>
+                            <td>
+                                <span class="fw-semibold small">
+                                    <i class="bi bi-tag text-info me-1"></i>
+                                    {{ Str::limit($subscriptionName, 25) }}
+                                </span>
+                            </td>
                             <td>{{ $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : '—' }}</td>
                             <td>
                                 @if($subscription->ends_at)
@@ -357,6 +365,7 @@
             $wordForms = ['отчет', 'отчета', 'отчетов'];
             $wordIndex = ($limitsCount % 100 > 4 && $limitsCount % 100 < 20) ? 2 : [2, 0, 1, 1, 1, 2][min($limitsCount % 10, 5)];
             $wordForm = $wordForms[$wordIndex];
+            $subscriptionName = $group['subscription']->name ?? 'Подписка #' . $group['subscription']->id;
         @endphp
         
         <div class="card border-0 shadow-sm mb-4">
@@ -365,7 +374,7 @@
                     <div>
                         <h6 class="mb-0">
                             <i class="bi bi-stars text-info me-2"></i>
-                            Подписка #{{ $subscription->id }}
+                            <span class="me-2">{{ $subscriptionName }}</span>
                             @if($subscription->status === 'active')
                                 <span class="badge bg-success ms-2">Активна</span>
                             @elseif($subscription->status === 'expired')

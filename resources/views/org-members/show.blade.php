@@ -164,52 +164,57 @@
 
             <!-- Подписки сотрудника -->
             @if(isset($subscriptions))
-            <div class="card mb-4">
-                <div class="card-header py-2 bg-light d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0"><i class="bi bi-stars text-info me-2"></i>Подписки</h6>
-                    @if($subscriptions->count() > 0)
-                        <span class="badge bg-info">{{ $subscriptions->count() }}</span>
-                    @endif
-                </div>
-                <div class="card-body p-3">
-                    @if($subscriptions->count() > 0)
-                        <div class="list-group list-group-flush">
-                            @foreach($subscriptions as $subscription)
-                                @php
-                                    $remainingDays = $subscription->getRemainingDays();
-                                    $statusClass = $subscription->status === 'active' ? 'success' : 
-                                                  ($subscription->status === 'expired' ? 'danger' : 'warning');
-                                    
-                                    $subscriptionLimits = $personalLimits->where('subscription_id', $subscription->id);
-                                    $totalLimits = $subscriptionLimits->sum('quantity');
-                                @endphp
-                                <div class="list-group-item px-0 py-2 border-0 border-bottom">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <span class="badge bg-{{ $statusClass }} me-2">
-                                                {{ $subscription->getStatusTextAttribute() }}
-                                            </span>
-                                            @if($subscription->ends_at)
-                                                <small>до {{ $subscription->ends_at->format('d.m.Y') }}</small>
-                                            @else
-                                                <small>бессрочно</small>
+                <div class="card mb-4">
+                    <div class="card-header py-2 bg-light d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="bi bi-stars text-info me-2"></i>Подписки</h6>
+                        @if($subscriptions->count() > 0)
+                            <span class="badge bg-info">{{ $subscriptions->count() }}</span>
+                        @endif
+                    </div>
+                    <div class="card-body p-3">
+                        @if($subscriptions->count() > 0)
+                            <div class="list-group list-group-flush">
+                                @foreach($subscriptions as $subscription)
+                                    @php
+                                        $remainingDays = $subscription->getRemainingDays();
+                                        $statusClass = $subscription->status === 'active' ? 'success' : 
+                                                    ($subscription->status === 'expired' ? 'danger' : 'warning');
+                                        
+                                        $subscriptionLimits = $personalLimits->where('subscription_id', $subscription->id);
+                                        $totalLimits = $subscriptionLimits->sum('quantity');
+                                        
+                                        // ДОБАВИТЬ: получаем название подписки
+                                        $subscriptionName = $subscription->name ?? 'Подписка #' . $subscription->id;
+                                    @endphp
+                                    <div class="list-group-item px-0 py-2 border-0 border-bottom">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <span class="badge bg-{{ $statusClass }} me-2">
+                                                    {{ $subscription->getStatusTextAttribute() }}
+                                                </span>
+                                                <!-- ДОБАВЛЕНО: название подписки -->
+                                                <span class="fw-semibold small me-2">{{ Str::limit($subscriptionName, 25) }}</span>
+                                                @if($subscription->ends_at)
+                                                    <small>до {{ $subscription->ends_at->format('d.m.Y') }}</small>
+                                                @else
+                                                    <small>бессрочно</small>
+                                                @endif
+                                            </div>
+                                            @if($totalLimits > 0)
+                                                <span class="badge bg-info">{{ $totalLimits }} шт.</span>
                                             @endif
                                         </div>
-                                        @if($totalLimits > 0)
-                                            <span class="badge bg-info">{{ $totalLimits }} шт.</span>
-                                        @endif
                                     </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-muted small text-center mb-0">
-                            <i class="bi bi-stars me-1"></i> Нет подписок
-                        </p>
-                    @endif
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="text-muted small text-center mb-0">
+                                <i class="bi bi-stars me-1"></i> Нет подписок
+                            </p>
+                        @endif
+                    </div>
                 </div>
-            </div>
-            @endif
+                @endif
 
             <!-- Статистика по типам отчетов -->
             @if($reportsByType->count() > 0)
@@ -392,10 +397,25 @@
                                         </thead>
                                         <tbody>
                                             @foreach($personalLimits as $limit)
-                                                @php $available = $limit->getAvailableQuantity(); @endphp
+                                                @php 
+                                                    $available = $limit->getAvailableQuantity();
+                                                    
+                                                    // ДОБАВИТЬ: получаем подписку и её название
+                                                    $subscription = $limit->subscription;
+                                                    $subscriptionName = $subscription ? ($subscription->name ?? 'Подписка #' . $subscription->id) : 'Неизвестно';
+                                                @endphp
                                                 <tr>
                                                     <td>
-                                                        <span class="badge bg-info">#{{ $limit->subscription_id }}</span>
+                                                        @if($subscription)
+                                                            <div class="d-flex align-items-center">
+                                                                <i class="bi bi-tag text-info me-1"></i>
+                                                                <span class="small" title="{{ $subscriptionName }}">
+                                                                    {{ Str::limit($subscriptionName, 20) }}
+                                                                </span>
+                                                            </div>
+                                                        @else
+                                                            <span class="badge bg-secondary">#{{ $limit->subscription_id }}</span>
+                                                        @endif
                                                     </td>
                                                     <td>
                                                         <span class="fw-semibold small">{{ $limit->reportType->name ?? 'Без типа' }}</span>

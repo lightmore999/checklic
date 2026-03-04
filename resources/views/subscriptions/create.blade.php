@@ -99,6 +99,22 @@
                                     </div>
                                 </div>
                                 
+                                <!-- НОВОЕ ПОЛЕ: Название подписки -->
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">
+                                        <i class="bi bi-tag me-1"></i>
+                                        Название подписки
+                                    </label>
+                                    <input type="text" class="form-control @error('name') is-invalid @enderror" 
+                                           id="name" name="name" 
+                                           value="{{ old('name') }}" 
+                                           placeholder="Например: Премиум подписка 2025">
+                                    @error('name')
+                                        <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
+                                    <div class="form-text">Удобное название для идентификации подписки (необязательно)</div>
+                                </div>
+                                
                                 <!-- Статус -->
                                 <div class="mb-3">
                                     <label for="status" class="form-label">
@@ -187,8 +203,6 @@
                                 </div>
                             </div>
                         </div>
-                        
-
                         
                         <!-- БЛОК С ТИПАМИ ОТЧЕТОВ ДЛЯ ЛИМИТОВ -->
                         <div class="card mt-4 mb-4">
@@ -558,8 +572,16 @@ $(document).ready(function() {
             return false;
         }
         
+        // ДОБАВЛЕНО: проверка длины названия
+        const name = document.getElementById('name').value;
+        if (name && name.length > 255) {
+            e.preventDefault();
+            alert('Название подписки слишком длинное (максимум 255 символов)');
+            return false;
+        }
+        
         const warning = document.getElementById('activeSubscriptionWarning');
-        if (status === 'active' && warning.style.display === 'block') {
+        if (status === 'active' && warning && warning.style.display === 'block') {
             if (!confirm('У пользователя уже есть активная подписка. Продолжить?')) {
                 e.preventDefault();
                 return false;
@@ -611,6 +633,7 @@ function updateSelectedTypes() {
         }
     });
 }
+
 // Установка количества для конкретного типа
 function setQuantity(typeId, amount) {
     const input = document.getElementById(`quantity_${typeId}`);

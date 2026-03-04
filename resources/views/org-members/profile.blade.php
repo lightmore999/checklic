@@ -77,6 +77,7 @@
                                     $subscriptionLimits = $personalLimits->where('subscription_id', $subscription->id);
                                     $totalLimits = $subscriptionLimits->sum('quantity');
                                     $totalUsed = $subscriptionLimits->sum('used_quantity');
+                                    $subscriptionName = $subscription->name ?? 'Подписка #' . $subscription->id;
                                 @endphp
                                 <div class="list-group-item px-3 py-3">
                                     <div class="d-flex justify-content-between align-items-start mb-2">
@@ -84,6 +85,7 @@
                                             <span class="badge bg-{{ $statusClass }} me-2">
                                                 {{ $subscription->getStatusTextAttribute() }}
                                             </span>
+                                            <span class="fw-semibold me-2">{{ $subscriptionName }}</span>
                                             <small class="text-muted">#{{ $subscription->id }}</small>
                                         </div>
                                         <button type="button" class="btn btn-sm btn-outline-info" 
@@ -474,6 +476,7 @@
         @if(isset($subscriptions))
             @foreach($subscriptions as $sub)
                 {{ $sub->id }}: {
+                    name: '{{ $sub->name ?? 'Подписка #' . $sub->id }}', // ДОБАВЛЕНО
                     starts_at: '{{ $sub->starts_at ? $sub->starts_at->format('d.m.Y') : '—' }}',
                     ends_at: '{{ $sub->ends_at ? $sub->ends_at->format('d.m.Y') : 'Бессрочно' }}',
                     status: '{{ $sub->status }}',
@@ -494,13 +497,14 @@
         const html = `
             <div class="text-center mb-4">
                 <div class="rounded-circle bg-info d-inline-flex align-items-center justify-content-center mb-3" 
-                     style="width: 70px; height: 70px; color: white; font-size: 1.8rem;">
+                    style="width: 70px; height: 70px; color: white; font-size: 1.8rem;">
                     ${sub.user_name.charAt(0).toUpperCase()}
                 </div>
                 <h5>${sub.user_name}</h5>
                 <p class="text-muted small">${sub.user_email}</p>
             </div>
             <table class="table table-sm">
+                <tr><th>Название:</th><td>${sub.name}</td></tr> <!-- ДОБАВЛЕНО -->
                 <tr><th>Дата начала:</th><td>${sub.starts_at}</td></tr>
                 <tr><th>Дата окончания:</th><td>${sub.ends_at}</td></tr>
                 <tr><th>Статус:</th><td><span class="badge bg-${sub.status_class}">${sub.status_text}</span></td></tr>

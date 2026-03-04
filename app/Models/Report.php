@@ -34,12 +34,14 @@ class Report extends Model
         'vehicle_number',
         'cadastral_number',
         'property_type',
+        'inn',
         
-        // Результат от API
+        // Результаты от API
         'response_data',
-        
-        // НОВОЕ: обработанные данные после парсинга
         'processed_data',
+        'api_statuses',
+        'api_responses',
+        'meta_data',
         
         // Системные
         'quantity_used',
@@ -63,7 +65,10 @@ class Report extends Model
      */
     protected $casts = [
         'response_data' => 'array',
-        'processed_data' => 'array',    // НОВОЕ
+        'processed_data' => 'array',
+        'api_statuses' => 'array',
+        'api_responses' => 'array',
+        'meta_data' => 'array',
         'birth_date' => 'date',
         'passport_date' => 'date',
         'quantity_used' => 'integer',
@@ -83,8 +88,12 @@ class Report extends Model
     const STATUS_PENDING = 'pending';
     const STATUS_PROCESSING = 'processing';
     const STATUS_COMPLETED = 'completed';
+    const STATUS_PARTIAL = 'partial';
     const STATUS_FAILED = 'failed';
     const STATUS_CANCELLED = 'cancelled';
+    
+    // ID типа отчета Контрагенты
+    const CONTRAGENT_TYPE_ID = 6;
 
     /**
      * Отношение к пользователю (создателю отчета)
@@ -118,6 +127,8 @@ class Report extends Model
         return $this->belongsTo(DelegatedLimit::class);
     }
 
+    // ========== МЕТОДЫ ДЛЯ ПРОВЕРКИ СТАТУСОВ ==========
+
     /**
      * Проверка, находится ли отчет в ожидании
      */
@@ -135,11 +146,27 @@ class Report extends Model
     }
 
     /**
-     * Проверка, завершен ли отчет
+     * Проверка, завершен ли отчет полностью
      */
     public function isCompleted(): bool
     {
         return $this->status === self::STATUS_COMPLETED;
+    }
+
+    /**
+     * Проверка, частично ли готов отчет
+     */
+    public function isPartial(): bool
+    {
+        return $this->status === self::STATUS_PARTIAL;
+    }
+
+    /**
+     * Проверка, готов ли отчет (полностью или частично)
+     */
+    public function isReady(): bool
+    {
+        return in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_PARTIAL]);
     }
 
     /**
@@ -166,42 +193,16 @@ class Report extends Model
         return $this->isPending();
     }
 
-    /**
-     * Получить полный номер паспорта
-     */
-    public function getPassportFullAttribute(): string
-    {
-        return trim(($this->passport_series ?? '') . ' ' . ($this->passport_number ?? ''));
-    }
-
-    /**
-     * Получить полное ФИО
-     */
-    public function getFullNameAttribute(): string
-    {
-        return trim(($this->last_name ?? '') . ' ' . ($this->first_name ?? '') . ' ' . ($this->patronymic ?? ''));
-    }
-
-    /**
-     * Получить использованный лимит (основной или делегированный)
-     */
-    public function getUsedLimit()
-    {
-        return $this->delegatedLimit ?? $this->limit;
-    }
+    // ========== МЕТОДЫ ДЛЯ ОБНОВЛЕНИЯ СТАТУСА ==========
 
     /**
      * Обновить статус отчета
      */
-    public function updateStatus(string $status, array $responseData = null): bool
+    public function updateStatus(string $status): bool
     {
         $this->status = $status;
         
-        if ($responseData) {
-            $this->response_data = $responseData;
-        }
-        
-        if (in_array($status, [self::STATUS_COMPLETED, self::STATUS_FAILED])) {
+        if (in_array($status, [self::STATUS_COMPLETED, self::STATUS_PARTIAL, self::STATUS_FAILED])) {
             $this->processed_at = now();
         }
         
@@ -219,17 +220,25 @@ class Report extends Model
     /**
      * Отметить как завершенный
      */
-    public function markAsCompleted(array $responseData): bool
+    public function markAsCompleted(): bool
     {
-        return $this->updateStatus(self::STATUS_COMPLETED, $responseData);
+        return $this->updateStatus(self::STATUS_COMPLETED);
+    }
+
+    /**
+     * Отметить как частично завершенный
+     */
+    public function markAsPartial(): bool
+    {
+        return $this->updateStatus(self::STATUS_PARTIAL);
     }
 
     /**
      * Отметить как проваленный
      */
-    public function markAsFailed(string $errorMessage): bool
+    public function markAsFailed(): bool
     {
-        return $this->updateStatus(self::STATUS_FAILED, ['error' => $errorMessage]);
+        return $this->updateStatus(self::STATUS_FAILED);
     }
 
     /**
@@ -239,6 +248,326 @@ class Report extends Model
     {
         return $this->updateStatus(self::STATUS_CANCELLED);
     }
+
+    // ========== МЕТОДЫ ДЛЯ РАБОТЫ С API СТАТУСАМИ ==========
+
+    /**
+     * Инициализировать статусы API запросов
+     */
+    public function initializeApiStatuses(array $endpoints): self
+    {
+        $statuses = [];
+        foreach ($endpoints as $endpoint) {
+            $statuses[$endpoint] = 'pending';
+        }
+        
+        $this->api_statuses = $statuses;
+        $this->save();
+        
+        return $this;
+    }
+
+    /**
+     * Обновить статус конкретного API запроса
+     */
+    public function updateApiStatus(string $endpoint, string $status): self
+    {
+        $statuses = $this->api_statuses ?? [];
+        $statuses[$endpoint] = $status;
+        $this->api_statuses = $statuses;
+        $this->save();
+        
+        return $this;
+    }
+
+    /**
+     * Сохранить ответ от API
+     */
+    public function saveApiResponse(string $endpoint, array $response): self
+    {
+        $responses = $this->api_responses ?? [];
+        $responses[$endpoint] = $response; // $response уже массив
+        $this->api_responses = $responses;
+        $this->save();
+        
+        return $this;
+    }
+
+    /**
+     * Проверить, все ли API запросы завершены
+     */
+    public function allApiRequestsCompleted(): bool
+    {
+        if (empty($this->api_statuses)) {
+            return false;
+        }
+        
+        foreach ($this->api_statuses as $status) {
+            if ($status === 'pending') {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * Проверить, есть ли успешные запросы
+     */
+    public function hasSuccessfulRequests(): bool
+    {
+        if (empty($this->api_statuses)) {
+            return false;
+        }
+        
+        foreach ($this->api_statuses as $status) {
+            if ($status === 'completed') {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Получить статистику выполнения запросов
+     */
+    public function getApiProgress(): array
+    {
+        if (empty($this->api_statuses)) {
+            return [
+                'total' => 0,
+                'completed' => 0,
+                'failed' => 0,
+                'pending' => 0,
+                'percentage' => 0,
+            ];
+        }
+        
+        $total = count($this->api_statuses);
+        $completed = 0;
+        $failed = 0;
+        $pending = 0;
+        
+        foreach ($this->api_statuses as $status) {
+            if ($status === 'completed') {
+                $completed++;
+            } elseif ($status === 'failed') {
+                $failed++;
+            } else {
+                $pending++;
+            }
+        }
+        
+        return [
+            'total' => $total,
+            'completed' => $completed,
+            'failed' => $failed,
+            'pending' => $pending,
+            'percentage' => $total > 0 ? round(($completed + $failed) / $total * 100) : 0,
+        ];
+    }
+
+    // ========== МЕТОДЫ ДЛЯ РАБОТЫ С ДАННЫМИ ==========
+
+    /**
+     * Получить полный номер паспорта
+     */
+    public function getPassportFullAttribute(): string
+    {
+        $series = $this->passport_series ?? '';
+        $number = $this->passport_number ?? '';
+        
+        return trim($series . ' ' . $number);
+    }
+
+    /**
+     * Получить полное ФИО
+     */
+    public function getFullNameAttribute(): string
+    {
+        $lastName = $this->last_name ?? '';
+        $firstName = $this->first_name ?? '';
+        $patronymic = $this->patronymic ?? '';
+        
+        return trim($lastName . ' ' . $firstName . ' ' . $patronymic);
+    }
+
+    /**
+     * Получить использованный лимит (основной или делегированный)
+     */
+    public function getUsedLimit()
+    {
+        return $this->delegatedLimit ?? $this->limit;
+    }
+
+    /**
+     * Получить данные запроса в виде массива
+     */
+    public function getRequestData(): array
+    {
+        $data = [
+            'last_name' => $this->last_name,
+            'first_name' => $this->first_name,
+            'patronymic' => $this->patronymic,
+            'region' => $this->region,
+            'passport_series' => $this->passport_series,
+            'passport_number' => $this->passport_number,
+            'vehicle_number' => $this->vehicle_number,
+            'cadastral_number' => $this->cadastral_number,
+            'property_type' => $this->property_type,
+            'inn' => $this->inn,
+        ];
+        
+        if ($this->birth_date) {
+            $data['birth_date'] = $this->birth_date->format('Y-m-d');
+        } else {
+            $data['birth_date'] = null;
+        }
+        
+        if ($this->passport_date) {
+            $data['passport_date'] = $this->passport_date->format('Y-m-d');
+        } else {
+            $data['passport_date'] = null;
+        }
+        
+        return $data;
+    }
+
+    /**
+     * Получить данные для API запроса (только заполненные поля)
+     */
+    public function getApiRequestData(): array
+    {
+        $data = [];
+        
+        if (!empty($this->last_name)) {
+            $data['last_name'] = $this->last_name;
+        }
+        
+        if (!empty($this->first_name)) {
+            $data['first_name'] = $this->first_name;
+        }
+        
+        if (!empty($this->patronymic)) {
+            $data['patronymic'] = $this->patronymic;
+        }
+        
+        if ($this->birth_date) {
+            $data['birth_date'] = $this->birth_date->format('Y-m-d');
+        }
+        
+        if (!empty($this->region)) {
+            $data['region'] = $this->region;
+        }
+        
+        if (!empty($this->inn)) {
+            $data['inn'] = $this->inn;
+        }
+        
+        if (!empty($this->passport_series)) {
+            $data['passport_series'] = $this->passport_series;
+        }
+        
+        if (!empty($this->passport_number)) {
+            $data['passport_number'] = $this->passport_number;
+        }
+        
+        if ($this->passport_date) {
+            $data['passport_date'] = $this->passport_date->format('Y-m-d');
+        }
+        
+        if (!empty($this->vehicle_number)) {
+            $data['vehicle_number'] = $this->vehicle_number;
+        }
+        
+        if (!empty($this->cadastral_number)) {
+            $data['cadastral_number'] = $this->cadastral_number;
+        }
+        
+        if (!empty($this->property_type)) {
+            $data['property_type'] = $this->property_type;
+        }
+        
+        return $data;
+    }
+
+    /**
+     * Проверка, является ли отчет Контрагентами
+     */
+    public function isContragent(): bool
+    {
+        return $this->report_type_id == self::CONTRAGENT_TYPE_ID;
+    }
+
+    // ========== МЕТОДЫ ДЛЯ РАБОТЫ С ОБРАБОТАННЫМИ ДАННЫМИ ==========
+
+    /**
+     * Сохранить обработанные данные
+     */
+    public function setProcessedData(array $data): self
+    {
+        $this->processed_data = $data;
+        $this->save();
+        
+        return $this;
+    }
+
+    /**
+     * Получить обработанные данные
+     */
+    public function getProcessedData(): ?array
+    {
+        return $this->processed_data;
+    }
+
+    /**
+     * Проверить, есть ли обработанные данные
+     */
+    public function hasProcessedData(): bool
+    {
+        return !empty($this->processed_data);
+    }
+
+    // ========== МЕТОДЫ ДЛЯ РАБОТЫ С МЕТА-ДАННЫМИ ==========
+
+    /**
+     * Сохранить мета-данные
+     */
+    public function setMetaData(array $data): self
+    {
+        $this->meta_data = $data;
+        $this->save();
+        
+        return $this;
+    }
+
+    /**
+     * Добавить мета-данные
+     */
+    public function addMetaData(string $key, $value): self
+    {
+        $meta = $this->meta_data ?? [];
+        $meta[$key] = $value;
+        $this->meta_data = $meta;
+        $this->save();
+        
+        return $this;
+    }
+
+    /**
+     * Получить мета-данные
+     */
+    public function getMetaData(?string $key = null)
+    {
+        if ($key === null) {
+            return $this->meta_data;
+        }
+        
+        return $this->meta_data[$key] ?? null;
+    }
+
+    // ========== SCOPES ДЛЯ ПОИСКА ==========
 
     /**
      * Scope для поиска по фамилии
@@ -278,6 +607,14 @@ class Report extends Model
     }
 
     /**
+     * Scope для поиска по ИНН
+     */
+    public function scopeByInn($query, $inn)
+    {
+        return $query->where('inn', $inn);
+    }
+
+    /**
      * Scope для отчетов пользователя
      */
     public function scopeByUser($query, $userId)
@@ -310,47 +647,18 @@ class Report extends Model
     }
 
     /**
-     * Получить данные запроса в виде массива
+     * Scope для ожидающих обработки
      */
-    public function getRequestData(): array
+    public function scopePending($query)
     {
-        return [
-            'last_name' => $this->last_name,
-            'first_name' => $this->first_name,
-            'patronymic' => $this->patronymic,
-            'birth_date' => $this->birth_date?->format('Y-m-d'),
-            'region' => $this->region,
-            'passport_series' => $this->passport_series,
-            'passport_number' => $this->passport_number,
-            'passport_date' => $this->passport_date?->format('Y-m-d'),
-            'vehicle_number' => $this->vehicle_number,
-            'cadastral_number' => $this->cadastral_number,
-            'property_type' => $this->property_type,
-        ];
+        return $query->where('status', self::STATUS_PENDING);
     }
 
     /**
-     * НОВЫЙ МЕТОД: Сохранить обработанные данные
+     * Scope для готовых отчетов
      */
-    public function setProcessedData(array $data): self
+    public function scopeReady($query)
     {
-        $this->processed_data = $data;
-        return $this;
-    }
-
-    /**
-     * НОВЫЙ МЕТОД: Получить обработанные данные
-     */
-    public function getProcessedData(): ?array
-    {
-        return $this->processed_data;
-    }
-
-    /**
-     * НОВЫЙ МЕТОД: Проверить, есть ли обработанные данные
-     */
-    public function hasProcessedData(): bool
-    {
-        return !empty($this->processed_data);
+        return $query->whereIn('status', [self::STATUS_COMPLETED, self::STATUS_PARTIAL]);
     }
 }

@@ -14,8 +14,6 @@
     </a>
 </div>
 
-
-
 <!-- ВКЛАДКИ: Одиночное создание / Массовая загрузка -->
 <ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
     <li class="nav-item" role="presentation">
@@ -32,7 +30,7 @@
 
 <div class="tab-content" id="reportTabsContent">
     
-    <!-- === ВКЛАДКА 1: ОДИНОЧНОЕ СОЗДАНИЕ (БЕЗ ИЗМЕНЕНИЙ) === -->
+    <!-- === ВКЛАДКА 1: ОДИНОЧНОЕ СОЗДАНИЕ === -->
     <div class="tab-pane fade show active" id="single" role="tabpanel">
         <div class="row">
             <div class="col-md-12">
@@ -223,7 +221,7 @@
                                                         <code>birth_date</code>, <code>region</code>, <code>passport_series</code>, 
                                                         <code>passport_number</code>, <code>passport_date</code>, 
                                                         <code>vehicle_number</code>, <code>cadastral_number</code>, 
-                                                        <code>property_type</code>
+                                                        <code>property_type</code>, <code>inn</code>
                                                     </li>
                                                 </ul>
                                             </div>
@@ -270,7 +268,7 @@
     </div>
 </div>
 
-<!-- === ШАБЛОНЫ ПОЛЕЙ (БЕЗ ИЗМЕНЕНИЙ) === -->
+<!-- === ШАБЛОНЫ ПОЛЕЙ === -->
 <template id="fieldPersonalInfo">
     <div class="card border-light shadow-sm mb-4">
         <div class="card-header bg-light">
@@ -386,11 +384,35 @@
     </div>
 </template>
 
+<!-- ДОБАВЛЕНО: Шаблон для Контрагентов (ID = 6) -->
+<template id="fieldContragentInfo">
+    <div class="card border-light shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <h6 class="mb-0"><i class="bi bi-building me-2"></i>Данные для Контрагентов</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">ИНН <span class="text-danger">*</span></label>
+                    <input type="text" 
+                           class="form-control" 
+                           name="inn" 
+                           id="inn_field"
+                           placeholder="123456789012" 
+                           maxlength="12"
+                           oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                    <div class="form-text text-muted">Введите ИНН контрагента (10 или 12 цифр)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         
         // =========================================
-        // 1. ЛОГИКА ДЛЯ ОДИНОЧНОГО СОЗДАНИЯ (БЕЗ ИЗМЕНЕНИЙ)
+        // 1. ЛОГИКА ДЛЯ ОДИНОЧНОГО СОЗДАНИЯ
         // =========================================
         
         // Конфигурация блоков для каждого типа отчета
@@ -398,21 +420,24 @@
             1: ['personalInfo'],
             2: ['personalInfo', 'passportInfo'],
             3: ['vehicleInfo'],
-            4: ['propertyInfo']
+            4: ['propertyInfo'],
+            6: ['contragentInfo'] // ИСПРАВЛЕНО: Контрагенты (ID = 6)
         };
         
         const blockTemplates = {
             'personalInfo': 'fieldPersonalInfo',
             'passportInfo': 'fieldPassportInfo',
             'vehicleInfo': 'fieldVehicleInfo',
-            'propertyInfo': 'fieldPropertyInfo'
+            'propertyInfo': 'fieldPropertyInfo',
+            'contragentInfo': 'fieldContragentInfo' // ИСПРАВЛЕНО
         };
         
         const requirements = {
             1: { name: ['first_name', 'last_name'], message: 'Для базового отчета заполните Фамилию и Имя' },
             2: { passport: ['passport_series', 'passport_number'], message: 'Для паспортного отчета заполните серию и номер паспорта' },
             3: { vehicle: ['vehicle_number'], message: 'Для отчета по автоистории заполните номер ТС' },
-            4: { property: ['cadastral_number', 'property_type'], message: 'Для отчета по недвижимости заполните кадастровый номер и выберите тип' }
+            4: { property: ['cadastral_number', 'property_type'], message: 'Для отчета по недвижимости заполните кадастровый номер и выберите тип' },
+            6: { inn: ['inn'], message: 'Для Контрагентов заполните ИНН' } // ИСПРАВЛЕНО
         };
         
         let addedBlocks = new Set();
@@ -525,7 +550,7 @@
                     case 1: // CL:Базовый V1
                         const lastName = document.getElementById('hidden_last_name')?.value;
                         const firstName = document.getElementById('hidden_first_name')?.value;
-                        const patronymic = document.getElementById('hidden_patronymic')?.value; // ИЗМЕНЕНО!
+                        const patronymic = document.getElementById('hidden_patronymic')?.value;
                         const birthDate = document.querySelector('input[name="birth_date"]')?.value;
                         const region = document.querySelector('input[name="region"]')?.value;
                         
@@ -536,11 +561,10 @@
                         if (!region) errors.push('Базовый отчет: Регион проживания обязателен');
                         break;
 
-                        
-                    case 2: // CL:Паспорт V1 - ВСЕ ПОЛЯ ОБЯЗАТЕЛЬНЫ
+                    case 2: // CL:Паспорт V1
                         const pLastName = document.getElementById('hidden_last_name')?.value;
                         const pFirstName = document.getElementById('hidden_first_name')?.value;
-                        const pPatronymic = document.querySelector('input[name="patronymic"]')?.value;
+                        const pPatronymic = document.getElementById('hidden_patronymic')?.value;
                         const pBirthDate = document.querySelector('input[name="birth_date"]')?.value;
                         const pRegion = document.querySelector('input[name="region"]')?.value;
                         const pSeries = document.querySelector('input[name="passport_series"]')?.value;
@@ -565,19 +589,28 @@
                         }
                         break;
                         
-                    case 3: // AI:АвтоИстория V1 - ТОЛЬКО НОМЕР ТС
+                    case 3: // AI:АвтоИстория V1
                         const vehicle = document.querySelector('input[name="vehicle_number"]')?.value;
                         if (!vehicle) {
                             errors.push('Автоотчет: Номер транспортного средства обязателен');
                         }
                         break;
                         
-                    case 4: // CL:Недвижимость - ВСЕ ПОЛЯ ОБЯЗАТЕЛЬНЫ
+                    case 4: // CL:Недвижимость
                         const cadastral = document.querySelector('input[name="cadastral_number"]')?.value;
                         const propertyType = document.querySelector('select[name="property_type"]')?.value;
                         
                         if (!cadastral) errors.push('Отчет по недвижимости: Кадастровый номер обязателен');
                         if (!propertyType) errors.push('Отчет по недвижимости: Тип недвижимости обязателен');
+                        break;
+                        
+                    case 6: // Контрагенты (ИСПРАВЛЕНО)
+                        const inn = document.querySelector('input[name="inn"]')?.value;
+                        if (!inn) {
+                            errors.push('Контрагенты: ИНН обязателен');
+                        } else if (inn.length !== 10 && inn.length !== 12) {
+                            errors.push('Контрагенты: ИНН должен содержать 10 или 12 цифр');
+                        }
                         break;
                 }
             });
@@ -611,7 +644,7 @@
             const fullName = fullNameInput.value.trim();
             const parts = fullName.split(/\s+/);
             
-            // Устанавливаем значения в скрытые поля (эти поля УЖЕ ЕСТЬ в форме)
+            // Устанавливаем значения в скрытые поля
             document.getElementById('hidden_last_name').value = parts[0] || '';
             document.getElementById('hidden_first_name').value = parts[1] || '';
             document.getElementById('hidden_patronymic').value = parts[2] || '';
@@ -624,7 +657,7 @@
         };
         
         // =========================================
-        // 2. ЛОГИКА ДЛЯ МАССОВОЙ ЗАГРУЗКИ (НОВАЯ)
+        // 2. ЛОГИКА ДЛЯ МАССОВОЙ ЗАГРУЗКИ
         // =========================================
         
         // Элементы массовой загрузки
@@ -782,12 +815,16 @@
         padding: 0.75rem 1.25rem;
     }
     .nav-tabs .nav-link.active {
-        color: #0d6efd;
-        font-weight: 600;
-        border-bottom: 3px solid #0d6efd;
+        color: #ffffff !important;
+        background-color: #0d6efd !important;
+        border-color: #0d6efd #0d6efd #fff !important;
+        font-weight: 600 !important;
     }
     .nav-tabs .nav-link i {
         margin-right: 0.5rem;
+    }
+    .nav-tabs .nav-link.active i {
+        color: #ffffff;
     }
     #dropZone {
         transition: all 0.2s ease;
@@ -804,44 +841,21 @@
         text-overflow: ellipsis;
     }
     .nav-tabs {
-    border-bottom: 1px solid #dee2e6;
-    background-color: #f8f9fa; /* Светло-серый фон для области табов */
-    padding: 0.5rem 0.5rem 0 0.5rem;
-    border-radius: 0.25rem 0.25rem 0 0;
-}
-
-.nav-tabs .nav-link {
-    color: #495057;
-    background-color: #e9ecef; /* Серый фон для неактивных табов */
-    border: 1px solid #ced4da;
-    margin-right: 0.25rem;
-    font-weight: 500;
-    transition: all 0.2s;
-}
-
-/* Активный таб - выделяем синим цветом */
-.nav-tabs .nav-link.active {
-    color: #ffffff !important;
-    background-color: #0d6efd !important; /* Синий фон */
-    border-color: #0d6efd #0d6efd #fff !important;
-    font-weight: 600 !important;
-    box-shadow: 0 -2px 4px rgba(13, 110, 253, 0.2);
-}
-
-/* При наведении на неактивный таб */
-.nav-tabs .nav-link:hover:not(.active) {
-    background-color: #dee2e6;
-    border-color: #adb5bd;
-}
-
-/* Для иконок в табах */
-.nav-tabs .nav-link i {
-    margin-right: 0.5rem;
-}
-
-.nav-tabs .nav-link.active i {
-    color: #ffffff;
-}
+        border-bottom: 1px solid #dee2e6;
+        background-color: #f8f9fa;
+        padding: 0.5rem 0.5rem 0 0.5rem;
+        border-radius: 0.25rem 0.25rem 0 0;
+    }
+    .nav-tabs .nav-link {
+        color: #495057;
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
+        margin-right: 0.25rem;
+        transition: all 0.2s;
+    }
+    .nav-tabs .nav-link:hover:not(.active) {
+        background-color: #dee2e6;
+        border-color: #adb5bd;
+    }
 </style>
-
 @endsection

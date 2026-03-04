@@ -200,6 +200,7 @@ class SubscriptionController extends Controller
         
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
+            'name' => 'nullable|string|max:255', // ДОБАВЛЕНО поле name
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date|after:starts_at',
             'status' => 'required|in:active,suspended,expired,cancelled,pending',
@@ -222,9 +223,10 @@ class SubscriptionController extends Controller
         DB::beginTransaction();
         
         try {
-            // 1. Создаем подписку
+            // 1. Создаем подписку (ДОБАВЛЕНО поле name)
             $subscription = Subscription::create([
                 'user_id' => $request->user_id,
+                'name' => $request->name, // ДОБАВЛЕНО
                 'starts_at' => $request->starts_at ? Carbon::parse($request->starts_at) : now(),
                 'ends_at' => $request->ends_at ? Carbon::parse($request->ends_at) : null,
                 'status' => $request->status,
@@ -289,6 +291,7 @@ class SubscriptionController extends Controller
                 ->withInput();
         }
     }
+    
     /**
      * Просмотр подписки
      */
@@ -419,6 +422,7 @@ class SubscriptionController extends Controller
         
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
+            'name' => 'nullable|string|max:255', // ДОБАВЛЕНО поле name
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date|after:starts_at',
             'status' => 'required|in:active,suspended,expired,cancelled,pending',
@@ -446,6 +450,7 @@ class SubscriptionController extends Controller
         try {
             $subscription->update([
                 'user_id' => $request->user_id,
+                'name' => $request->name, // ДОБАВЛЕНО
                 'starts_at' => $request->starts_at ? Carbon::parse($request->starts_at) : $subscription->starts_at,
                 'ends_at' => $request->ends_at ? Carbon::parse($request->ends_at) : null,
                 'status' => $request->status,
@@ -695,6 +700,7 @@ class SubscriptionController extends Controller
             'has_active_subscription' => $activeSubscription !== null,
             'subscription' => $activeSubscription ? [
                 'id' => $activeSubscription->id,
+                'name' => $activeSubscription->name, // ДОБАВЛЕНО
                 'starts_at' => $activeSubscription->starts_at?->format('Y-m-d'),
                 'ends_at' => $activeSubscription->ends_at?->format('Y-m-d'),
                 'status' => $activeSubscription->status,
@@ -743,6 +749,7 @@ class SubscriptionController extends Controller
                     
                     return [
                         'id' => $subscription->id,
+                        'name' => $subscription->name, // ДОБАВЛЕНО
                         'starts_at' => $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : null,
                         'ends_at' => $subscription->ends_at ? $subscription->ends_at->format('d.m.Y') : null,
                         'status' => $subscription->status,

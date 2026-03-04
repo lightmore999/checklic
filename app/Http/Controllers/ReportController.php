@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
+use App\Jobs\ProcessContragentJob;
 
 require_once app_path('Helpers/dossier-v2.php');
 
@@ -413,6 +414,7 @@ class ReportController extends Controller
             'vehicle_number' => 'nullable|string|max:50',
             'cadastral_number' => 'nullable|string|max:50',
             'property_type' => 'nullable|string|max:50',
+            'inn' => 'nullable|string|max:12', // ДОБАВЛЕНО
         ]);
         
         if ($validator->fails()) {
@@ -467,6 +469,19 @@ class ReportController extends Controller
                             
                             $report = Report::create($reportData);
                             
+                            // ИСПРАВЛЕНО: используем ID = 6 для Контрагентов
+                            $CONTRAGENT_TYPE_ID = 6; // ID для типа "Контрагенты"
+                            
+                            if ($reportTypeId == $CONTRAGENT_TYPE_ID) {
+                                // Используем правильный джоб для Контрагентов
+                                \App\Jobs\ProcessContragentJob::dispatch($report);
+                                
+                                // Добавляем мета-данные
+                                $report->addMetaData('queued_at', now());
+                                $report->addMetaData('initiator', 'store_method');
+                                $report->addMetaData('contragent_inn', $request->inn);
+                            }
+                            
                             // Списываем лимит
                             $limit->useQuantity(1);
                             
@@ -519,12 +534,12 @@ class ReportController extends Controller
                 $query->whereNull('ends_at')
                     ->orWhere('ends_at', '>', now());
             })
-            ->orderBy('ends_at', 'asc') // Сортируем по дате окончания (сначала истекающие)
+            ->orderBy('ends_at', 'asc')
             ->get();
         
         foreach ($subscriptions as $subscription) {
-            // Собственные лимиты подписки
-            $personalLimits = $subscription->limits()
+            // ИСПРАВЛЕНО: используем правильный запрос к Limit
+            $personalLimits = Limit::where('subscription_id', $subscription->id)
                 ->where('report_type_id', $reportTypeId)
                 ->whereRaw('used_quantity < quantity')
                 ->orderBy('date_created')
@@ -535,7 +550,7 @@ class ReportController extends Controller
             }
             
             // Делегированные лимиты
-            $delegatedLimits = \App\Models\DelegatedLimit::whereHas('limit', function($query) use ($subscription, $reportTypeId) {
+            $delegatedLimits = DelegatedLimit::whereHas('limit', function($query) use ($subscription, $reportTypeId) {
                 $query->where('subscription_id', $subscription->id)
                     ->where('report_type_id', $reportTypeId);
             })
@@ -560,7 +575,7 @@ class ReportController extends Controller
         return $limits->filter(function($limit) {
             return $limit->getAvailableQuantity() > 0;
         })->sortBy(function($limit) {
-            return $limit instanceof \App\Models\DelegatedLimit ? 1 : 0;
+            return $limit instanceof DelegatedLimit ? 1 : 0;
         })->take($neededQuantity);
     }
 
@@ -636,6 +651,7 @@ class ReportController extends Controller
         $data['patronymic'] = $request->patronymic ?? null;
         $data['birth_date'] = $request->birth_date ?? null;
         $data['region'] = $request->region ?? null;
+        $data['inn'] = $request->inn ?? null;
         
         // Специфичные поля в зависимости от типа
         switch ($reportTypeId) {
@@ -652,6 +668,11 @@ class ReportController extends Controller
             case 4: // Недвижимость
                 $data['cadastral_number'] = $request->cadastral_number ?? null;
                 $data['property_type'] = $request->property_type ?? null;
+                break;
+                
+            case 6: // Контрагенты (ИСПРАВЛЕНО)
+                // Для Контрагентов используем ИНН (уже добавлен выше)
+                // Можно добавить специфичные поля если нужно
                 break;
         }
         
@@ -674,33 +695,54 @@ class ReportController extends Controller
         $report->load(['reportType', 'user']);
         
         // Определяем тип отчета
-        $reportTypeCode = $report->reportType->code ?? null; // Предполагаю, что есть поле code
+        $reportTypeId = $report->report_type_id;
         $reportTypeName = $report->reportType->name ?? '';
         
-        // Для типа "Досье V2" используем специальную обработку
-        if ($reportTypeCode === 'dossier_v2' || str_contains($reportTypeName, 'Досье V2')) {
-            return $this->showDossierV2($report);
+        // Для типа "Контрагенты" (ID = 6) используем специальную обработку
+        if ($reportTypeId == 6 || str_contains($reportTypeName, 'Контрагенты')) {
+            return $this->showContragent($report);
         }
         
         // Для остальных типов показываем заглушку
         return view('reports.show_placeholder', compact('report'));
     }
 
+    /**
+     * Отображение отчета Контрагенты
+     */
+    private function showContragent(Report $report)
+    {
+        return view('reports.contragent-show', compact('report'));
+    }
+
+    
     private function showDossierV2(Report $report)
     {
         $user = Auth::user();
+        
+        // Если отчет еще в обработке
+        if ($report->isPending()) {
+            $progress = $report->getApiProgress();
+            return view('reports.processing', compact('report', 'progress'));
+        }
+        
+        // Если отчет в обработке (processing)
+        if ($report->isProcessing()) {
+            $progress = $report->getApiProgress();
+            return view('reports.processing', compact('report', 'progress'));
+        }
         
         // Переменные для данных
         $data = [];
         $updateArrayBlocks = [];
         
         // Если есть обработанные данные - используем их
-        if ($report->processed_data) {
-            $processedData = json_decode($report->processed_data, true);
+        if ($report->hasProcessedData()) {
+            $processedData = $report->getProcessedData();
             $data = $processedData['data'] ?? [];
             $updateArrayBlocks = $processedData['update_array_blocks'] ?? [];
         } 
-        // Если есть сырые данные - обрабатываем их
+        // Если есть сырые данные - обрабатываем их (для обратной совместимости)
         elseif ($report->response_data) {
             require_once app_path('Helpers/dossier-v2.php');
             
@@ -717,8 +759,7 @@ class ReportController extends Controller
                 'data' => $data,
                 'update_array_blocks' => $updateArrayBlocks
             ];
-            $report->processed_data = json_encode($processedData);
-            $report->save();
+            $report->setProcessedData($processedData);
         }
         
         // Константы для отображения заголовков блоков
@@ -734,7 +775,6 @@ class ReportController extends Controller
             'd2OptionsOfBlocks'
         ));
     }
-
     /**
      * Получить доступные лимиты пользователя
      */

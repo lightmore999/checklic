@@ -256,6 +256,9 @@
                             $totalLimits = $limits->sum('quantity');
                             $totalUsed = $limits->sum('used_quantity');
                             $totalAvailable = $totalLimits - $totalUsed;
+                            
+                            // ДОБАВЛЕНО: получаем название подписки
+                            $subscriptionName = $subscription->name ?? 'Подписка #' . $subscription->id;
                         @endphp
                         
                         <div class="accordion-item border-0 border-bottom">
@@ -271,35 +274,39 @@
                                             <span class="fw-bold">#{{ $subscription->id }}</span>
                                         </div>
                                         
+                                        <!-- ДОБАВЛЕНО: Название подписки -->
+                                        <div class="col-md-2">
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-tag text-info me-1"></i>
+                                                <span class="fw-semibold small text-truncate" style="max-width: 150px;" title="{{ $subscriptionName }}">
+                                                    {{ $subscriptionName }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        
                                         <!-- Пользователь (только имя, без ссылки) -->
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             @if($user)
                                                 <div class="d-flex align-items-center">
                                                     <div class="rounded-circle bg-{{ $user->getRoleColor() }} d-flex align-items-center justify-content-center me-2" 
-                                                         style="width: 32px; height: 32px; color: white; font-size: 0.8rem; flex-shrink: 0;">
+                                                         style="width: 28px; height: 28px; color: white; font-size: 0.7rem; flex-shrink: 0;">
                                                         {{ $userInitial }}
                                                     </div>
-                                                    <div class="text-truncate" style="max-width: calc(100% - 42px);">
-                                                        <span class="fw-semibold">{{ $user->name }}</span>
-                                                        <small class="text-muted d-block">{{ $user->email }}</small>
+                                                    <div class="text-truncate" style="max-width: calc(100% - 36px);">
+                                                        <span class="small fw-semibold">{{ $user->name }}</span>
                                                     </div>
                                                 </div>
                                             @else
-                                                <span class="text-muted">Пользователь удален</span>
+                                                <span class="text-muted small">Пользователь удален</span>
                                             @endif
                                         </div>
                                         
                                         <!-- Организация (только название, без ссылки) -->
                                         <div class="col-md-2">
                                             @if($userOrg)
-                                                <div class="d-flex align-items-center">
-                                                    <div class="rounded-circle bg-success d-flex align-items-center justify-content-center me-1" 
-                                                         style="width: 24px; height: 24px; color: white; font-size: 0.6rem; flex-shrink: 0;">
-                                                        <i class="bi bi-building"></i>
-                                                    </div>
-                                                    <div class="text-truncate" style="max-width: calc(100% - 30px);">
-                                                        <span class="small">{{ Str::limit($userOrg->name, 20) }}</span>
-                                                    </div>
+                                                <div class="text-truncate" style="max-width: 150px;">
+                                                    <i class="bi bi-building text-muted me-1"></i>
+                                                    <span class="small">{{ Str::limit($userOrg->name, 20) }}</span>
                                                 </div>
                                             @else
                                                 <span class="text-muted small">—</span>
@@ -324,14 +331,14 @@
                                         </div>
                                         
                                         <!-- Сводка по лимитам -->
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             @if($hasLimits)
                                                 <div class="d-flex align-items-center">
                                                     <div class="me-2">
                                                         <span class="badge bg-primary">{{ $totalLimits }} шт.</span>
                                                         <span class="badge bg-info">{{ $totalUsed }} исп.</span>
                                                     </div>
-                                                    <div class="progress flex-grow-1" style="height: 6px; width: 80px;">
+                                                    <div class="progress flex-grow-1" style="height: 6px; width: 60px;">
                                                         @php $percentage = $totalLimits > 0 ? round(($totalUsed / $totalLimits) * 100) : 0; @endphp
                                                         <div class="progress-bar bg-{{ $percentage >= 90 ? 'danger' : ($percentage >= 70 ? 'warning' : 'success') }}" 
                                                              style="width: {{ $percentage }}%">
@@ -360,6 +367,10 @@
                                     <!-- Детальная информация о подписке -->
                                     <div class="row mb-3">
                                         <div class="col-md-3">
+                                            <small class="text-muted d-block">Название</small>
+                                            <span class="fw-semibold">{{ $subscriptionName }}</span>
+                                        </div>
+                                        <div class="col-md-3">
                                             <small class="text-muted d-block">Дата начала</small>
                                             <span class="fw-semibold">{{ $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : '—' }}</span>
                                         </div>
@@ -371,8 +382,11 @@
                                             <small class="text-muted d-block">Создана</small>
                                             <span class="fw-semibold">{{ $subscription->created_at->format('d.m.Y H:i') }}</span>
                                         </div>
-                                        <div class="col-md-3">
-                                            <small class="text-muted d-block">Действия</small>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-12">
+                                            <small class="text-muted d-block mb-2">Действия</small>
                                             <div class="d-flex gap-2">
                                                 <button class="btn btn-sm btn-outline-primary" 
                                                         onclick="editSubscription({{ $subscription->id }})"
@@ -696,6 +710,17 @@
     
     .accordion-button:not(.collapsed) .bi-chevron-down {
         transform: rotate(180deg);
+    }
+    
+    /* Стили для названия подписки */
+    .bi-tag {
+        font-size: 0.9rem;
+    }
+    
+    .text-truncate {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 </style>
 @endpush

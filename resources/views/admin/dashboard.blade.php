@@ -132,6 +132,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>ID</th>
+                        <th>Название</th>
                         <th>Дата начала</th>
                         <th>Дата окончания</th>
                         <th>Статус</th>
@@ -157,9 +158,16 @@
                                 }
                             }
                         }
+                        $subscriptionName = $subscription->name ?? 'Подписка #' . $subscription->id;
                     @endphp
                     <tr>
                         <td>#{{ $subscription->id }}</td>
+                        <td>
+                            <span class="fw-semibold small">
+                                <i class="bi bi-tag text-info me-1"></i>
+                                {{ Str::limit($subscriptionName, 25) }}
+                            </span>
+                        </td> 
                         <td>{{ $subscription->starts_at ? $subscription->starts_at->format('d.m.Y') : '—' }}</td>
                         <td>
                             @if($subscription->ends_at)
@@ -204,12 +212,15 @@
 <!-- Отчеты по подпискам администратора -->
 @if(isset($groupedLimits) && count($groupedLimits) > 0)
     @foreach($groupedLimits as $group)
+    @php
+        $subscriptionName = $group['subscription']->name ?? 'Подписка #' . $group['subscription']->id;
+    @endphp
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-header bg-white border-bottom">
                 <div class="d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="bi bi-stars text-info me-2"></i>
-                        Подписка #{{ $group['subscription']->id }}
+                        <span class="me-2">{{ $subscriptionName }}</span>
                         @if($group['subscription']->status === 'active')
                             <span class="badge bg-success ms-2">Активна</span>
                         @elseif($group['subscription']->status === 'expired')

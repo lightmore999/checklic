@@ -117,7 +117,6 @@ class DelegatedLimitController extends Controller
             'limit_id' => 'required|exists:limits,id',
             'user_id' => 'required|exists:users,id',
             'quantity' => 'required|integer|min:1',
-            'owner_id' => 'nullable|exists:users,id', // Добавлено для делегирования от имени владельца
         ]);
         
         if ($validator->fails()) {
@@ -127,31 +126,38 @@ class DelegatedLimitController extends Controller
         }
         
         // Получаем лимит
-        $limit = Limit::findOrFail($request->limit_id);
+        $limit = Limit::with(['subscription', 'reportType'])->findOrFail($request->limit_id);
         
         // Определяем ID владельца лимита (того, чей лимит используется)
-        $ownerId = $limit->user_id;
+        $ownerId = $limit->subscription->user_id ?? null;
+        
+        if (!$ownerId) {
+            return redirect()->back()
+                ->with('error', 'Не удалось определить владельца лимита')
+                ->withInput();
+        }
+        
+        $owner = User::find($ownerId);
         
         // Проверяем права на делегирование
         $canDelegate = false;
         
-        if ($user->id == $ownerId) {
-            // Сам владелец может делегировать
-            $canDelegate = true;
-        } elseif ($user->isAdmin()) {
-            // Админ может делегировать любой лимит
+        if ($user->isAdmin()) {
+            // Админ может делегировать любые лимиты
             $canDelegate = true;
         } elseif ($user->isManager()) {
-            // Менеджер может делегировать, если он является менеджером организации владельца
-            $owner = User::find($ownerId);
-            if ($owner && $owner->orgOwnerProfile) {
-                $organizationId = $owner->orgOwnerProfile->organization_id;
-                $canDelegate = Organization::where('id', $organizationId)
-                    ->whereHas('manager', function($query) use ($user) {
-                        $query->where('user_id', $user->id);
-                    })
-                    ->exists();
+            // Менеджер может делегировать лимиты владельцев своих организаций
+            if ($owner && $owner->isOrgOwner()) {
+                $organizationId = $owner->orgOwnerProfile->organization_id ?? null;
+                if ($organizationId) {
+                    $canDelegate = Organization::where('id', $organizationId)
+                        ->where('manager_id', $user->id)
+                        ->exists();
+                }
             }
+        } elseif ($user->isOrgOwner()) {
+            // Владелец может делегировать только свои лимиты
+            $canDelegate = ($ownerId == $user->id);
         }
         
         if (!$canDelegate) {
@@ -169,9 +175,14 @@ class DelegatedLimitController extends Controller
         }
         
         // Проверяем, что сотрудник относится к той же организации, что и владелец лимита
-        $owner = User::find($ownerId);
-        if ($owner && $owner->orgOwnerProfile) {
-            $organizationId = $owner->orgOwnerProfile->organization_id;
+        if ($owner && $owner->isOrgOwner()) {
+            $organizationId = $owner->orgOwnerProfile->organization_id ?? null;
+            
+            if (!$organizationId) {
+                return redirect()->back()
+                    ->with('error', 'Не удалось определить организацию владельца')
+                    ->withInput();
+            }
             
             $isValidEmployee = OrgMemberProfile::where('user_id', $targetUser->id)
                 ->where('organization_id', $organizationId)
@@ -187,9 +198,10 @@ class DelegatedLimitController extends Controller
         }
         
         // Проверяем, что у владельца достаточно лимита
-        if ($limit->quantity < $request->quantity) {
+        $availableQuantity = $limit->getAvailableQuantity();
+        if ($availableQuantity < $request->quantity) {
             return redirect()->back()
-                ->with('error', 'Недостаточно лимита для делегирования. Доступно: ' . $limit->quantity)
+                ->with('error', 'Недостаточно лимита для делегирования. Доступно: ' . $availableQuantity)
                 ->withInput();
         }
         
@@ -201,8 +213,18 @@ class DelegatedLimitController extends Controller
                 $request->quantity
             );
             
-            // Уменьшаем оригинальный лимит
+            // Уменьшаем оригинальный лимит (используем метод decrementLimit, который уже есть в модели)
             $limit->decrementLimit($request->quantity);
+            
+            // Логируем успешное делегирование
+            \Log::info('Лимит успешно делегирован', [
+                'delegator_id' => $user->id,
+                'delegator_role' => $user->role,
+                'owner_id' => $ownerId,
+                'target_user_id' => $targetUser->id,
+                'limit_id' => $limit->id,
+                'quantity' => $request->quantity
+            ]);
             
             // Редирект в зависимости от переданного параметра
             if ($request->has('redirect_to_organization')) {
@@ -213,6 +235,9 @@ class DelegatedLimitController extends Controller
                         ->with('success', 'Лимит успешно делегирован');
                 } elseif ($user->isManager()) {
                     return redirect()->route('manager.organization.show', $organizationId)
+                        ->with('success', 'Лимит успешно делегирован');
+                } elseif ($user->isOrgOwner()) {
+                    return redirect()->route('owner.dashboard')
                         ->with('success', 'Лимит успешно делегирован');
                 }
             }
@@ -232,8 +257,12 @@ class DelegatedLimitController extends Controller
             return redirect()->back()->with('success', 'Лимит успешно делегирован');
             
         } catch (\Exception $e) {
+            \Log::error('Ошибка при делегировании лимита: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return redirect()->back()
-                ->with('error', 'Ошибка: ' . $e->getMessage())
+                ->with('error', 'Ошибка при делегировании: ' . $e->getMessage())
                 ->withInput();
         }
     }
@@ -457,9 +486,10 @@ class DelegatedLimitController extends Controller
                 return collect();
             }
             
-            return User::whereHas('orgMemberProfile', function($query) use ($organizationId) {
+            return User::whereHas('orgMemberProfile', function($query) use ($organizationId, $currentUser) {
                     $query->where('organization_id', $organizationId)
-                        ->where('boss_id', Auth::id());
+                        ->where('boss_id', $currentUser->id)
+                        ->where('is_active', true);
                 })
                 ->where('is_active', true)
                 ->orderBy('name')

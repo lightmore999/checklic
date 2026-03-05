@@ -155,42 +155,53 @@
                     <!-- Admin Section -->
                     @if(Auth::user()->isAdmin())
                         <div class="sidebar-section px-3 py-2">Администрирование</div>
+                        
                         <a href="{{ route('admin.dashboard') }}" 
                         class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-speedometer2"></i>
                             Панель админа
                         </a>   
                         
-                        <!-- ДОБАВЛЕНО: Список менеджеров -->
+                        <!-- Список менеджеров -->
                         <a href="{{ route('admin.managers.index') }}" 
                         class="nav-link {{ request()->routeIs('admin.managers.index') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-people"></i>
                             Управление менеджерами
                         </a>
                         
-                        <!-- ДОБАВЛЕНО: Список организаций -->
+                        <!-- Список организаций -->
                         <a href="{{ route('admin.organizations.list') }}" 
                         class="nav-link {{ request()->routeIs('admin.organizations.list') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-buildings"></i>
                             Все организации
                         </a>
                         
-                        <!-- ДОБАВЛЕНО: Управление подписками для админа -->
+                        <!-- Управление подписками -->
                         <a href="{{ route('subscriptions.index') }}" 
                         class="nav-link {{ request()->routeIs('subscriptions.index') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-stars"></i>
                             Все подписки
                         </a>
                         
+                        <!-- Управление отчетами (лимитами) -->
                         <a href="{{ route('limits.index') }}" 
                         class="nav-link {{ request()->routeIs('limits.index') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-pie-chart"></i>
                             Управление отчетами
                         </a>
-                        <a href="{{  route('admin.logs.index') }}" 
+                        
+                        <!-- Логи пользователей и организаций -->
+                        <a href="{{ route('admin.logs.index') }}" 
                         class="nav-link {{ request()->routeIs('admin.logs.index') ? 'active' : '' }}">
-                            <i class="nav-icon bi bi-pie-chart"></i>
+                            <i class="nav-icon bi bi-journal-text"></i>
                             Логи действий
+                        </a>
+                        
+                        <!-- ⭐ НОВОЕ: Логи лимитов и подписок -->
+                        <a href="{{ route('admin.limit-logs.index') }}" 
+                        class="nav-link {{ request()->routeIs('admin.limit-logs.*') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-pie-chart-fill"></i>
+                            Логи лимитов
                         </a>
                     @endif
 
@@ -257,6 +268,12 @@
                            class="nav-link {{ request()->routeIs('reports.index') ? 'active' : '' }}">
                             <i class="nav-icon bi bi-files"></i>
                             Мои отчеты
+                        </a>
+                        
+                        <a href="{{ route('limits.history') }}" 
+                        class="nav-link {{ request()->routeIs('limits.history') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-clock-history"></i>
+                            История лимитов
                         </a>
                         
                         <!-- Logout -->

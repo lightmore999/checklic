@@ -332,148 +332,6 @@ class SubscriptionController extends Controller
     }
 
     /**
-     * Форма редактирования подписки
-     */
-    public function edit(Subscription $subscription)
-    {
-        $user = Auth::user();
-        
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
-        // Для менеджера проверяем доступ
-        if ($user->isManager()) {
-            $targetUser = $subscription->user;
-            $organizationIds = Organization::where('manager_id', $user->id)->pluck('id');
-            
-            $hasAccess = false;
-            
-            if ($targetUser->isOrgOwner()) {
-                $ownerProfile = $targetUser->orgOwnerProfile;
-                $hasAccess = $ownerProfile && in_array($ownerProfile->organization_id, $organizationIds->toArray());
-            } elseif ($targetUser->isOrgMember()) {
-                $memberProfile = $targetUser->orgMemberProfile;
-                $hasAccess = $memberProfile && in_array($memberProfile->organization_id, $organizationIds->toArray());
-            }
-            
-            if (!$hasAccess) {
-                abort(403, 'Доступ к этой подписке запрещен');
-            }
-        }
-        
-        // Получаем доступных пользователей
-        if ($user->isAdmin()) {
-            $users = User::whereIn('role', ['org_owner', 'org_member', 'manager'])
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(['id', 'name', 'email', 'role']);
-        } else {
-            // Для менеджера - только пользователи его организаций
-            $organizationIds = Organization::where('manager_id', $user->id)->pluck('id');
-            
-            $userIds = User::whereHas('orgOwnerProfile', function($q) use ($organizationIds) {
-                    $q->whereIn('organization_id', $organizationIds);
-                })
-                ->orWhereHas('orgMemberProfile', function($q) use ($organizationIds) {
-                    $q->whereIn('organization_id', $organizationIds);
-                })
-                ->where('is_active', true)
-                ->pluck('id');
-                
-            $users = User::whereIn('id', $userIds)
-                ->orderBy('name')
-                ->get(['id', 'name', 'email', 'role']);
-        }
-        
-        return view('subscriptions.edit', compact('subscription', 'users'));
-    }
-
-    /**
-     * Обновить подписку
-     */
-    public function update(Request $request, Subscription $subscription)
-    {
-        $user = Auth::user();
-        
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
-        }
-        
-        // Для менеджера проверяем доступ
-        if ($user->isManager()) {
-            $targetUser = $subscription->user;
-            $organizationIds = Organization::where('manager_id', $user->id)->pluck('id');
-            
-            $hasAccess = false;
-            
-            if ($targetUser->isOrgOwner()) {
-                $ownerProfile = $targetUser->orgOwnerProfile;
-                $hasAccess = $ownerProfile && in_array($ownerProfile->organization_id, $organizationIds->toArray());
-            } elseif ($targetUser->isOrgMember()) {
-                $memberProfile = $targetUser->orgMemberProfile;
-                $hasAccess = $memberProfile && in_array($memberProfile->organization_id, $organizationIds->toArray());
-            }
-            
-            if (!$hasAccess) {
-                abort(403, 'Доступ к этой подписке запрещен');
-            }
-        }
-        
-        $validator = Validator::make($request->all(), [
-            'user_id' => 'required|exists:users,id',
-            'name' => 'nullable|string|max:255', // ДОБАВЛЕНО поле name
-            'starts_at' => 'nullable|date',
-            'ends_at' => 'nullable|date|after:starts_at',
-            'status' => 'required|in:active,suspended,expired,cancelled,pending',
-            'redirect_to_organization' => 'nullable|integer|exists:organizations,id',
-        ]);
-        
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-        
-        // Если меняем статус на active, проверяем нет ли другой активной подписки
-        if ($request->status == 'active' && $subscription->status != 'active') {
-            $targetUser = User::find($request->user_id);
-            $activeSubscription = $targetUser->activeSubscription();
-            
-            if ($activeSubscription && $activeSubscription->id != $subscription->id) {
-                return redirect()->back()
-                    ->with('error', 'У пользователя уже есть другая активная подписка')
-                    ->withInput();
-            }
-        }
-        
-        try {
-            $subscription->update([
-                'user_id' => $request->user_id,
-                'name' => $request->name, // ДОБАВЛЕНО
-                'starts_at' => $request->starts_at ? Carbon::parse($request->starts_at) : $subscription->starts_at,
-                'ends_at' => $request->ends_at ? Carbon::parse($request->ends_at) : null,
-                'status' => $request->status,
-            ]);
-            
-            // Если есть redirect_to_organization, возвращаемся к организации
-            if ($request->filled('redirect_to_organization')) {
-                $route = $user->isAdmin() ? 'admin.organization.show' : 'manager.organization.show';
-                return redirect()->route($route, $request->redirect_to_organization)
-                    ->with('success', 'Подписка успешно обновлена');
-            }
-            
-            return redirect()->route('subscriptions.show', $subscription)
-                ->with('success', 'Подписка успешно обновлена');
-                
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Ошибка: ' . $e->getMessage())
-                ->withInput();
-        }
-    }
-
-    /**
      * Удалить подписку (только для админа)
      */
     public function destroy(Subscription $subscription)
@@ -775,6 +633,187 @@ class SubscriptionController extends Controller
                 'success' => false,
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Форма редактирования подписки (название и лимиты)
+     */
+    public function edit(Subscription $subscription)
+    {
+        $user = Auth::user();
+        
+        if (!$user->isAdmin() && !$user->isManager()) {
+            abort(403, 'Доступ запрещен');
+        }
+        
+        // Для менеджера проверяем доступ
+        if ($user->isManager()) {
+            $this->checkManagerAccess($user, $subscription);
+        }
+
+        // Загружаем существующие лимиты
+        $limits = $subscription->limits()->with('reportType')->get();
+        
+        // Загружаем все типы отчетов
+        $reportTypes = ReportType::orderBy('name')->get();
+        
+        // Общая сумма лимитов в подписке
+        $totalLimits = $limits->sum('quantity');
+        
+        // Создаем структуру для передачи в представление
+        $limitsData = [];
+        foreach ($reportTypes as $reportType) {
+            $existingLimit = $limits->firstWhere('report_type_id', $reportType->id);
+            $limitsData[$reportType->id] = [
+                'name' => $reportType->name,
+                'only_api' => $reportType->only_api,
+                'current_quantity' => $existingLimit ? $existingLimit->quantity : 0,
+                'used_quantity' => $existingLimit ? $existingLimit->used_quantity : 0,
+                'available' => $existingLimit ? $existingLimit->getAvailableQuantity() : 0,
+                'limit_id' => $existingLimit ? $existingLimit->id : null,
+            ];
+        }
+
+        return view('subscriptions.edit', compact('subscription', 'limitsData', 'totalLimits'));
+    }
+
+    /**
+     * Обновление подписки (название и лимиты)
+     */
+    public function update(Request $request, Subscription $subscription)
+    {
+        $user = Auth::user();
+        
+        if (!$user->isAdmin() && !$user->isManager()) {
+            abort(403, 'Доступ запрещен');
+        }
+        
+        // Для менеджера проверяем доступ
+        if ($user->isManager()) {
+            $this->checkManagerAccess($user, $subscription);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'nullable|string|max:255',
+            'limits' => 'required|array',
+            'limits.*' => 'integer|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        // Получаем существующие лимиты подписки
+        $existingLimits = $subscription->limits()->get()->keyBy('report_type_id');
+        
+        // Собираем новые значения лимитов из формы
+        $newLimits = [];
+        $totalNew = 0;
+        
+        foreach ($request->limits as $reportTypeId => $quantity) {
+            $quantity = (int) $quantity;
+            if ($quantity > 0) {
+                $newLimits[(int) $reportTypeId] = $quantity;
+                $totalNew += $quantity;
+            }
+        }
+
+        // Получаем общую сумму существующих лимитов
+        $totalExisting = $existingLimits->sum('quantity');
+
+        // Проверяем, что общая сумма не изменилась
+        if (abs($totalNew - $totalExisting) > 0.01) {
+            return redirect()->back()
+                ->with('error', "Общая сумма лимитов должна остаться неизменной: {$totalExisting}. Получено: {$totalNew}")
+                ->withInput();
+        }
+
+        DB::beginTransaction();
+        
+        try {
+            // Обновляем название подписки, если оно изменилось
+            if ($request->has('name') && $request->name !== $subscription->name) {
+                $subscription->update(['name' => $request->name]);
+            }
+
+            // Обрабатываем каждый тип отчета
+            foreach ($newLimits as $reportTypeId => $newQuantity) {
+                if (isset($existingLimits[$reportTypeId])) {
+                    // Обновляем существующий лимит
+                    $limit = $existingLimits[$reportTypeId];
+                    if ($limit->quantity != $newQuantity) {
+                        // Проверяем, что новое количество не меньше использованного
+                        if ($newQuantity < $limit->used_quantity) {
+                            throw new \Exception("Нельзя уменьшить лимит для типа отчета '{$limit->reportType->name}' ниже использованного количества ({$limit->used_quantity})");
+                        }
+                        $limit->update(['quantity' => $newQuantity]);
+                    }
+                } else {
+                    // Создаем новый лимит
+                    Limit::create([
+                        'subscription_id' => $subscription->id,
+                        'report_type_id' => $reportTypeId,
+                        'quantity' => $newQuantity,
+                        'used_quantity' => 0,
+                        'date_created' => now()->format('Y-m-d'),
+                        'created_by' => auth()->id(),
+                    ]);
+                }
+            }
+
+            // Удаляем лимиты, которых больше нет в форме (которые стали 0)
+            foreach ($existingLimits as $reportTypeId => $limit) {
+                if (!isset($newLimits[$reportTypeId]) && $limit->used_quantity == 0) {
+                    // Можно удалить только если лимит не использован
+                    $limit->delete();
+                } elseif (!isset($newLimits[$reportTypeId]) && $limit->used_quantity > 0) {
+                    throw new \Exception("Нельзя удалить лимит для типа отчета '{$limit->reportType->name}', так как он уже использован ({$limit->used_quantity} шт.)");
+                }
+            }
+
+            DB::commit();
+
+            // Если есть redirect_to_organization в запросе
+            if ($request->filled('redirect_to_organization')) {
+                $route = $user->isAdmin() ? 'admin.organization.show' : 'manager.organization.show';
+                return redirect()->route($route, $request->redirect_to_organization)
+                    ->with('success', 'Подписка успешно обновлена');
+            }
+
+            return redirect()->route('subscriptions.index')
+                ->with('success', 'Подписка успешно обновлена');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()
+                ->with('error', 'Ошибка: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+
+    /**
+     * Проверка доступа менеджера к подписке
+     */
+    private function checkManagerAccess($user, $subscription)
+    {
+        $targetUser = $subscription->user;
+        $organizationIds = Organization::where('manager_id', $user->id)->pluck('id')->toArray();
+        
+        $hasAccess = false;
+        
+        if ($targetUser->isOrgOwner()) {
+            $ownerProfile = $targetUser->orgOwnerProfile;
+            $hasAccess = $ownerProfile && in_array($ownerProfile->organization_id, $organizationIds);
+        } elseif ($targetUser->isOrgMember()) {
+            $memberProfile = $targetUser->orgMemberProfile;
+            $hasAccess = $memberProfile && in_array($memberProfile->organization_id, $organizationIds);
+        }
+        
+        if (!$hasAccess) {
+            abort(403, 'Доступ к этой подписке запрещен');
         }
     }
 }

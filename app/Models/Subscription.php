@@ -18,7 +18,7 @@ class Subscription extends Model
      */
     protected $fillable = [
         'user_id',           // FK на пользователя (владельца организации)
-        'name',              // Название подписки (ДОБАВЛЕНО)
+        'name',              // Название подписки
         'ends_at',           // дата окончания подписки
         'starts_at',         // дата начала подписки
         'status',            // статус: active, suspended, expired, cancelled, pending
@@ -137,14 +137,21 @@ class Subscription extends Model
      */
     public function getStatusTextAttribute(): string
     {
-        return match($this->status) {
-            'active' => 'Активна',
-            'suspended' => 'Приостановлена',
-            'expired' => 'Истекла',
-            'cancelled' => 'Отменена',
-            'pending' => 'Ожидает',
-            default => $this->status,
-        };
+        $status = $this->status;
+        
+        if ($status === 'active') {
+            return 'Активна';
+        } elseif ($status === 'suspended') {
+            return 'Приостановлена';
+        } elseif ($status === 'expired') {
+            return 'Истекла';
+        } elseif ($status === 'cancelled') {
+            return 'Отменена';
+        } elseif ($status === 'pending') {
+            return 'Ожидает';
+        }
+        
+        return $status;
     }
 
     /**
@@ -152,14 +159,21 @@ class Subscription extends Model
      */
     public function getStatusBadgeClassAttribute(): string
     {
-        return match($this->status) {
-            'active' => 'success',
-            'suspended' => 'warning',
-            'expired' => 'danger',
-            'cancelled' => 'secondary',
-            'pending' => 'info',
-            default => 'secondary',
-        };
+        $status = $this->status;
+        
+        if ($status === 'active') {
+            return 'success';
+        } elseif ($status === 'suspended') {
+            return 'warning';
+        } elseif ($status === 'expired') {
+            return 'danger';
+        } elseif ($status === 'cancelled') {
+            return 'secondary';
+        } elseif ($status === 'pending') {
+            return 'info';
+        }
+        
+        return 'secondary';
     }
 
     /**

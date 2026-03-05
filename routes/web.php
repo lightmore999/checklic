@@ -89,6 +89,12 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     // Управление пользователями
     Route::put('/users/{id}/toggle-status', 'App\Http\Controllers\AdminController@toggleUserStatus')->name('users.toggle-status');
     Route::delete('/users/{id}', 'App\Http\Controllers\AdminController@deleteUser')->name('users.delete');
+
+    Route::get('/limit-logs', [App\Http\Controllers\Admin\LimitSubscriptionLogController::class, 'index'])->name('limit-logs.index');
+    Route::get('/limit-logs/{log}', [App\Http\Controllers\Admin\LimitSubscriptionLogController::class, 'show'])->name('limit-logs.show');
+    Route::get('/limit-logs/export/csv', [App\Http\Controllers\Admin\LimitSubscriptionLogController::class, 'export'])->name('limit-logs.export');
+    Route::post('/limit-logs/clean', [App\Http\Controllers\Admin\LimitSubscriptionLogController::class, 'clean'])->name('limit-logs.clean');
+    Route::get('/limit-logs/statistics', [App\Http\Controllers\Admin\LimitSubscriptionLogController::class, 'statistics'])->name('limit-logs.statistics');
 });
 
 // ============================
@@ -229,6 +235,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/subscriptions/create', [App\Http\Controllers\SubscriptionController::class, 'create'])->name('subscriptions.create');
         Route::post('/subscriptions', [App\Http\Controllers\SubscriptionController::class, 'store'])->name('subscriptions.store');
         Route::get('/subscriptions/{subscription}', [App\Http\Controllers\SubscriptionController::class, 'show'])->name('subscriptions.show');
+        
+        // 👇 ИЗМЕНЕНО: теперь ведет на метод edit в том же контроллере
         Route::get('/subscriptions/{subscription}/edit', [App\Http\Controllers\SubscriptionController::class, 'edit'])->name('subscriptions.edit');
         Route::put('/subscriptions/{subscription}', [App\Http\Controllers\SubscriptionController::class, 'update'])->name('subscriptions.update');
         
@@ -247,8 +255,6 @@ Route::middleware(['auth'])->group(function () {
     // API маршруты для подписок (доступны всем аутентифицированным)
     Route::get('/api/users/{user}/subscription/check', [App\Http\Controllers\SubscriptionController::class, 'checkUserSubscription'])->name('api.users.subscription.check');
     Route::get('/api/subscriptions/stats', [App\Http\Controllers\SubscriptionController::class, 'stats'])->name('api.subscriptions.stats');
-    
-    // НОВЫЙ МАРШРУТ: Получение всех подписок пользователя
     Route::get('/api/users/{user}/subscriptions', [App\Http\Controllers\SubscriptionController::class, 'getUserSubscriptions'])->name('api.users.subscriptions');
 });
 
@@ -260,3 +266,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
     Route::post('/logs/clean', [UserOrganizationLogController::class, 'clean'])->name('logs.clean');
     Route::get('/logs/statistics', [UserOrganizationLogController::class, 'statistics'])->name('logs.statistics');
 });
+
+// История лимитов (доступна всем аутентифицированным пользователям)
+Route::middleware(['auth'])->group(function () {
+    Route::get('/limits/history', [App\Http\Controllers\LimitHistoryController::class, 'index'])->name('limits.history');
+    Route::get('/limits/history/export', [App\Http\Controllers\LimitHistoryController::class, 'export'])->name('limits.history.export');
+});
+
+
+

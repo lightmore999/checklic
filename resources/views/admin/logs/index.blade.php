@@ -3,6 +3,13 @@
 @section('title', 'Логи действий пользователей и организаций')
 
 @section('content')
+@php
+    use App\Models\User;
+    use App\Models\Organization;
+    use App\Models\Manager;
+    use App\Models\OrgOwnerProfile;
+    use App\Models\OrgMemberProfile;
+@endphp
 <div class="container-fluid px-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="mt-4">
@@ -178,6 +185,65 @@
                     </thead>
                     <tbody>
                         @forelse($logs as $log)
+                            @php
+                                // Получаем информацию о сущности в зависимости от типа
+                                $entityInfo = null;
+                                $entityRoute = null;
+                                $entityId = $log->entity_id;
+                                
+                                if ($log->entity_type === 'user') {
+                                    $entityUser = \App\Models\User::find($entityId);
+                                    if ($entityUser) {
+                                        $entityInfo = $entityUser->name . ' (' . $entityUser->email . ') - ' . $entityUser->getRoleDisplayName();
+                                        // Для пользователей нет отдельного маршрута, используем фильтр
+                                        $entityRoute = '#';
+                                    }
+                                } 
+                                elseif ($log->entity_type === 'organization') {
+                                    $entityOrg = \App\Models\Organization::find($entityId);
+                                    if ($entityOrg) {
+                                        $entityInfo = $entityOrg->name;
+                                        if ($entityOrg->inn) {
+                                            $entityInfo .= ' (ИНН: ' . $entityOrg->inn . ')';
+                                        }
+                                        // Для организации используем маршрут показа организации
+                                        $entityRoute = route('admin.organization.show', $entityId);
+                                    }
+                                } 
+                                elseif ($log->entity_type === 'manager') {
+                                    $entityManager = \App\Models\Manager::with('user')->find($entityId);
+                                    if ($entityManager && $entityManager->user) {
+                                        $entityInfo = $entityManager->user->name . ' (Менеджер)';
+                                        // Для менеджера используем маршрут показа менеджера
+                                        $entityRoute = route('admin.managers.show', $entityId);
+                                    }
+                                } 
+                                elseif ($log->entity_type === 'org_owner') {
+                                    $entityOwner = \App\Models\OrgOwnerProfile::with('user', 'organization')->find($entityId);
+                                    if ($entityOwner && $entityOwner->user) {
+                                        $entityInfo = $entityOwner->user->name . ' (Владелец)';
+                                        if ($entityOwner->organization) {
+                                            $entityInfo .= ' - ' . $entityOwner->organization->name;
+                                            // Для владельца ведем на страницу организации
+                                            $entityRoute = route('admin.organization.show', $entityOwner->organization->id);
+                                        }
+                                    }
+                                } 
+                                elseif ($log->entity_type === 'org_member') {
+                                    $entityMember = \App\Models\OrgMemberProfile::with('user', 'organization')->find($entityId);
+                                    if ($entityMember && $entityMember->user) {
+                                        $entityInfo = $entityMember->user->name . ' (Сотрудник)';
+                                        if ($entityMember->organization) {
+                                            $entityInfo .= ' - ' . $entityMember->organization->name;
+                                            // Для сотрудника ведем на страницу просмотра сотрудника
+                                            $entityRoute = route('admin.org-members.show', [
+                                                'organizationId' => $entityMember->organization_id, 
+                                                'memberId' => $entityId
+                                            ]);
+                                        }
+                                    }
+                                }
+                            @endphp
                             <tr>
                                 <td><code>#{{ $log->id }}</code></td>
                                 <td>{{ $log->created_at->format('d.m.Y H:i:s') }}</td>
@@ -199,13 +265,35 @@
                                     <span class="badge bg-secondary">{{ $log->entity_type_name }}</span>
                                 </td>
                                 <td>
-                                    <a href="#" onclick="event.preventDefault(); document.getElementById('filter-entity-{{ $log->id }}').submit();" class="text-decoration-none">
-                                        #{{ $log->entity_id }}
-                                    </a>
-                                    <form id="filter-entity-{{ $log->id }}" method="GET" action="{{ route('admin.logs.index') }}" class="d-none">
-                                        <input type="hidden" name="entity_type" value="{{ $log->entity_type }}">
-                                        <input type="hidden" name="entity_id" value="{{ $log->entity_id }}">
-                                    </form>
+                                    @if($entityInfo)
+                                        @if($entityRoute && $entityRoute !== '#')
+                                            <a href="{{ $entityRoute }}" class="text-decoration-none" target="_blank">
+                                                <div class="d-flex flex-column">
+                                                    <strong>{{ Str::limit($entityInfo, 50) }}</strong>
+                                                    <small class="text-muted">ID: {{ $log->entity_id }}</small>
+                                                </div>
+                                            </a>
+                                        @else
+                                            <a href="#" onclick="event.preventDefault(); document.getElementById('filter-entity-{{ $log->id }}').submit();" class="text-decoration-none">
+                                                <div class="d-flex flex-column">
+                                                    <strong>{{ Str::limit($entityInfo, 50) }}</strong>
+                                                    <small class="text-muted">ID: {{ $log->entity_id }}</small>
+                                                </div>
+                                            </a>
+                                        @endif
+                                        <form id="filter-entity-{{ $log->id }}" method="GET" action="{{ route('admin.logs.index') }}" class="d-none">
+                                            <input type="hidden" name="entity_type" value="{{ $log->entity_type }}">
+                                            <input type="hidden" name="entity_id" value="{{ $log->entity_id }}">
+                                        </form>
+                                    @else
+                                        <a href="#" onclick="event.preventDefault(); document.getElementById('filter-entity-{{ $log->id }}').submit();" class="text-decoration-none">
+                                            #{{ $log->entity_id }}
+                                        </a>
+                                        <form id="filter-entity-{{ $log->id }}" method="GET" action="{{ route('admin.logs.index') }}" class="d-none">
+                                            <input type="hidden" name="entity_type" value="{{ $log->entity_type }}">
+                                            <input type="hidden" name="entity_id" value="{{ $log->entity_id }}">
+                                        </form>
+                                    @endif
                                 </td>
                                 <td>
                                     @php

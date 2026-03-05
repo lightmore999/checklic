@@ -187,6 +187,11 @@
                             <i class="nav-icon bi bi-pie-chart"></i>
                             Управление отчетами
                         </a>
+                        <a href="{{  route('admin.logs.index') }}" 
+                        class="nav-link {{ request()->routeIs('admin.logs.index') ? 'active' : '' }}">
+                            <i class="nav-icon bi bi-pie-chart"></i>
+                            Логи действий
+                        </a>
                     @endif
 
                     <!-- Manager Section -->

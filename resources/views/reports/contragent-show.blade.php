@@ -146,6 +146,41 @@
         if (is_array($data) && count($data) === 0) return false;
         return true;
     }
+    
+    // Функция для получения цвета иконки
+    function getIconClass($target, $hasData) {
+        if (!$hasData) return 'infos';
+        
+        return match($target) {
+            'cad-org', 'bankrot-org', 'payment-block-org' => 'danger',
+            'static-code-org', 'egrul-data-org', 'blacklist-org', 'rosfin-org', 'bad-contragent-org', 'disqualification-org' => 'success',
+            default => 'infos'
+        };
+    }
+    
+    // Функция для получения названия блока
+    function getBlockTitle($target) {
+        return match($target) {
+            'fssp-org' => 'Сведения о долгах у ФССП',
+            'cad-org' => 'Арбитражные суды',
+            'bankrot-org' => 'Банкротство',
+            'inagent-org' => 'Иноагенты',
+            'payment-block-org' => 'Блокировка счетов',
+            'disqualification-org' => 'Дисквалификация ФНС',
+            'tax-regime-org' => 'Налоговый режим',
+            'employee-count-org' => 'Численность сотрудников',
+            'sme-reg-org' => 'Реестр МСП',
+            'sme-support-org' => 'Поддержка МСП',
+            'egrul-data-org' => 'Выписка из ЕГРЮЛ/ЕГРИП',
+            'leasing-org' => 'Лизинг',
+            'static-code-org' => 'Коды статистики',
+            'blacklist-org' => 'Черный список ЦБ',
+            'rosfin-org' => 'Террористы и экстремисты',
+            'bad-contragent-org' => 'Недобросовестный поставщик',
+            'zalog-org' => 'Залог',
+            default => $target
+        };
+    }
 @endphp
 
 @section('content')
@@ -237,59 +272,32 @@
                             
                             @foreach($decodedApiResponses as $target => $response)
                                 @php
-                                    $title = match($target) {
-                                        'fssp-org' => 'Сведения о долгах у ФССП',
-                                        'cad-org' => 'Арбитражные суды',
-                                        'bankrot-org' => 'Банкротство',
-                                        'inagent-org' => 'Иноагенты',
-                                        'payment-block-org' => 'Блокировка счетов',
-                                        'disqualification-org' => 'Дисквалификация ФНС',
-                                        'tax-regime-org' => 'Налоговый режим',
-                                        'employee-count-org' => 'Численность сотрудников',
-                                        'sme-reg-org' => 'Реестр МСП',
-                                        'sme-support-org' => 'Поддержка МСП',
-                                        'egrul-data-org' => 'Выписка из ЕГРЮЛ/ЕГРИП',
-                                        'leasing-org' => 'Лизинг',
-                                        'static-code-org' => 'Коды статистики',
-                                        'blacklist-org' => 'Черный список ЦБ',
-                                        'rosfin-org' => 'Террористы и экстремисты',
-                                        'bad-contragent-org' => 'Недобросовестный поставщик',
-                                        'zalog-org' => 'Залог',
-                                        default => $target
-                                    };
+                                    $title = getBlockTitle($target);
                                     
                                     $rawData = getResponseData($response);
                                     $hasData = hasData($rawData);
                                     
-                                    $icon = match(true) {
-                                        $target === 'cad-org' && $hasData => 'danger',
-                                        $target === 'bankrot-org' && $hasData => 'danger',
-                                        $target === 'payment-block-org' && $hasData => 'danger',
-                                        $target === 'static-code-org' && $hasData => 'success',
-                                        $target === 'egrul-data-org' && $hasData => 'success',
-                                        $target === 'blacklist-org' && $hasData => 'success',
-                                        $target === 'rosfin-org' && $hasData => 'success',
-                                        $target === 'bad-contragent-org' && $hasData => 'success',
-                                        $target === 'disqualification-org' && $hasData => 'success',
-                                        default => 'infos'
-                                    };
+                                    $icon = getIconClass($target, $hasData);
                                     
                                     $displayText = $hasData ? 'Найдено' : 'Нет данных';
                                     
                                     // Подсчет количества для некоторых типов
                                     if ($hasData) {
                                         if ($target === 'cad-org' && is_array($rawData)) {
-                                            $displayText = count($rawData) . ' дел';
+                                            $displayText = count($rawData) . ' ' . trans_choice('дело|дела|дел', count($rawData));
                                         } elseif ($target === 'leasing-org' && is_array($rawData)) {
-                                            $displayText = count($rawData) . ' договоров';
+                                            $displayText = count($rawData) . ' ' . trans_choice('договор|договора|договоров', count($rawData));
                                         } elseif ($target === 'payment-block-org' && isset($rawData['rows']) && is_array($rawData['rows'])) {
-                                            $displayText = count($rawData['rows']) . ' блокировок';
+                                            $cnt = count($rawData['rows']);
+                                            $displayText = $cnt . ' ' . trans_choice('блокировка|блокировки|блокировок', $cnt);
                                         } elseif ($target === 'static-code-org' && is_array($rawData)) {
                                             $displayText = '1 запись';
                                         } elseif ($target === 'bankrot-org' && is_array($rawData)) {
-                                            $displayText = count($rawData) . ' дел';
+                                            $cnt = count($rawData);
+                                            $displayText = $cnt . ' ' . trans_choice('дело|дела|дел', $cnt);
                                         } elseif ($target === 'zalog-org' && is_array($rawData)) {
-                                            $displayText = count($rawData) . ' записей';
+                                            $cnt = count($rawData);
+                                            $displayText = $cnt . ' ' . trans_choice('запись|записи|записей', $cnt);
                                         }
                                     }
                                 @endphp
@@ -298,7 +306,7 @@
                                     <div class="row infos no-gutters">
                                         <div class="col-md-6 col-sm-12 head">{{ $title }}:</div>
                                         <div class="col-md-6 col-sm-12 text">
-                                            <img src="/img/{{ $icon }}.png" alt="{{ $icon }}">
+                                            <span class="status-icon status-{{ $icon }}"></span>
                                             <b>{{ $displayText }}</b>
                                         </div>
                                     </div>
@@ -311,46 +319,23 @@
                 {{-- Детальные блоки --}}
                 @foreach($decodedApiResponses as $target => $response)
                     @php
-                        $targetName = match($target) {
-                            'static-code-org' => 'Коды статистики',
-                            'fssp-org' => 'Сведения о долгах у ФССП',
-                            'cad-org' => 'Арбитражные суды',
-                            'bankrot-org' => 'Банкротство',
-                            'inagent-org' => 'Иноагенты',
-                            'payment-block-org' => 'Блокировка счетов',
-                            'disqualification-org' => 'Дисквалификация ФНС',
-                            'tax-regime-org' => 'Налоговый режим',
-                            'employee-count-org' => 'Численность сотрудников',
-                            'sme-reg-org' => 'Реестр МСП',
-                            'sme-support-org' => 'Поддержка МСП',
-                            'egrul-data-org' => 'Данные ЕГРЮЛ',
-                            'leasing-org' => 'Лизинг',
-                            'blacklist-org' => 'Черные списки',
-                            'zalog-org' => 'Залог',
-                            'rosfin-org' => 'Террористы и экстремисты',
-                            'bad-contragent-org' => 'Недобросовестный поставщик',
-                            default => $target
-                        };
+                        $targetName = getBlockTitle($target);
                         
                         $rawData = getResponseData($response);
                         $hasData = hasData($rawData);
                         
-                        $icon = $hasData ? 
-                            (in_array($target, ['cad-org', 'bankrot-org', 'payment-block-org']) ? 'danger' : 'success') : 
-                            'infos';
+                        $icon = getIconClass($target, $hasData);
                     @endphp
                     
                     <div class="ancore" id="{{ $target }}"></div>
                     <section id="{{ $target }}_r">
-                        <div class="row no-gutters">
-                            <img alt="{{ $icon }}" src="/img/{{ $icon }}.png" class="head-img">
-                            <h3 class="order">{{ $targetName }}</h3>
-                        </div>
-                        <div class="row no-gutters">
+                       <div class="row no-gutters">
                             <div class="col-12">
                                 <div class="white-block">
-                                    <div class="row no-gutters head {{ $icon }}">
-                                        <span class="{{ $icon }}">{{ $targetName }}</span>
+                                    {{-- Заголовок блока с иконкой и названием --}}
+                                    <div class="block-header">
+                                        <span class="status-icon status-{{ $icon }}"></span>
+                                        <h3 class="order">{{ $targetName }}</h3>
                                     </div>
                                     
                                     @if(!$hasData)
@@ -706,7 +691,7 @@
                                                 @endforeach
                                             </div>
                                         
-                                        {{-- ЧЕРНЫЕ СПИСКИ, Росфин и другие без данных --}}
+                                        {{-- ЧЕРНЫЕ СПИСКИ, Росфин и другие с данными --}}
                                         @else
                                             <div class="row no-gutters information">
                                                 <div class="col-12">
@@ -754,37 +739,21 @@
             </div>
 
             {{-- Сайдбар --}}
-            <div class="col-xl-3 col-lg-3 pr-xl-0 pr-md-2 d-lg-block d-md-none d-sm-none d-none">
+            <div class="col-xl-3 col-lg-3 pr-xl-0 pr-md-2 d-xl-block d-lg-block  d-md-block">
                 <div class="sidebar" id="ancor" style="position: sticky; top: 85px;">
                     <h3>Оглавление</h3>
                     <ul>
                         @foreach($decodedApiResponses as $target => $response)
                             @php
-                                $title = match($target) {
-                                    'static-code-org' => 'Коды статистики',
-                                    'fssp-org' => 'Сведения о долгах у ФССП',
-                                    'cad-org' => 'Арбитражные суды',
-                                    'bankrot-org' => 'Банкротство',
-                                    'payment-block-org' => 'Блокировка счетов',
-                                    'leasing-org' => 'Лизинг',
-                                    'zalog-org' => 'Залог',
-                                    'blacklist-org' => 'Черный список ЦБ',
-                                    'rosfin-org' => 'Террористы и экстремисты',
-                                    'bad-contragent-org' => 'Недобросовестный поставщик',
-                                    'disqualification-org' => 'Дисквалификация ФНС',
-                                    default => $target
-                                };
-                                
+                                $title = getBlockTitle($target);
                                 $rawData = getResponseData($response);
                                 $hasData = hasData($rawData);
-                                
-                                $iconClass = $hasData ? 
-                                    (in_array($target, ['cad-org', 'bankrot-org', 'payment-block-org']) ? 'danger' : 'success') : 
-                                    'infos';
+                                $iconClass = getIconClass($target, $hasData);
                             @endphp
                             <a href="#{{ $target }}">
                                 <li id="{{ $target }}">
-                                    <i class="{{ $iconClass }}"></i> {{ $title }}
+                                    <span class="status-icon-small status-{{ $iconClass }}"></span>
+                                    {{ $title }}
                                 </li>
                             </a>
                         @endforeach
@@ -813,28 +782,29 @@
     .cards { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 20px; padding: 20px; }
     .row.family { border-bottom: 2px solid #0d6efd; padding-bottom: 10px; margin-bottom: 15px; }
     .row.family .col { font-size: 24px; font-weight: 600; color: #333; }
+    .row.info { margin-bottom: 15px; }
     .row.info .head { color: #6c757d; font-size: 14px; margin-bottom: 5px; }
     .row.info .text { color: #333; font-size: 16px; font-weight: 500; }
     .row.footer .head.fot { color: #6c757d; font-size: 13px; font-style: italic; }
     .white-block { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 20px 0; padding: 20px; }
     .row.head.infos, .row.head.success, .row.head.danger { border-bottom: 2px solid #0d6efd; padding-bottom: 10px; margin-bottom: 20px; }
-    .head-img { width: 24px; height: 24px; margin-right: 10px; }
+    .row.head.infos span.infos, .row.head.success span.success, .row.head.danger span.danger { font-size: 18px; font-weight: 600; color: #333; }
+    .row.head.danger { border-bottom-color: #dc3545; }
+    .row.head.success { border-bottom-color: #28a745; }
+    .head-img { width: 24px; height: 24px; margin-right: 10px; display: inline-block; }
     h3.order { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 15px; display: inline-block; }
     .row.infos { padding: 10px 0; border-bottom: 1px solid #eee; }
     .row.infos .head { color: #6c757d; }
     .row.infos .text { color: #333; font-weight: 500; }
-    .row.infos .text img { width: 16px; height: 16px; margin-right: 5px; }
     .back { background: #f8f9fa; padding: 20px; border-radius: 8px; }
     .row.heads { font-size: 18px; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #0d6efd; }
-    .sidebar { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .sidebar { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: sticky; top: 85px; }
     .sidebar h3 { font-size: 18px; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #0d6efd; }
     .sidebar ul { list-style: none; padding: 0; margin: 0; }
     .sidebar ul a { color: #333; text-decoration: none; display: block; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
     .sidebar ul a:hover li { color: #0d6efd; }
-    .sidebar ul a li i { display: inline-block; width: 16px; height: 16px; margin-right: 8px; border-radius: 50%; }
-    .sidebar ul a li i.infos { background-color: #17a2b8; }
-    .sidebar ul a li i.success { background-color: #28a745; }
-    .sidebar ul a li i.danger { background-color: #dc3545; }
+    .sidebar ul a.active li { color: #0d6efd; font-weight: 600; }
+    .sidebar ul a li { display: flex; align-items: center; gap: 8px; }
     .left-side, .right-side { padding: 5px 0; }
     .left-side .header, .right-side .header { font-weight: 600; color: #495057; margin-bottom: 3px; font-size: 14px; }
     .left-side .text, .right-side .text { color: #333; font-size: 14px; word-break: break-word; }
@@ -848,6 +818,47 @@
     .table-responsive { overflow-x: auto; }
     .table-sm th, .table-sm td { padding: 0.5rem; white-space: nowrap; }
     .d-none { display: none !important; }
+    
+    /* CSS-иконки вместо изображений */
+    .status-icon {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .status-icon-small {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .status-infos {
+        background-color: #17a2b8;
+    }
+    
+    .status-success {
+        background-color: #28a745;
+    }
+    
+    .status-danger {
+        background-color: #dc3545;
+    }
+    
+    /* Для блока общей сводки */
+    .row.infos .text {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    /* Для заголовков блоков */
+    .row.no-gutters .head-img.status-icon {
+        margin-right: 10px;
+    }
 </style>
 @endpush
 
@@ -866,18 +877,34 @@
 
         function setActiveAnchor() {
             let scrollPos = $(document).scrollTop();
+            let found = false;
+            
             $('#ancor ul a').each(function () {
                 let currLink = $(this);
-                let refElement = $(currLink.attr('href') + '_r');
-                if (refElement.length && refElement.position().top <= scrollPos + 100 && 
-                    refElement.position().top + refElement.height() > scrollPos + 100) {
-                    $('#ancor ul a').removeClass('active');
-                    currLink.addClass('active');
+                let refId = currLink.attr('href');
+                let refElement = $(refId + '_r');
+                
+                if (refElement.length) {
+                    let elementTop = refElement.position().top;
+                    let elementBottom = elementTop + refElement.height();
+                    
+                    if (elementTop <= scrollPos + 100 && elementBottom > scrollPos + 100) {
+                        $('#ancor ul a').removeClass('active');
+                        currLink.addClass('active');
+                        found = true;
+                    }
                 }
             });
+            
+            // Если ничего не найдено, активируем первый пункт
+            if (!found && $('#ancor ul a').first().length) {
+                $('#ancor ul a').removeClass('active');
+                $('#ancor ul a').first().addClass('active');
+            }
         }
+        
         $(window).on('scroll', setActiveAnchor);
-        setActiveAnchor();
+        setTimeout(setActiveAnchor, 100);
 
         $('a[href="#"]').on('click', function(e) { e.preventDefault(); });
     });

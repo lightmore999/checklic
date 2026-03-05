@@ -20,7 +20,6 @@ return [
         'leasing-org',
         'static-code-org',
         'blacklist-org',
-        'zalog-org',
     ],
     
     // Настройки

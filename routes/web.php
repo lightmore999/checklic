@@ -6,6 +6,7 @@ use App\Http\Controllers\LimitController;
 use App\Http\Controllers\DelegatedLimitController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\Admin\UserOrganizationLogController;
 
 // Главная страница
 Route::get('/', function () {
@@ -249,4 +250,13 @@ Route::middleware(['auth'])->group(function () {
     
     // НОВЫЙ МАРШРУТ: Получение всех подписок пользователя
     Route::get('/api/users/{user}/subscriptions', [App\Http\Controllers\SubscriptionController::class, 'getUserSubscriptions'])->name('api.users.subscriptions');
+});
+
+Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
+    // Логи действий
+    Route::get('/logs', [UserOrganizationLogController::class, 'index'])->name('logs.index');
+    Route::get('/logs/{log}', [UserOrganizationLogController::class, 'show'])->name('logs.show');
+    Route::get('/logs/export/csv', [UserOrganizationLogController::class, 'export'])->name('logs.export');
+    Route::post('/logs/clean', [UserOrganizationLogController::class, 'clean'])->name('logs.clean');
+    Route::get('/logs/statistics', [UserOrganizationLogController::class, 'statistics'])->name('logs.statistics');
 });

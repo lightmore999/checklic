@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 class ManagerController extends Controller
 {
 
-    public function index()
+    public function index(Request $request)
     {
         $admin = Auth::user();
         
@@ -24,14 +24,36 @@ class ManagerController extends Controller
             abort(403, 'Доступ запрещен');
         }
         
-        // Получаем менеджеров этого админа с пагинацией
-        $managers = User::where('role', 'manager')
+        // Базовый запрос
+        $query = User::where('role', 'manager')
             ->whereHas('managerProfile', function($query) use ($admin) {
                 $query->where('admin_id', $admin->id);
             })
-            ->with('managerProfile')
-            ->orderBy('created_at', 'desc')
-            ->paginate(15); // Добавлена пагинация
+            ->with('managerProfile');
+                
+        // Применяем фильтр по статусу
+        if ($request->filled('status')) {
+            if ($request->status === 'active') {
+                $query->where('is_active', true);
+            } elseif ($request->status === 'inactive') {
+                $query->where('is_active', false);
+            }
+        }
+        
+        // Применяем поиск по имени или email
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+        
+        // Сортировка и пагинация
+        $managers = $query->orderBy('created_at', 'desc')
+            ->paginate(15)
+            ->withQueryString(); // Сохраняем параметры запроса в ссылках пагинации
         
         // Добавляем статистику по организациям для каждого менеджера
         foreach ($managers as $manager) {
@@ -53,7 +75,6 @@ class ManagerController extends Controller
         
         return view('managers.index', compact('admin', 'managers'));
     }
-
     /**
      * Форма создания менеджера (для админа)
      */

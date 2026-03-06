@@ -213,6 +213,26 @@ class ReportController extends Controller
             $query->where('cadastral_number', 'like', "%{$request->cadastral_number}%");
         }
         
+        if ($request->filled('last_name')) {
+            $query->where('last_name', 'like', "%{$request->last_name}%");
+        }
+
+        // Фильтрация по имени
+        if ($request->filled('first_name')) {
+            $query->where('first_name', 'like', "%{$request->first_name}%");
+        }
+
+        // Фильтрация по отчеству
+        if ($request->filled('patronymic')) {
+            $query->where('patronymic', 'like', "%{$request->patronymic}%");
+        }
+
+        // Фильтрация по ИНН
+        if ($request->filled('inn')) {
+            $inn = preg_replace('/[^0-9]/', '', $request->inn);
+            $query->where('inn', 'like', "%{$inn}%");
+        }
+        
         $reports = $query->paginate(20)->withQueryString();
         
         // === ДАННЫЕ ДЛЯ ФИЛЬТРОВ ===
@@ -399,22 +419,21 @@ class ReportController extends Controller
         $user = Auth::user();
         
         $validator = Validator::make($request->all(), [
-            'report_types' => 'required|array|min:1',
-            'report_types.*' => 'exists:report_types,id',
+            'report_type' => 'required|exists:report_types,id',
             
             // Все поля nullable, так как проверка на фронтенде
             'last_name' => 'nullable|string|max:100',
             'first_name' => 'nullable|string|max:100',
             'patronymic' => 'nullable|string|max:100',
             'birth_date' => 'nullable|date',
-            'region' => 'nullable|string|max:100',
+            'regions' => 'nullable|string', // JSON строка с регионами
             'passport_series' => 'nullable|string|max:4',
             'passport_number' => 'nullable|string|max:6',
             'passport_date' => 'nullable|date',
             'vehicle_number' => 'nullable|string|max:50',
             'cadastral_number' => 'nullable|string|max:50',
             'property_type' => 'nullable|string|max:50',
-            'inn' => 'nullable|string|max:12', // ДОБАВЛЕНО
+            'inn' => 'nullable|string|max:12',
         ]);
         
         if ($validator->fails()) {
@@ -423,101 +442,84 @@ class ReportController extends Controller
                 ->withInput();
         }
         
-        $createdReports = [];
-        $errors = [];
+        $reportTypeId = $request->report_type;
         
-        // Группируем отчеты по типам для более эффективного использования лимитов
-        $reportsByType = array_count_values($request->report_types);
-        
-        foreach ($reportsByType as $reportTypeId => $count) {
-            try {
-                $reportType = ReportType::findOrFail($reportTypeId);
-                
-                // ПОЛУЧАЕМ ДОСТУПНЫЕ ЛИМИТЫ ДЛЯ ЭТОГО ТИПА ОТЧЕТА
-                $availableLimits = $this->getAvailableLimitsForReportType($user, $reportTypeId, $count);
-                
-                if (empty($availableLimits)) {
-                    $errors[] = "Нет доступных лимитов для отчета: {$reportType->name} (нужно {$count})";
-                    continue;
-                }
-                
-                $remainingToCreate = $count;
-                
-                // Проходим по доступным лимитам и создаем отчеты
-                foreach ($availableLimits as $limit) {
-                    if ($remainingToCreate <= 0) break;
-                    
-                    // Сколько можем создать из этого лимита
-                    $availableQuantity = $limit->getAvailableQuantity();
-                    $createCount = min($remainingToCreate, $availableQuantity);
-                    
-                    for ($i = 0; $i < $createCount; $i++) {
-                        try {
-                            // Создаем отчет
-                            $reportData = $this->prepareReportData($request, $reportTypeId);
-                            $reportData['user_id'] = $user->id;
-                            $reportData['report_type_id'] = $reportTypeId;
-                            $reportData['status'] = Report::STATUS_PENDING;
-                            $reportData['quantity_used'] = 1;
-                            
-                            // Привязываем лимит (определяем по типу объекта)
-                            if ($limit instanceof \App\Models\DelegatedLimit) {
-                                $reportData['delegated_limit_id'] = $limit->id;
-                            } else {
-                                $reportData['limit_id'] = $limit->id;
-                            }
-                            
-                            $report = Report::create($reportData);
-                            
-                            // ИСПРАВЛЕНО: используем ID = 6 для Контрагентов
-                            $CONTRAGENT_TYPE_ID = 6; // ID для типа "Контрагенты"
-                            
-                            if ($reportTypeId == $CONTRAGENT_TYPE_ID) {
-                                // Используем правильный джоб для Контрагентов
-                                \App\Jobs\ProcessContragentJob::dispatch($report);
-                                
-                                // Добавляем мета-данные
-                                $report->addMetaData('queued_at', now());
-                                $report->addMetaData('initiator', 'store_method');
-                                $report->addMetaData('contragent_inn', $request->inn);
-                            }
-                            
-                            // Списываем лимит
-                            $limit->useQuantity(1);
-                            
-                            $createdReports[] = $report;
-                            $remainingToCreate--;
-                            
-                        } catch (\Exception $e) {
-                            $errors[] = "Ошибка при создании отчета {$reportType->name}: " . $e->getMessage();
-                        }
-                    }
-                }
-                
-                // Если не удалось создать все запрошенные отчеты этого типа
-                if ($remainingToCreate > 0) {
-                    $errors[] = "Не удалось создать {$remainingToCreate} отчет(ов) типа {$reportType->name} (недостаточно лимитов)";
-                }
-                
-            } catch (\Exception $e) {
-                $errors[] = "Ошибка при обработке типа отчета: " . $e->getMessage();
+        try {
+            $reportType = ReportType::findOrFail($reportTypeId);
+            
+            // ПОЛУЧАЕМ ДОСТУПНЫЕ ЛИМИТЫ ДЛЯ ЭТОГО ТИПА ОТЧЕТА
+            $availableLimits = $this->getAvailableLimitsForReportType($user, $reportTypeId, 1);
+            
+            if (empty($availableLimits)) {
+                return redirect()->back()
+                    ->with('error', "Нет доступных лимитов для отчета: {$reportType->name}")
+                    ->withInput();
             }
-        }
-        
-        if (!empty($errors) && empty($createdReports)) {
-            // Если все отчеты завершились ошибкой
+            
+            // Берем первый доступный лимит
+            $limit = $availableLimits[0];
+            
+            // Декодируем регионы из JSON
+            $regions = [];
+            if ($request->filled('regions')) {
+                $regions = json_decode($request->regions, true) ?: [];
+            }
+            
+            // Подготавливаем данные для отчета
+            $reportData = [
+                'user_id' => $user->id,
+                'report_type_id' => $reportTypeId,
+                'status' => Report::STATUS_PENDING,
+                'quantity_used' => 1,
+                'last_name' => $request->last_name,
+                'first_name' => $request->first_name,
+                'patronymic' => $request->patronymic,
+                'birth_date' => $request->birth_date,
+                'region' => !empty($regions) ? implode(', ', $regions) : null,
+                'passport_series' => $request->passport_series,
+                'passport_number' => $request->passport_number,
+                'passport_date' => $request->passport_date,
+                'vehicle_number' => $request->vehicle_number,
+                'cadastral_number' => $request->cadastral_number,
+                'property_type' => $request->property_type,
+                'inn' => $request->inn,
+            ];
+            
+            // Привязываем лимит
+            if ($limit instanceof \App\Models\DelegatedLimit) {
+                $reportData['delegated_limit_id'] = $limit->id;
+            } else {
+                $reportData['limit_id'] = $limit->id;
+            }
+            
+            $report = Report::create($reportData);
+            
+            // Добавляем мета-данные о выбранных регионах
+            if (!empty($regions)) {
+                $report->addMetaData('selected_regions', $regions);
+            }
+            
+            // Запускаем соответствующий джоб
+            $CONTRAGENT_TYPE_ID = 6;
+            
+            if ($reportTypeId == $CONTRAGENT_TYPE_ID) {
+                \App\Jobs\ProcessContragentJob::dispatch($report);
+                $report->addMetaData('queued_at', now());
+                $report->addMetaData('initiator', 'store_method');
+                $report->addMetaData('contragent_inn', $request->inn);
+            }
+            
+            // Списываем лимит
+            $limit->useQuantity(1);
+            
+            return redirect()->route('reports.index')
+                ->with('success', "Отчет успешно создан");
+                
+        } catch (\Exception $e) {
             return redirect()->back()
-                ->with('error', implode('<br>', $errors))
+                ->with('error', "Ошибка при создании отчета: " . $e->getMessage())
                 ->withInput();
         }
-        
-        $message = count($createdReports) . ' отчет(ов) успешно создано.';
-        if (!empty($errors)) {
-            $message .= '<br>Ошибки: ' . implode('<br>', $errors);
-        }
-        
-        return redirect()->route('reports.index')
-            ->with('success', $message);
     }
 
     /**

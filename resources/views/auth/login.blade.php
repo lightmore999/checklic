@@ -82,7 +82,6 @@
                     </div>
                 </div>
             </div>
-            ф
             <div class="text-center mt-4">
                 <p class="text-muted">
                     <small>

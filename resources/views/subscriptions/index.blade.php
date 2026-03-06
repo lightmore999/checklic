@@ -393,16 +393,11 @@
                                                     title="Редактировать название и лимиты">
                                                         <i class="bi bi-pencil"></i>
                                                     </a>
-                                                    <button class="btn btn-sm btn-outline-danger" 
+                                                    <!-- <button class="btn btn-sm btn-outline-danger" 
                                                             onclick="deleteSubscription({{ $subscription->id }})"
                                                             title="Удалить">
                                                         <i class="bi bi-trash"></i>
-                                                    </button>
-                                                    <a href="{{ route('limits.create', ['subscription_id' => $subscription->id]) }}" 
-                                                    class="btn btn-sm btn-outline-success"
-                                                    title="Добавить лимиты">
-                                                        <i class="bi bi-plus-lg"></i>
-                                                    </a>
+                                                    </button> -->
                                                 </div>
                                             </div>
                                         </div>

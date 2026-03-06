@@ -233,7 +233,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
+                            <tr>    
                                 <td colspan="9" class="text-center py-4">
                                     <p class="text-muted mb-0">Логи не найдены</p>
                                 </td>

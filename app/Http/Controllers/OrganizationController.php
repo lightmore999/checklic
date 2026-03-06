@@ -700,57 +700,65 @@ class OrganizationController extends Controller
     {
         $user = Auth::user();
         
-        if (!$user->isAdmin() && !$user->isManager()) {
-            abort(403, 'Доступ запрещен');
+        if (!$user->isAdmin()) {
+            abort(403, 'Только администратор может удалять организации');
         }
         
-        if ($user->isAdmin()) {
-            $organization = Organization::where('id', $id)
-                ->whereHas('manager', function($query) use ($user) {
-                    $query->whereHas('managerProfile', function($subQuery) use ($user) {
-                        $subQuery->where('admin_id', $user->id);
-                    });
-                })
-                ->with('owner.user')
-                ->firstOrFail();
-        } else {
-            // Для менеджера
-            $organization = Organization::where('id', $id)
-                ->where('manager_id', $user->id)
-                ->with('owner.user')
-                ->firstOrFail();
-        }
+        $organization = Organization::findOrFail($id);
         
         DB::beginTransaction();
         
         try {
-            // Удаляем владельца
-            if ($organization->owner) {
-                $ownerUser = $organization->owner->user;
-                $organization->owner->delete();
-                if ($ownerUser) {
-                    $ownerUser->delete();
+            // Получаем владельца организации
+            $owner = $organization->owner;
+            
+            if ($owner && $owner->user) {
+                $ownerUser = $owner->user;
+                
+                // 1. Удаляем все делегированные лимиты сотрудников
+                $memberIds = $organization->members()->pluck('user_id');
+                \App\Models\DelegatedLimit::whereIn('user_id', $memberIds)->delete();
+                
+                // 2. Удаляем всех сотрудников (org_member_profiles)
+                foreach ($organization->members as $member) {
+                    $memberUser = $member->user;
+                    if ($memberUser) {
+                        // Удаляем профиль сотрудника
+                        $member->delete();
+                        // Удаляем пользователя сотрудника
+                        $memberUser->delete();
+                    }
                 }
+                
+                // 3. Удаляем подписки и лимиты владельца
+                $subscriptions = Subscription::where('user_id', $ownerUser->id)->get();
+                foreach ($subscriptions as $subscription) {
+                    // Удаляем лимиты подписки
+                    $subscription->limits()->delete();
+                    // Удаляем подписку
+                    $subscription->delete();
+                }
+                
+                // 4. Удаляем профиль владельца
+                $owner->delete();
+                
+                // 5. Удаляем пользователя владельца
+                $ownerUser->delete();
             }
             
-            // Удаляем организацию
+            // 6. Удаляем саму организацию
             $organization->delete();
             
             DB::commit();
             
-            // Редирект в зависимости от роли
-            if ($user->isAdmin()) {
-                return redirect()->route('admin.dashboard')
-                    ->with('success', 'Организация и владелец успешно удалены');
-            } else {
-                return redirect()->route('manager.dashboard')
-                    ->with('success', 'Организация и владелец успешно удалены');
-            }
-                    
+            return redirect()->route('admin.organizations.list')
+                ->with('success', 'Организация и все связанные данные успешно удалены');
+                
         } catch (\Exception $e) {
             DB::rollBack();
             
-            return back()->with('error', 'Произошла ошибка при удалении: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Произошла ошибка при удалении: ' . $e->getMessage());
         }
     }
     

@@ -336,14 +336,6 @@
                             </form>
                         </div>
 
-                        <!-- Кнопка продления подписки -->
-                        <div class="col-md-4 mb-2">
-                            <button type="button" class="btn btn-info w-100" 
-                                    data-bs-toggle="modal" data-bs-target="#extendSubscriptionModal">
-                                <i class="bi bi-calendar-plus"></i> Продлить подписку
-                            </button>
-                        </div>
-
                         <!-- Кнопка удаления -->
                         <div class="col-md-4 mb-2">
                             <button type="button" class="btn btn-danger w-100"
@@ -361,30 +353,6 @@
 
 <!-- Модальное окно продления подписки -->
 @if($isAdmin)
-<div class="modal fade" id="extendSubscriptionModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Продлить подписку организации</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form action="{{ route('admin.organization.extend-subscription', $organization->id) }}" method="POST">
-                @csrf
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="days" class="form-label">Количество дней продления *</label>
-                        <input type="number" class="form-control" id="days" name="days" min="1" max="365" value="30" required>
-                        <div class="form-text">Максимум 365 дней</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Продлить подписку</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <!-- Форма для удаления -->
 <form id="delete-form" method="POST" style="display: none;">

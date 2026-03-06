@@ -364,6 +364,7 @@
                                     <th>Организация / ИНН</th>
                                     <th>Владелец</th>
                                     <th>Статус</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -372,7 +373,7 @@
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <div class="rounded-circle bg-success bg-opacity-10 text-success d-flex align-items-center justify-content-center me-2" 
-                                                 style="width: 32px; height: 32px;">
+                                                style="width: 32px; height: 32px;">
                                                 <i class="bi bi-building"></i>
                                             </div>
                                             <div>
@@ -388,7 +389,7 @@
                                         @if($organization->owner && $organization->owner->user)
                                             <div class="d-flex align-items-center">
                                                 <div class="rounded-circle bg-info text-white d-flex align-items-center justify-content-center me-2" 
-                                                     style="width: 28px; height: 28px; font-size: 0.8rem;">
+                                                    style="width: 28px; height: 28px; font-size: 0.8rem;">
                                                     {{ strtoupper(substr($organization->owner->user->name, 0, 1)) }}
                                                 </div>
                                                 <div>
@@ -414,6 +415,15 @@
                                         <span class="badge bg-{{ $config['class'] }}">
                                             {{ $config['text'] }}
                                         </span>
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('admin.organization.show', $organization->id) }}" 
+                                        class="btn btn-sm btn-outline-primary rounded-circle d-flex align-items-center justify-content-center"
+                                        style="width: 32px; height: 32px;"
+                                        title="Перейти в организацию"
+                                        data-bs-toggle="tooltip">
+                                            <i class="bi bi-arrow-right-circle"></i>
+                                        </a>
                                     </td>
                                 </tr>
                                 @endforeach

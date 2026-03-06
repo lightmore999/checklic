@@ -272,7 +272,7 @@
                             <th>Тип отчета</th>
                             <th>Кол-во</th>
                             <th>Баланс</th>
-                            <th></th>  <!-- 9-я колонка для иконок -->
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -281,6 +281,43 @@
                                 $targetUser = $log->targetUser();
                                 $subscription = $log->subscription();
                                 $reportType = $log->reportType();
+                                
+                                // Определяем URL для пользователя (кто совершил действие)
+                                $actorUrl = null;
+                                if ($log->user) {
+                                    if ($log->user->isAdmin()) {
+                                        $actorUrl = route('admin.dashboard');
+                                    } elseif ($log->user->isManager()) {
+                                        $actorUrl = route('admin.managers.show', $log->user->id);
+                                    } elseif ($log->user->isOrgOwner() && $log->user->orgOwnerProfile) {
+                                        $actorUrl = route('admin.organization.show', $log->user->orgOwnerProfile->organization_id);
+                                    } elseif ($log->user->isOrgMember() && $log->user->orgMemberProfile) {
+                                        $actorUrl = route('admin.org-members.show', [
+                                            $log->user->orgMemberProfile->organization_id,
+                                            $log->user->orgMemberProfile->id
+                                        ]);
+                                    }
+                                }
+                                
+                                // Определяем URL для целевого пользователя (кому)
+                                $targetUrl = null;
+                                if ($targetUser) {
+                                    if ($targetUser->isAdmin()) {
+                                        $targetUrl = route('admin.dashboard');
+                                    } elseif ($targetUser->isManager()) {
+                                        $targetUrl = route('admin.managers.show', $targetUser->id);
+                                    } elseif ($targetUser->isOrgOwner() && $targetUser->orgOwnerProfile) {
+                                        $targetUrl = route('admin.organization.show', $targetUser->orgOwnerProfile->organization_id);
+                                    } elseif ($targetUser->isOrgMember() && $targetUser->orgMemberProfile) {
+                                        $targetUrl = route('admin.org-members.show', [
+                                            $targetUser->orgMemberProfile->organization_id,
+                                            $targetUser->orgMemberProfile->id
+                                        ]);
+                                    }
+                                }
+                                
+                                // Определяем URL для подписки
+                                $subscriptionUrl = $subscription ? route('subscriptions.show', $subscription->id) : null;
                             @endphp
                             <tr>
                                 <td class="text-nowrap">
@@ -294,32 +331,61 @@
                                 </td>
                                 <td>
                                     @if($log->user)
-                                        <div class="d-flex align-items-center">
-                                            <span class="fw-semibold">{{ $log->user->name }}</span>
-                                            <small class="text-muted ms-1">({{ $log->user->getRoleDisplayName() }})</small>
-                                        </div>
+                                        @if($actorUrl)
+                                            <a href="{{ $actorUrl }}" class="text-decoration-none" target="_blank">
+                                                <div class="d-flex align-items-center">
+                                                    <span class="fw-semibold">{{ $log->user->name }}</span>
+                                                    <small class="text-muted ms-1">({{ $log->user->getRoleDisplayName() }})</small>
+                                                </div>
+                                            </a>
+                                        @else
+                                            <div class="d-flex align-items-center">
+                                                <span class="fw-semibold">{{ $log->user->name }}</span>
+                                                <small class="text-muted ms-1">({{ $log->user->getRoleDisplayName() }})</small>
+                                            </div>
+                                        @endif
                                     @else
                                         <span class="text-muted">Система</span>
                                     @endif
                                 </td>
                                 <td>
                                     @if($targetUser)
-                                        <div>
-                                            <span class="fw-semibold">{{ $targetUser->name }}</span>
-                                            <small class="text-muted d-block">{{ $targetUser->getRoleDisplayName() }}</small>
-                                        </div>
+                                        @if($targetUrl)
+                                            <a href="{{ $targetUrl }}" class="text-decoration-none" target="_blank">
+                                                <div>
+                                                    <span class="fw-semibold">{{ $targetUser->name }}</span>
+                                                    <small class="text-muted d-block">{{ $targetUser->getRoleDisplayName() }}</small>
+                                                </div>
+                                            </a>
+                                        @else
+                                            <div>
+                                                <span class="fw-semibold">{{ $targetUser->name }}</span>
+                                                <small class="text-muted d-block">{{ $targetUser->getRoleDisplayName() }}</small>
+                                            </div>
+                                        @endif
                                     @else
                                         <span class="text-muted">—</span>
                                     @endif
                                 </td>
                                 <td>
                                     @if($subscription)
-                                        <div>
-                                            <small>{{ $subscription->name ?? 'Подписка #' . $subscription->id }}</small>
-                                            @if($subscription->user)
-                                                <small class="text-muted d-block">{{ $subscription->user->name }}</small>
-                                            @endif
-                                        </div>
+                                        @if($subscriptionUrl)
+                                            <a href="{{ $subscriptionUrl }}" class="text-decoration-none" target="_blank">
+                                                <div>
+                                                    <small>{{ $subscription->name ?? 'Подписка #' . $subscription->id }}</small>
+                                                    @if($subscription->user)
+                                                        <small class="text-muted d-block">{{ $subscription->user->name }}</small>
+                                                    @endif
+                                                </div>
+                                            </a>
+                                        @else
+                                            <div>
+                                                <small>{{ $subscription->name ?? 'Подписка #' . $subscription->id }}</small>
+                                                @if($subscription->user)
+                                                    <small class="text-muted d-block">{{ $subscription->user->name }}</small>
+                                                @endif
+                                            </div>
+                                        @endif
                                     @else
                                         <span class="text-muted">—</span>
                                     @endif
@@ -414,6 +480,22 @@
     }
     .select2-container--default .select2-selection--single .select2-selection__arrow {
         height: 38px;
+    }
+    
+    /* Стили для ссылок */
+    .table a {
+        color: #0d6efd;
+        transition: color 0.2s;
+        text-decoration: none;
+    }
+    
+    .table a:hover {
+        color: #0a58ca;
+        text-decoration: underline !important;
+    }
+    
+    .table a .fw-semibold:hover {
+        text-decoration: underline;
     }
 </style>
 @endpush

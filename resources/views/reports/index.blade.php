@@ -35,132 +35,137 @@
         <div class="card-header bg-white py-3">
             <h5 class="mb-0">
                 <i class="bi bi-funnel me-2"></i> Фильтры
+                <button class="btn btn-sm btn-link float-end" type="button" data-bs-toggle="collapse" data-bs-target="#filters">
+                    <i class="bi bi-chevron-down"></i>
+                </button>
             </h5>
         </div>
-        <div class="card-body">
-            <form method="GET" action="{{ route('reports.index') }}" id="filterForm">
-                <div class="row g-3">
-                    
-                    <!-- Фильтр: Организация -->
-                    @if(isset($organizations) && $organizations->isNotEmpty())
-                    <div class="col-md-3">
-                        <label class="form-label">Организация</label>
-                        <select name="organization_id" class="form-select" id="organizationFilter">
-                            <option value="">Все организации</option>
-                            @foreach($organizations as $org)
-                                <option value="{{ $org->id }}" {{ request('organization_id') == $org->id ? 'selected' : '' }}>
-                                    {{ $org->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    @endif
-                    
-                    <!-- Пользователь -->
-                    @if(isset($users) && $users->isNotEmpty())
-                    <div class="col-md-3">
-                        <label class="form-label">Пользователь</label>
-                        <select name="user_id" class="form-select" id="userFilter">
-                            <option value="">Все пользователи</option>
-                            @foreach($users as $u)
-                                <option value="{{ $u->id }}" {{ request('user_id') == $u->id ? 'selected' : '' }}>
-                                    {{ $u->name }}
-                                    @if($u->id == Auth::id())
-                                        (Я)
-                                    @endif
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    @endif
-                    
-                    <!-- Тип отчета -->
-                    <div class="col-md-3">
-                        <label class="form-label">Тип отчета</label>
-                        <select name="report_type_id" class="form-select">
-                            <option value="">Все типы</option>
-                            @foreach($reportTypes as $type)
-                                <option value="{{ $type->id }}" {{ request('report_type_id') == $type->id ? 'selected' : '' }}>
-                                    {{ $type->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    
-                    <!-- Статус -->
-                    <div class="col-md-3">
-                        <label class="form-label">Статус</label>
-                        <select name="status" class="form-select">
-                            <option value="">Все статусы</option>
-                            @foreach($statuses as $value => $label)
-                                <option value="{{ $value }}" {{ request('status') == $value ? 'selected' : '' }}>
-                                    {{ $label }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    
-                    <!-- Поиск по ФИО -->
-                    <div class="col-md-3">
-                        <label class="form-label">ФИО</label>
-                        <input type="text" name="search_name" class="form-control" 
-                               placeholder="Иванов Иван" value="{{ request('search_name') }}">
-                    </div>
-                    
-                    <!-- Поиск по паспорту -->
-                    <div class="col-md-3">
-                        <label class="form-label">Паспорт</label>
-                        <input type="text" name="passport" class="form-control" 
-                               placeholder="4500 123456" value="{{ request('passport') }}">
-                    </div>
-                    
-                    <!-- Поиск по номеру ТС -->
-                    <div class="col-md-3">
-                        <label class="form-label">Номер ТС</label>
-                        <input type="text" name="vehicle_number" class="form-control" 
-                               placeholder="А123ВС77" value="{{ request('vehicle_number') }}">
-                    </div>
-                    
-                    <!-- Поиск по кадастровому номеру -->
-                    <div class="col-md-3">
-                        <label class="form-label">Кадастровый номер</label>
-                        <input type="text" name="cadastral_number" class="form-control" 
-                               placeholder="77:01:0001001:1234" value="{{ request('cadastral_number') }}">
-                    </div>
-                    
-                    <!-- Дата от -->
-                    <div class="col-md-3">
-                        <label class="form-label">Дата от</label>
-                        <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
-                    </div>
-                    
-                    <!-- Дата до -->
-                    <div class="col-md-3">
-                        <label class="form-label">Дата до</label>
-                        <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
-                    </div>
-                    
-                    <!-- Кнопки -->
-                    <div class="col-md-12">
-                        <div class="d-flex justify-content-between align-items-end">
-                            <div>
-                                <button type="submit" class="btn btn-primary">
+        <div class="collapse show" id="filters">
+            <div class="card-body" style="padding: 1.5rem;"> <!-- Добавлен явный padding -->
+                <form method="GET" action="{{ route('reports.index') }}" id="filterForm">
+                    <div class="row">
+                        <!-- Первая строка: Основные фильтры -->
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Организация</label>
+                            <select name="organization_id" class="form-select" id="organizationFilter">
+                                <option value="">Все организации</option>
+                                @foreach($organizations as $org)
+                                    <option value="{{ $org->id }}" {{ request('organization_id') == $org->id ? 'selected' : '' }}>
+                                        {{ $org->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Пользователь</label>
+                            <select name="user_id" class="form-select" id="userFilter">
+                                <option value="">Все пользователи</option>
+                                @foreach($users as $u)
+                                    <option value="{{ $u->id }}" {{ request('user_id') == $u->id ? 'selected' : '' }}>
+                                        {{ $u->name }}
+                                        @if($u->id == Auth::id()) (Я) @endif
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Тип отчета</label>
+                            <select name="report_type_id" class="form-select">
+                                <option value="">Все типы</option>
+                                @foreach($reportTypes as $type)
+                                    <option value="{{ $type->id }}" {{ request('report_type_id') == $type->id ? 'selected' : '' }}>
+                                        {{ $type->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Статус</label>
+                            <select name="status" class="form-select">
+                                <option value="">Все статусы</option>
+                                @foreach($statuses as $value => $label)
+                                    <option value="{{ $value }}" {{ request('status') == $value ? 'selected' : '' }}>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        
+                        <!-- Вторая строка: Поиск по ФИО и паспорту -->
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Фамилия</label>
+                            <input type="text" name="last_name" class="form-control" 
+                                placeholder="Иванов" value="{{ request('last_name') }}">
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Имя</label>
+                            <input type="text" name="first_name" class="form-control" 
+                                placeholder="Иван" value="{{ request('first_name') }}">
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Отчество</label>
+                            <input type="text" name="patronymic" class="form-control" 
+                                placeholder="Иванович" value="{{ request('patronymic') }}">
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Паспорт</label>
+                            <input type="text" name="passport" class="form-control" 
+                                placeholder="4500 123456" value="{{ request('passport') }}">
+                        </div>
+                        
+                        <!-- Третья строка: Специфические фильтры -->
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Номер ТС</label>
+                            <input type="text" name="vehicle_number" class="form-control" 
+                                placeholder="А123ВС77" value="{{ request('vehicle_number') }}">
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Кадастровый номер</label>
+                            <input type="text" name="cadastral_number" class="form-control" 
+                                placeholder="77:01:0001001:1234" value="{{ request('cadastral_number') }}">
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">ИНН</label>
+                            <input type="text" name="inn" class="form-control" 
+                                placeholder="1650377119" value="{{ request('inn') }}">
+                        </div>
+                        
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Дата от</label>
+                            <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                        </div>
+                        
+                        <!-- Четвертая строка: Дата до и кнопки -->
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Дата до</label>
+                            <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <!-- Пусто для выравнивания -->
+                        </div>
+                        
+                        <div class="col-md-3 mb-3 d-flex align-items-end justify-content-end">
+                            <div class="d-flex gap-2 w-100">
+                                <button type="submit" class="btn btn-primary flex-grow-1">
                                     <i class="bi bi-search me-1"></i> Применить
                                 </button>
-                                <a href="{{ route('reports.index') }}" class="btn btn-secondary ms-2">
-                                    <i class="bi bi-x-circle me-1"></i> Сбросить
+                                <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary" title="Сбросить">
+                                    <i class="bi bi-x-circle"></i>
                                 </a>
                             </div>
-                            
-                            @if(request()->hasAny(['user_id', 'organization_id', 'report_type_id', 'status', 'search_name', 'passport', 'vehicle_number', 'cadastral_number', 'date_from', 'date_to']))
-                                <div class="text-muted">
-                                    Найдено: {{ $reports->total() }} {{ trans_choice('отчет|отчета|отчетов', $reports->total()) }}
-                                </div>
-                            @endif
                         </div>
                     </div>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -183,7 +188,7 @@
                             <tr>
                                 <th style="width: 50px;">ID</th>
                                 <th style="min-width: 150px;">Тип отчета</th>
-                                <th style="min-width: 180px;">Данные</th>
+                                <th style="min-width: 250px;">Данные</th>
                                 <th style="min-width: 120px;">Статус</th>
                                 <th style="min-width: 100px;">Пользователь</th>
                                 <th style="min-width: 150px;">Дата создания</th>
@@ -209,6 +214,52 @@
                                             $userProfileRoute = route('admin.managers.show', $user->id);
                                         }
                                     }
+                                    
+                                    // Собираем данные для отображения
+                                    $displayData = [];
+                                    
+                                    if ($report->last_name || $report->first_name || $report->patronymic) {
+                                        $fio = trim($report->last_name . ' ' . $report->first_name . ' ' . $report->patronymic);
+                                        $displayData[] = ['icon' => 'bi-person', 'text' => $fio];
+                                    }
+                                    
+                                    if ($report->birth_date) {
+                                        $displayData[] = ['icon' => 'bi-calendar', 'text' => 'ДР: ' . $report->birth_date->format('d.m.Y')];
+                                    }
+                                    
+                                    if ($report->passport_series || $report->passport_number) {
+                                        $passport = trim($report->passport_series . ' ' . $report->passport_number);
+                                        $displayData[] = ['icon' => 'bi-passport', 'text' => $passport];
+                                    }
+                                    
+                                    if ($report->passport_date) {
+                                        $displayData[] = ['icon' => 'bi-calendar-check', 'text' => 'выдан: ' . $report->passport_date->format('d.m.Y')];
+                                    }
+                                    
+                                    if ($report->vehicle_number) {
+                                        $displayData[] = ['icon' => 'bi-car-front', 'text' => $report->vehicle_number];
+                                    }
+                                    
+                                    if ($report->cadastral_number) {
+                                        $displayData[] = ['icon' => 'bi-house', 'text' => $report->cadastral_number];
+                                    }
+                                    
+                                    if ($report->property_type) {
+                                        $propertyTypes = [
+                                            'land' => 'Земельный участок',
+                                            'building' => 'Здание',
+                                            'premises' => 'Помещение'
+                                        ];
+                                        $displayData[] = ['icon' => 'bi-tag', 'text' => $propertyTypes[$report->property_type] ?? $report->property_type];
+                                    }
+                                    
+                                    if ($report->inn) {
+                                        $displayData[] = ['icon' => 'bi-building', 'text' => 'ИНН: ' . $report->inn];
+                                    }
+                                    
+                                    if ($report->region) {
+                                        $displayData[] = ['icon' => 'bi-geo-alt', 'text' => $report->region];
+                                    }
                                 @endphp
                                 <tr>
                                     <td>
@@ -227,29 +278,16 @@
                                     </td>
                                     <td>
                                         <div class="small">
-                                            @if($report->full_name)
-                                                <div class="text-truncate" style="max-width: 200px;" 
-                                                     title="{{ $report->full_name }}">
-                                                    <i class="bi bi-person me-1"></i> {{ $report->full_name }}
+                                            @foreach($displayData as $item)
+                                                <div class="text-truncate mb-1" style="max-width: 300px;" 
+                                                     title="{{ $item['text'] }}">
+                                                    <i class="bi {{ $item['icon'] }} me-1 text-secondary"></i> 
+                                                    {{ $item['text'] }}
                                                 </div>
-                                            @endif
+                                            @endforeach
                                             
-                                            @if($report->passport_full)
-                                                <div class="text-truncate" style="max-width: 200px;">
-                                                    <i class="bi bi-passport me-1"></i> {{ $report->passport_full }}
-                                                </div>
-                                            @endif
-                                            
-                                            @if($report->vehicle_number)
-                                                <div class="text-truncate" style="max-width: 200px;">
-                                                    <i class="bi bi-car-front me-1"></i> {{ $report->vehicle_number }}
-                                                </div>
-                                            @endif
-                                            
-                                            @if($report->cadastral_number)
-                                                <div class="text-truncate" style="max-width: 200px;">
-                                                    <i class="bi bi-house me-1"></i> {{ $report->cadastral_number }}
-                                                </div>
+                                            @if(empty($displayData))
+                                                <span class="text-muted">Нет данных</span>
                                             @endif
                                         </div>
                                     </td>
@@ -319,22 +357,6 @@
                                                data-bs-toggle="tooltip">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            
-                                            @if($report->isPending())
-                                                <form action="{{ route('reports.cancel', $report) }}" 
-                                                      method="POST" class="d-inline">
-                                                    @csrf
-                                                    @method('PATCH')
-                                                    <button type="submit" 
-                                                            class="btn btn-sm btn-warning rounded-circle d-flex align-items-center justify-content-center"
-                                                            style="width: 32px; height: 32px;"
-                                                            title="Отменить отчет"
-                                                            data-bs-toggle="tooltip"
-                                                            onclick="return confirm('Отменить отчет?')">
-                                                        <i class="bi bi-x-lg"></i>
-                                                    </button>
-                                                </form>
-                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -349,7 +371,7 @@
                     </div>
                     <h4 class="text-muted mb-3">Отчеты не найдены</h4>
                     <p class="text-muted mb-4">
-                        @if(request()->hasAny(['user_id', 'organization_id', 'report_type_id', 'status', 'search_name', 'passport', 'vehicle_number', 'cadastral_number', 'date_from', 'date_to']))
+                        @if(request()->hasAny(['user_id', 'organization_id', 'report_type_id', 'status', 'last_name', 'first_name', 'patronymic', 'passport', 'vehicle_number', 'cadastral_number', 'inn', 'date_from', 'date_to']))
                             Попробуйте изменить параметры фильтрации
                         @else
                             У вас еще нет созданных отчетов
@@ -415,6 +437,106 @@
         border-bottom: 1px solid rgba(0,0,0,0.125);
     }
     
+    .card-header .btn-link {
+        color: #6c757d;
+        text-decoration: none;
+        padding: 0;
+    }
+    
+    .card-header .btn-link:hover {
+        color: #0d6efd;
+    }
+    
+    .card-body {
+        padding: 1.5rem;
+    }
+    
+    /* Стили для полей ввода */
+    .form-label {
+        font-size: 0.9rem;
+        margin-bottom: 0.3rem;
+        color: #495057;
+    }
+    
+    .input-group-text {
+        background-color: #f8f9fa;
+        border-right: none;
+    }
+    
+    .input-group .form-control {
+        border-left: none;
+    }
+    
+    .input-group .form-control:focus {
+        border-color: #ced4da;
+        box-shadow: none;
+    }
+    
+    .input-group:focus-within {
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        border-radius: 0.375rem;
+    }
+    
+    .input-group:focus-within .input-group-text {
+        border-color: #86b7fe;
+    }
+    
+    .input-group:focus-within .form-control {
+        border-color: #86b7fe;
+    }
+    
+    /* Отступы между строками */
+    .row.g-3 {
+        --bs-gutter-y: 1rem;
+    }
+    
+    /* Стили для кнопок */
+    .btn-primary {
+        background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+        border: none;
+    }
+    
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #0b5ed7 0%, #0a58ca 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(13, 110, 253, 0.2);
+    }
+    
+    .btn-outline-secondary {
+        border: 1px solid #ced4da;
+    }
+    
+    .btn-outline-secondary:hover {
+        background-color: #f8f9fa;
+        color: #dc3545;
+        border-color: #dc3545;
+    }
+    
+    /* Адаптивность */
+    @media (max-width: 768px) {
+        .card-body {
+            padding: 1rem;
+        }
+        
+        .row.g-3 {
+            --bs-gutter-y: 0.75rem;
+        }
+        
+        .btn-primary, .btn-outline-secondary {
+            padding: 0.5rem;
+        }
+    }
+    /* Стили для карточки */
+    .card {
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+    
+    .card-header {
+        background-color: #fff;
+        border-bottom: 1px solid rgba(0,0,0,0.125);
+    }
+    
     .card-body {
         padding: 0;
     }
@@ -469,6 +591,19 @@
         text-decoration: underline !important;
     }
     
+    /* Стили для строк с данными */
+    .text-truncate {
+        max-width: 280px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .text-truncate i {
+        width: 18px;
+        display: inline-block;
+    }
+    
     /* Адаптивность */
     @media (max-width: 768px) {
         .card-footer .d-flex {
@@ -496,7 +631,7 @@
         }
         
         .text-truncate {
-            max-width: 150px !important;
+            max-width: 200px !important;
         }
     }
     
@@ -567,6 +702,33 @@
                 document.getElementById('filterForm').submit();
             });
         }
+        
+        // Добавляем задержку для текстовых полей
+        const textInputs = ['last_name', 'first_name', 'patronymic', 'passport', 'vehicle_number', 'cadastral_number', 'inn'];
+        let timers = {};
+        
+        textInputs.forEach(name => {
+            const input = document.querySelector(`input[name="${name}"]`);
+            if (input) {
+                input.addEventListener('input', function() {
+                    clearTimeout(timers[name]);
+                    timers[name] = setTimeout(() => {
+                        document.getElementById('filterForm').submit();
+                    }, 500);
+                });
+            }
+        });
+        
+        // Фильтры дат
+        const dateInputs = ['date_from', 'date_to'];
+        dateInputs.forEach(name => {
+            const input = document.querySelector(`input[name="${name}"]`);
+            if (input) {
+                input.addEventListener('change', function() {
+                    document.getElementById('filterForm').submit();
+                });
+            }
+        });
     });
 </script>
 @endpush

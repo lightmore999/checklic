@@ -91,17 +91,32 @@
         </div>
         <div class="collapse show" id="filters">
             <div class="card-body">
-                <form method="GET" action="{{ route('admin.logs.index') }}" class="row g-3">
+                <form method="GET" action="{{ route('admin.logs.index') }}" id="filterForm" class="row g-3">
+                    <!-- Фильтр по организации -->
                     <div class="col-md-3">
-                        <label class="form-label">Пользователь</label>
-                        <select name="user_id" class="form-select">
-                            <option value="">Все пользователи</option>
-                            @foreach($users as $user)
-                                <option value="{{ $user->id }}" {{ request('user_id') == $user->id ? 'selected' : '' }}>
-                                    {{ $user->name }} ({{ $user->email }})
+                        <label class="form-label">Организация</label>
+                        <select name="organization_id" id="organization_id" class="form-select select2-organization">
+                            <option value="">Все организации</option>
+                            @foreach($organizations ?? [] as $org)
+                                <option value="{{ $org->id }}" {{ request('organization_id') == $org->id ? 'selected' : '' }}>
+                                    {{ $org->name }} @if($org->inn) (ИНН: {{ $org->inn }}) @endif
                                 </option>
                             @endforeach
                         </select>
+                    </div>
+
+                    <!-- Фильтр по пользователю с поиском -->
+                    <div class="col-md-3">
+                        <label class="form-label">Пользователь</label>
+                        <select name="user_id" id="user_id" class="form-select select2-user" data-placeholder="Поиск пользователя...">
+                            <option value="">Все пользователи</option>
+                            @foreach($users as $userOption)
+                                <option value="{{ $userOption->id }}" {{ request('user_id') == $userOption->id ? 'selected' : '' }}>
+                                    {{ $userOption->name }} ({{ $userOption->email }}) - {{ $userOption->getRoleDisplayName() }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Можно ввести имя или email для поиска</small>
                     </div>
 
                     <div class="col-md-2">
@@ -160,6 +175,54 @@
             </div>
         </div>
     </div>
+
+    <!-- Активные фильтры -->
+    @if(request()->anyFilled(['organization_id', 'user_id', 'entity_type', 'action', 'entity_id', 'search', 'date_from', 'date_to']))
+        <div class="alert alert-info py-2 mb-3">
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <i class="bi bi-funnel me-1"></i>
+                <span>Активные фильтры:</span>
+                
+                @if(request('organization_id'))
+                    @php 
+                        $org = isset($organizations) ? $organizations->firstWhere('id', request('organization_id')) : null; 
+                    @endphp
+                    <span class="badge bg-info text-white">Организация: {{ $org->name ?? 'ID: ' . request('organization_id') }}</span>
+                @endif
+                
+                @if(request('user_id'))
+                    @php 
+                        $usr = $users->firstWhere('id', request('user_id')); 
+                    @endphp
+                    <span class="badge bg-info text-white">Пользователь: {{ $usr->name ?? 'ID: ' . request('user_id') }}</span>
+                @endif
+                
+                @if(request('entity_type'))
+                    <span class="badge bg-info text-white">Тип: {{ $entityTypes[request('entity_type')] ?? request('entity_type') }}</span>
+                @endif
+                
+                @if(request('action'))
+                    <span class="badge bg-info text-white">Действие: {{ $actions[request('action')] ?? request('action') }}</span>
+                @endif
+                
+                @if(request('entity_id'))
+                    <span class="badge bg-info text-white">ID сущности: {{ request('entity_id') }}</span>
+                @endif
+                
+                @if(request('search'))
+                    <span class="badge bg-info text-white">Поиск: {{ request('search') }}</span>
+                @endif
+                
+                @if(request('date_from') && request('date_to'))
+                    <span class="badge bg-info text-white">Период: {{ request('date_from') }} - {{ request('date_to') }}</span>
+                @elseif(request('date_from'))
+                    <span class="badge bg-info text-white">С: {{ request('date_from') }}</span>
+                @elseif(request('date_to'))
+                    <span class="badge bg-info text-white">По: {{ request('date_to') }}</span>
+                @endif
+            </div>
+        </div>
+    @endif
 
     <!-- Таблица логов -->
     <div class="card mb-4">
@@ -379,9 +442,80 @@
 </div>
 @endsection
 
+@push('styles')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    .select2-container {
+        width: 100% !important;
+    }
+    .select2-container--default .select2-selection--single {
+        height: 38px;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 38px;
+        padding-left: 12px;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 38px;
+    }
+</style>
+@endpush
+
 @push('scripts')
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ru.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация Select2 для организаций
+    if (typeof $.fn.select2 !== 'undefined') {
+        $('.select2-organization').select2({
+            theme: 'default',
+            language: 'ru',
+            placeholder: 'Выберите организацию',
+            allowClear: true,
+            width: '100%'
+        });
+        
+        // Инициализация Select2 для пользователей с поиском
+        $('.select2-user').select2({
+            theme: 'default',
+            language: 'ru',
+            placeholder: 'Поиск пользователя...',
+            allowClear: true,
+            width: '100%',
+            minimumInputLength: 0,
+            ajax: {
+                url: '{{ route("users.search") }}',
+                dataType: 'json',
+                delay: 300,
+                data: function(params) {
+                    return {
+                        search: params.term || '',
+                        organization_id: $('#organization_id').val()
+                    };
+                },
+                processResults: function(data) {
+                    let results = [{
+                        id: '',
+                        text: 'Все пользователи'
+                    }];
+                    
+                    if (Array.isArray(data)) {
+                        results = results.concat(data);
+                    }
+                    
+                    return {
+                        results: results
+                    };
+                },
+                cache: true
+            }
+        });
+    }
+
     // Загрузка статистики
     fetch('{{ route("admin.logs.statistics") }}')
         .then(response => response.json())
@@ -392,6 +526,49 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('stat-month').textContent = data.month;
         })
         .catch(error => console.error('Error loading statistics:', error));
+        
+    // При изменении организации - обновляем список пользователей
+    $('#organization_id').on('change', function() {
+        $('.select2-user').val(null).trigger('change');
+        $('#filterForm').submit();
+    });
+
+    // Отправка формы при изменении пользователя
+    $('.select2-user').on('change', function() {
+        $('#filterForm').submit();
+    });
+
+    // Автоматическая отправка формы при изменении select-фильтров
+    $('select[name="entity_type"], select[name="action"]').on('change', function() {
+        $('#filterForm').submit();
+    });
+
+    // Отправка формы при изменении дат (с задержкой)
+    let dateTimer;
+    $('input[type="date"]').on('change', function() {
+        clearTimeout(dateTimer);
+        dateTimer = setTimeout(() => {
+            $('#filterForm').submit();
+        }, 500);
+    });
+    
+    // Отправка формы при изменении ID сущности (с задержкой)
+    let entityIdTimer;
+    $('input[name="entity_id"]').on('input', function() {
+        clearTimeout(entityIdTimer);
+        entityIdTimer = setTimeout(() => {
+            $('#filterForm').submit();
+        }, 500);
+    });
+    
+    // Отправка формы при поиске по тексту (с задержкой)
+    let searchTimer;
+    $('input[name="search"]').on('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            $('#filterForm').submit();
+        }, 500);
+    });
 });
 </script>
 @endpush

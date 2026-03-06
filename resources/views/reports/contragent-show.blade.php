@@ -181,6 +181,27 @@
             default => $target
         };
     }
+    
+    // Порядок отображения блоков
+    $blockOrder = [
+        'static-code-org',
+        'bankrot-org',
+        'payment-block-org',
+        'cad-org',
+        'fssp-org',
+        'blacklist-org',
+        'rosfin-org',
+        'bad-contragent-org',
+        'leasing-org',
+        'zalog-org',
+        'disqualification-org',
+        'inagent-org',
+        'tax-regime-org',
+        'employee-count-org',
+        'sme-reg-org',
+        'sme-support-org',
+        'egrul-data-org',
+    ];
 @endphp
 
 @section('content')
@@ -204,14 +225,17 @@
                     <p class="head">Номер отчета:</p>
                     <p class="text oid_report"> #{{ $report->id }} </p>
                 </div>
+                <div class="w-100 d-md-none d-block pt-2"></div>
                 <div class="col-xl-3 col-md-3 col-sm-12">
                     <p class="head">Дата и время формирования отчёта:</p>
                     <p class="text">{{ $report->processed_at ? $report->processed_at->format('d.m.Y H:i:s') : 'не готов' }}</p>
                 </div>
+                <div class="w-100 d-md-none d-block pt-2"></div>
                 <div class="col-xl-2 col-md-2 col-sm-12">
                     <p class="head">Поддержка:</p>
                     <p class="text"><a href="mailto:support@example.com">support@example.com</a></p>
                 </div>
+                <div class="w-100 d-md-none d-block pt-2"></div>
                 <div class="col-xl-3 col-md-2 col-sm-12">
                     <p class="text text-sm-center text-md-right">
                         <a target="_blank" class='download_report'>Скачать PDF</a>
@@ -231,6 +255,7 @@
                         <div class="row family no-gutters">
                             <div class="col">{{ $fullNameHide ?: 'Данные не указаны' }}</div>
                         </div>
+
                         <div class="row info no-gutters">
                             <div class="col-6">
                                 <p class="head">Возраст</p>
@@ -255,6 +280,7 @@
                                 <p class="text">{{ $report->region ?: 'Вся Россия' }}</p>
                             </div>
                         </div>
+
                         <div class="row footer no-gutters">
                             <div class="col">
                                 <p class="head fot">Могут встретиться однофамильцы. При отсутствии данных в блоке(ах) отчета убедитесь, что не была допущена ошибка/опечатка при заполнении формы на сайте.</p>
@@ -270,95 +296,94 @@
                         <div class="col-12 back">
                             <div class="row heads no-gutters">Общая сводка</div>
                             
-                            @foreach($decodedApiResponses as $target => $response)
-                                @php
-                                    $title = getBlockTitle($target);
-                                    
-                                    $rawData = getResponseData($response);
-                                    $hasData = hasData($rawData);
-                                    
-                                    $icon = getIconClass($target, $hasData);
-                                    
-                                    $displayText = $hasData ? 'Найдено' : 'Нет данных';
-                                    
-                                    // Подсчет количества для некоторых типов
-                                    if ($hasData) {
-                                        if ($target === 'cad-org' && is_array($rawData)) {
-                                            $displayText = count($rawData) . ' ' . trans_choice('дело|дела|дел', count($rawData));
-                                        } elseif ($target === 'leasing-org' && is_array($rawData)) {
-                                            $displayText = count($rawData) . ' ' . trans_choice('договор|договора|договоров', count($rawData));
-                                        } elseif ($target === 'payment-block-org' && isset($rawData['rows']) && is_array($rawData['rows'])) {
-                                            $cnt = count($rawData['rows']);
-                                            $displayText = $cnt . ' ' . trans_choice('блокировка|блокировки|блокировок', $cnt);
-                                        } elseif ($target === 'static-code-org' && is_array($rawData)) {
-                                            $displayText = '1 запись';
-                                        } elseif ($target === 'bankrot-org' && is_array($rawData)) {
-                                            $cnt = count($rawData);
-                                            $displayText = $cnt . ' ' . trans_choice('дело|дела|дел', $cnt);
-                                        } elseif ($target === 'zalog-org' && is_array($rawData)) {
-                                            $cnt = count($rawData);
-                                            $displayText = $cnt . ' ' . trans_choice('запись|записи|записей', $cnt);
+                            @foreach($blockOrder as $target)
+                                @if(isset($decodedApiResponses[$target]))
+                                    @php
+                                        $response = $decodedApiResponses[$target];
+                                        $title = getBlockTitle($target);
+                                        $rawData = getResponseData($response);
+                                        $hasData = hasData($rawData);
+                                        $icon = getIconClass($target, $hasData);
+                                        
+                                        $displayText = $hasData ? 'Найдено' : 'Нет данных';
+                                        
+                                        if ($hasData) {
+                                            if ($target === 'cad-org' && is_array($rawData)) {
+                                                $displayText = count($rawData) . ' ' . trans_choice('дело|дела|дел', count($rawData));
+                                            } elseif ($target === 'leasing-org' && is_array($rawData)) {
+                                                $displayText = count($rawData) . ' ' . trans_choice('договор|договора|договоров', count($rawData));
+                                            } elseif ($target === 'payment-block-org' && isset($rawData['rows']) && is_array($rawData['rows'])) {
+                                                $cnt = count($rawData['rows']);
+                                                $displayText = $cnt . ' ' . trans_choice('блокировка|блокировки|блокировок', $cnt);
+                                            } elseif ($target === 'static-code-org' && is_array($rawData)) {
+                                                $displayText = '1 запись';
+                                            } elseif ($target === 'bankrot-org' && is_array($rawData)) {
+                                                $cnt = count($rawData);
+                                                $displayText = $cnt . ' ' . trans_choice('дело|дела|дел', $cnt);
+                                            } elseif ($target === 'zalog-org' && is_array($rawData)) {
+                                                $cnt = count($rawData);
+                                                $displayText = $cnt . ' ' . trans_choice('запись|записи|записей', $cnt);
+                                            }
                                         }
-                                    }
-                                @endphp
-                                
-                                <a style="color: unset;" href="#{{ $target }}">
-                                    <div class="row infos no-gutters">
-                                        <div class="col-md-6 col-sm-12 head">{{ $title }}:</div>
-                                        <div class="col-md-6 col-sm-12 text">
-                                            <span class="status-icon status-{{ $icon }}"></span>
-                                            <b>{{ $displayText }}</b>
+                                    @endphp
+                                    
+                                    <a style="color: unset;" href="#{{ $target }}">
+                                        <div class="row infos no-gutters">
+                                            <div class="col-md-6 col-sm-12 head">{{ $title }}:</div>
+                                            <div class="col-md-6 col-sm-12 text">
+                                                <span class="status-icon status-{{ $icon }}"></span>
+                                                <b>{{ $displayText }}</b>
+                                            </div>
                                         </div>
-                                    </div>
-                                </a>
+                                    </a>
+                                @endif
                             @endforeach
                         </div>
                     </div>
                 </section>
 
                 {{-- Детальные блоки --}}
-                @foreach($decodedApiResponses as $target => $response)
-                    @php
-                        $targetName = getBlockTitle($target);
+                @foreach($blockOrder as $target)
+                    @if(isset($decodedApiResponses[$target]))
+                        @php
+                            $response = $decodedApiResponses[$target];
+                            $targetName = getBlockTitle($target);
+                            
+                            $rawData = getResponseData($response);
+                            $hasData = hasData($rawData);
+                            
+                            $icon = getIconClass($target, $hasData);
+                        @endphp
                         
-                        $rawData = getResponseData($response);
-                        $hasData = hasData($rawData);
-                        
-                        $icon = getIconClass($target, $hasData);
-                    @endphp
-                    
-                    <div class="ancore" id="{{ $target }}"></div>
-                    <section id="{{ $target }}_r">
-                       <div class="row no-gutters">
-                            <div class="col-12">
-                                <div class="white-block">
-                                    {{-- Заголовок блока с иконкой и названием --}}
-                                    <div class="block-header">
-                                        <span class="status-icon status-{{ $icon }}"></span>
-                                        <h3 class="order">{{ $targetName }}</h3>
-                                    </div>
-                                    
-                                    @if(!$hasData)
-                                        {{-- НЕТ ДАННЫХ --}}
-                                        <div class="row no-gutters information">
-                                            <div class="col-12">
-                                                <div class="left-side">
-                                                    <p class="text">Нет данных по этому запросу</p>
+                        <div class="ancore" id="{{ $target }}"></div>
+                        <section id="{{ $target }}_r">
+                            <div class="row no-gutters">
+
+                                <h3 class="order">{{ $targetName }}</h3>
+                            </div>
+                            <div class="row no-gutters">
+                                <div class="col-12">
+                                    <div class="white-block">
+                                        
+                                        @if(!$hasData)
+                                            {{-- НЕТ ДАННЫХ --}}
+                                            <div class="row no-gutters information">
+                                                <div class="col-12">
+                                                    <div class="left-side">
+                                                        <p class="text">Нет данных по этому запросу</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    @else
-                                        {{-- ЕСТЬ ДАННЫЕ --}}
-                                        
-                                        {{-- СТАТИСТИЧЕСКИЕ КОДЫ --}}
-                                        @if($target === 'static-code-org')
-                                            @php
-                                                $staticData = is_array($rawData) ? (isset($rawData[0]) ? $rawData[0] : $rawData) : [];
-                                            @endphp
+                                        @else
+                                            {{-- ЕСТЬ ДАННЫЕ --}}
                                             
-                                            @if(!empty($staticData))
-                                                <div class="row no-gutters head infos" data-target="#static-code-org-1">Общая сводка</div>
-                                                <div id="static-code-org-1" class="accordion collapse show">
+                                            {{-- СТАТИСТИЧЕСКИЕ КОДЫ --}}
+                                            @if($target === 'static-code-org')
+                                                @php
+                                                    $staticData = is_array($rawData) ? (isset($rawData[0]) ? $rawData[0] : $rawData) : [];
+                                                @endphp
+                                                
+                                                @if(!empty($staticData))
                                                     <div class="row no-gutters information">
                                                         <div class="col-md-6">
                                                             <div class="right-side">
@@ -447,280 +472,280 @@
                                                     <div class="col-12 p-0">
                                                         <div class="full-width-divider"></div>
                                                     </div>
-                                                </div>
-                                            @endif
-                                        
-                                        {{-- АРБИТРАЖНЫЕ ДЕЛА --}}
-                                        @elseif($target === 'cad-org' && is_array($rawData))
-                                            <div class="mt-4">
-                                                @foreach($rawData as $key => $case)
-                                                    @if(is_array($case) && count($case) >= 4)
-                                                        <div class="row no-gutters information" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
-                                                            <div class="col-md-6">
-                                                                <div class="left-side">
-                                                                    <p class="header">Дата / номер дела:</p>
-                                                                    <p class="text">{{ $case[0] ?? '' }}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div class="col-md-6">
-                                                                <div class="left-side">
-                                                                    <p class="header">Судья / суд:</p>
-                                                                    <p class="text">{{ $case[1] ?? '' }}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div class="col-md-6">
-                                                                <div class="left-side">
-                                                                    <p class="header">Истец:</p>
-                                                                    <p class="text">{{ is_array($case[2] ?? '') ? json_encode($case[2], JSON_UNESCAPED_UNICODE) : ($case[2] ?? '') }}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div class="col-md-6">
-                                                                <div class="left-side">
-                                                                    <p class="header">Ответчик:</p>
-                                                                    <p class="text">{{ is_array($case[3] ?? '') ? json_encode($case[3], JSON_UNESCAPED_UNICODE) : ($case[3] ?? '') }}</p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    @endif
-                                                @endforeach
-                                            </div>
-                                        
-                                        {{-- ЛИЗИНГ --}}
-                                        @elseif($target === 'leasing-org' && is_array($rawData))
-                                            <div class="mt-4">
-                                                @foreach($rawData as $lease)
-                                                    @php 
-                                                        if (is_string($lease)) {
-                                                            $lease = json_decode($lease, true) ?: [];
-                                                        }
-                                                        $lease = (array)$lease; 
-                                                    @endphp
-                                                    
-                                                    @if(!empty($lease))
-                                                        <div class="row no-gutters information" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
-                                                            <div class="col-md-12" style="margin-bottom: 10px">
-                                                                <div class="left-side">
-                                                                    <p class="header">Дата публикации:</p>
-                                                                    <p class="text">{{ formatDate($lease['datePublish'] ?? '') }}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div class="col-md-6">
-                                                                <div class="left-side">
-                                                                    <p class="header">Договор №:</p>
-                                                                    <p class="text">{{ $lease['contract'] ?? '' }}</p>
-                                                                </div>
-                                                                <div class="left-side">
-                                                                    <p class="header">Дата договора:</p>
-                                                                    <p class="text">{{ formatDate($lease['date_contract'] ?? '') }}</p>
-                                                                </div>
-                                                                <div class="left-side">
-                                                                    <p class="header">Срок лизинга:</p>
-                                                                    <p class="text">{{ formatDate($lease['startDate'] ?? '') }} — {{ formatDate($lease['endDate'] ?? '') }}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div class="col-md-6">
-                                                                <div class="left-side">
-                                                                    <p class="header">Тип договора:</p>
-                                                                    <p class="text">{{ $lease['isSubleaseContract'] ?? 'Обычный договор лизинга' }}</p>
-                                                                </div>
-                                                                <div class="left-side">
-                                                                    <p class="header">Номер в реестре:</p>
-                                                                    <p class="text">{{ $lease['number'] ?? '' }}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div class="col-md-12">
-                                                                <div class="left-side">
-                                                                    <p class="header">Лизингополучатель:</p>
-                                                                    <p class="text">
-                                                                        @if(!empty($lease['lessees']) && is_array($lease['lessees']))
-                                                                            @foreach($lease['lessees'] as $lessee)
-                                                                                {{ $lessee['fullName'] ?? '' }} 
-                                                                                @if(!empty($lessee['inn'])) (ИНН: {{ $lessee['inn'] }}) @endif
-                                                                            @endforeach
-                                                                        @endif
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                            @if(!empty($lease['guid']))
-                                                            <div class="col-md-12">
-                                                                <div class="left-side">
-                                                                    <p class="header">Ссылка:</p>
-                                                                    <p class="text"><a href="https://fedresurs.ru/sfactmessages/{{ $lease['guid'] }}" target="_blank">Перейти на fedresurs.ru</a></p>
-                                                                </div>
-                                                            </div>
-                                                            @endif
-                                                        </div>
-                                                    @endif
-                                                @endforeach
-                                            </div>
-                                        
-                                        {{-- БЛОКИРОВКА СЧЕТОВ --}}
-                                        @elseif($target === 'payment-block-org' && isset($rawData['rows']) && is_array($rawData['rows']))
-                                            <div class="mt-4">
-                                                <div class="table-responsive">
-                                                    <table class="table table-sm table-bordered bg-white">
-                                                        <thead class="table-light">
-                                                            <tr>
-                                                                <th>#</th>
-                                                                <th>Дата</th>
-                                                                <th>Дата начала</th>
-                                                                <th>БИК</th>
-                                                                <th>Номер решения</th>
-                                                                <th>Основание</th>
-                                                                <th>Сумма</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            @foreach($rawData['rows'] as $index => $row)
-                                                                @php $row = (array)$row; @endphp
-                                                                <tr>
-                                                                    <td>{{ $index + 1 }}</td>
-                                                                    <td>{{ $row['DATA'] ?? '' }}</td>
-                                                                    <td>{{ $row['DATABEGIN'] ?? '' }}</td>
-                                                                    <td>{{ $row['BIK'] ?? '' }}</td>
-                                                                    <td>{{ $row['NOMER'] ?? '' }}</td>
-                                                                    <td>
-                                                                        @php
-                                                                            $kod = $row['KODOSNOV'] ?? '';
-                                                                            if($kod == '01') echo 'Не исполнение требования';
-                                                                            elseif($kod == '02') echo 'Непредставление декларации';
-                                                                            elseif($kod == '03') echo 'Необеспечение получения требований';
-                                                                            else echo $kod;
-                                                                        @endphp
-                                                                    </td>
-                                                                    <td>{{ $row['SALDOENS'] ?? '' }}</td>
-                                                                </tr>
-                                                            @endforeach
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        
-                                        {{-- БАНКРОТСТВО --}}
-                                        @elseif($target === 'bankrot-org' && is_array($rawData))
-                                            @php
-                                                $bankrotItem = isset($rawData[0]) ? $rawData[0] : $rawData;
-                                                if (is_string($bankrotItem)) {
-                                                    $bankrotItem = json_decode($bankrotItem, true) ?: [];
-                                                }
-                                                $bankrotData = (array)$bankrotItem;
-                                            @endphp
+                                                @endif
                                             
-                                            @if(!empty($bankrotData))
+                                            {{-- АРБИТРАЖНЫЕ ДЕЛА --}}
+                                            @elseif($target === 'cad-org' && is_array($rawData))
                                                 <div class="mt-4">
-                                                    <div class="row no-gutters information">
-                                                        <div class="col-md-6">
-                                                            <div class="left-side">
-                                                                <p class="header">Полное наименование:</p>
-                                                                <p class="text">{{ $bankrotData['full_name'] ?? '' }}</p>
+                                                    @foreach($rawData as $key => $case)
+                                                        @if(is_array($case) && count($case) >= 4)
+                                                            <div class="row no-gutters information" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
+                                                                <div class="col-md-6">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Дата / номер дела:</p>
+                                                                        <p class="text">{{ $case[0] ?? '' }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Судья / суд:</p>
+                                                                        <p class="text">{{ $case[1] ?? '' }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Истец:</p>
+                                                                        <p class="text">{{ is_array($case[2] ?? '') ? json_encode($case[2], JSON_UNESCAPED_UNICODE) : ($case[2] ?? '') }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Ответчик:</p>
+                                                                        <p class="text">{{ is_array($case[3] ?? '') ? json_encode($case[3], JSON_UNESCAPED_UNICODE) : ($case[3] ?? '') }}</p>
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                            <div class="left-side">
-                                                                <p class="header">Краткое наименование:</p>
-                                                                <p class="text">{{ $bankrotData['short_name'] ?? '' }}</p>
+                                                        @endif
+                                                    @endforeach
+                                                </div>
+                                            
+                                            {{-- ЛИЗИНГ --}}
+                                            @elseif($target === 'leasing-org' && is_array($rawData))
+                                                <div class="mt-4">
+                                                    @foreach($rawData as $lease)
+                                                        @php 
+                                                            if (is_string($lease)) {
+                                                                $lease = json_decode($lease, true) ?: [];
+                                                            }
+                                                            $lease = (array)$lease; 
+                                                        @endphp
+                                                        
+                                                        @if(!empty($lease))
+                                                            <div class="row no-gutters information" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
+                                                                <div class="col-md-12" style="margin-bottom: 10px">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Дата публикации:</p>
+                                                                        <p class="text">{{ formatDate($lease['datePublish'] ?? '') }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Договор №:</p>
+                                                                        <p class="text">{{ $lease['contract'] ?? '' }}</p>
+                                                                    </div>
+                                                                    <div class="left-side">
+                                                                        <p class="header">Дата договора:</p>
+                                                                        <p class="text">{{ formatDate($lease['date_contract'] ?? '') }}</p>
+                                                                    </div>
+                                                                    <div class="left-side">
+                                                                        <p class="header">Срок лизинга:</p>
+                                                                        <p class="text">{{ formatDate($lease['startDate'] ?? '') }} — {{ formatDate($lease['endDate'] ?? '') }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Тип договора:</p>
+                                                                        <p class="text">{{ $lease['isSubleaseContract'] ?? 'Обычный договор лизинга' }}</p>
+                                                                    </div>
+                                                                    <div class="left-side">
+                                                                        <p class="header">Номер в реестре:</p>
+                                                                        <p class="text">{{ $lease['number'] ?? '' }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-md-12">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Лизингополучатель:</p>
+                                                                        <p class="text">
+                                                                            @if(!empty($lease['lessees']) && is_array($lease['lessees']))
+                                                                                @foreach($lease['lessees'] as $lessee)
+                                                                                    {{ $lessee['fullName'] ?? '' }} 
+                                                                                    @if(!empty($lessee['inn'])) (ИНН: {{ $lessee['inn'] }}) @endif
+                                                                                @endforeach
+                                                                            @endif
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                @if(!empty($lease['guid']))
+                                                                <div class="col-md-12">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Ссылка:</p>
+                                                                        <p class="text"><a href="https://fedresurs.ru/sfactmessages/{{ $lease['guid'] }}" target="_blank">Перейти на fedresurs.ru</a></p>
+                                                                    </div>
+                                                                </div>
+                                                                @endif
                                                             </div>
-                                                            <div class="left-side">
-                                                                <p class="header">ИНН:</p>
-                                                                <p class="text">{{ $bankrotData['inn'] ?? '' }}</p>
+                                                        @endif
+                                                    @endforeach
+                                                </div>
+                                            
+                                            {{-- БЛОКИРОВКА СЧЕТОВ --}}
+                                            @elseif($target === 'payment-block-org' && isset($rawData['rows']) && is_array($rawData['rows']))
+                                                <div class="mt-4">
+                                                    <div class="table-responsive">
+                                                        <table class="table table-sm table-bordered bg-white">
+                                                            <thead class="table-light">
+                                                                <tr>
+                                                                    <th>#</th>
+                                                                    <th>Дата</th>
+                                                                    <th>Дата начала</th>
+                                                                    <th>БИК</th>
+                                                                    <th>Номер решения</th>
+                                                                    <th>Основание</th>
+                                                                    <th>Сумма</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                @foreach($rawData['rows'] as $index => $row)
+                                                                    @php $row = (array)$row; @endphp
+                                                                    <tr>
+                                                                        <td>{{ $index + 1 }}</td>
+                                                                        <td>{{ $row['DATA'] ?? '' }}</td>
+                                                                        <td>{{ $row['DATABEGIN'] ?? '' }}</td>
+                                                                        <td>{{ $row['BIK'] ?? '' }}</td>
+                                                                        <td>{{ $row['NOMER'] ?? '' }}</td>
+                                                                        <td>
+                                                                            @php
+                                                                                $kod = $row['KODOSNOV'] ?? '';
+                                                                                if($kod == '01') echo 'Не исполнение требования';
+                                                                                elseif($kod == '02') echo 'Непредставление декларации';
+                                                                                elseif($kod == '03') echo 'Необеспечение получения требований';
+                                                                                else echo $kod;
+                                                                            @endphp
+                                                                        </td>
+                                                                        <td>{{ $row['SALDOENS'] ?? '' }}</td>
+                                                                    </tr>
+                                                                @endforeach
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            
+                                            {{-- БАНКРОТСТВО --}}
+                                            @elseif($target === 'bankrot-org' && is_array($rawData))
+                                                @php
+                                                    $bankrotItem = isset($rawData[0]) ? $rawData[0] : $rawData;
+                                                    if (is_string($bankrotItem)) {
+                                                        $bankrotItem = json_decode($bankrotItem, true) ?: [];
+                                                    }
+                                                    $bankrotData = (array)$bankrotItem;
+                                                @endphp
+                                                
+                                                @if(!empty($bankrotData))
+                                                    <div class="mt-4">
+                                                        <div class="row no-gutters information">
+                                                            <div class="col-md-6">
+                                                                <div class="left-side">
+                                                                    <p class="header">Полное наименование:</p>
+                                                                    <p class="text">{{ $bankrotData['full_name'] ?? '' }}</p>
+                                                                </div>
+                                                                <div class="left-side">
+                                                                    <p class="header">Краткое наименование:</p>
+                                                                    <p class="text">{{ $bankrotData['short_name'] ?? '' }}</p>
+                                                                </div>
+                                                                <div class="left-side">
+                                                                    <p class="header">ИНН:</p>
+                                                                    <p class="text">{{ $bankrotData['inn'] ?? '' }}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <div class="left-side">
+                                                                    <p class="header">ОГРН:</p>
+                                                                    <p class="text">{{ $bankrotData['ogrnip'] ?? '' }}</p>
+                                                                </div>
+                                                                <div class="left-side">
+                                                                    <p class="header">Регион:</p>
+                                                                    <p class="text">{{ $bankrotData['region'] ?? '' }}</p>
+                                                                </div>
+                                                                <div class="left-side">
+                                                                    <p class="header">Категория должника:</p>
+                                                                    <p class="text">{{ $bankrotData['category'] ?? '' }}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div class="col-md-12">
+                                                                <div class="left-side">
+                                                                    <p class="header">Адрес:</p>
+                                                                    <p class="text">{{ $bankrotData['place_life'] ?? '' }}</p>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        <div class="col-md-6">
-                                                            <div class="left-side">
-                                                                <p class="header">ОГРН:</p>
-                                                                <p class="text">{{ $bankrotData['ogrnip'] ?? '' }}</p>
+                                                    </div>
+                                                @endif
+                                            
+                                            {{-- ЗАЛОГ --}}
+                                            @elseif($target === 'zalog-org' && is_array($rawData))
+                                                <div class="mt-4">
+                                                    @foreach($rawData as $zalog)
+                                                        @php 
+                                                            if (is_string($zalog)) {
+                                                                $zalog = json_decode($zalog, true) ?: [];
+                                                            }
+                                                            $zalog = (array)$zalog; 
+                                                        @endphp
+                                                        
+                                                        @if(!empty($zalog))
+                                                            <div class="row no-gutters information" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
+                                                                <div class="col-md-6">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Номер:</p>
+                                                                        <p class="text">{{ $zalog['number'] ?? '' }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-md-6">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Дата публикации:</p>
+                                                                        <p class="text">{{ formatDate($zalog['datePublish'] ?? '') }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-md-12">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Залогодатель:</p>
+                                                                        <p class="text">{{ $zalog['pawnor'] ?? '' }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                @if(!empty($zalog['guid']))
+                                                                <div class="col-md-12">
+                                                                    <div class="left-side">
+                                                                        <p class="header">Ссылка:</p>
+                                                                        <p class="text"><a href="https://fedresurs.ru/sfactmessages/{{ $zalog['guid'] }}" target="_blank">Перейти на fedresurs.ru</a></p>
+                                                                    </div>
+                                                                </div>
+                                                                @endif
                                                             </div>
-                                                            <div class="left-side">
-                                                                <p class="header">Регион:</p>
-                                                                <p class="text">{{ $bankrotData['region'] ?? '' }}</p>
-                                                            </div>
-                                                            <div class="left-side">
-                                                                <p class="header">Категория должника:</p>
-                                                                <p class="text">{{ $bankrotData['category'] ?? '' }}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div class="col-md-12">
-                                                            <div class="left-side">
-                                                                <p class="header">Адрес:</p>
-                                                                <p class="text">{{ $bankrotData['place_life'] ?? '' }}</p>
-                                                            </div>
+                                                        @endif
+                                                    @endforeach
+                                                </div>
+                                            
+                                            {{-- ОСТАЛЬНЫЕ БЛОКИ --}}
+                                            @else
+                                                <div class="row no-gutters information">
+                                                    <div class="col-12">
+                                                        <div class="left-side">
+                                                            <p class="text">Данные найдены в системе</p>
+                                                            @if(is_array($rawData) && count($rawData) > 0)
+                                                                <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow: auto;"><code>{{ json_encode($rawData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</code></pre>
+                                                            @endif
                                                         </div>
                                                     </div>
                                                 </div>
                                             @endif
-                                        
-                                        {{-- ЗАЛОГ --}}
-                                        @elseif($target === 'zalog-org' && is_array($rawData))
-                                            <div class="mt-4">
-                                                @foreach($rawData as $zalog)
-                                                    @php 
-                                                        if (is_string($zalog)) {
-                                                            $zalog = json_decode($zalog, true) ?: [];
-                                                        }
-                                                        $zalog = (array)$zalog; 
-                                                    @endphp
-                                                    
-                                                    @if(!empty($zalog))
-                                                        <div class="row no-gutters information" style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
-                                                            <div class="col-md-6">
-                                                                <div class="left-side">
-                                                                    <p class="header">Номер:</p>
-                                                                    <p class="text">{{ $zalog['number'] ?? '' }}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div class="col-md-6">
-                                                                <div class="left-side">
-                                                                    <p class="header">Дата публикации:</p>
-                                                                    <p class="text">{{ formatDate($zalog['datePublish'] ?? '') }}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div class="col-md-12">
-                                                                <div class="left-side">
-                                                                    <p class="header">Залогодатель:</p>
-                                                                    <p class="text">{{ $zalog['pawnor'] ?? '' }}</p>
-                                                                </div>
-                                                            </div>
-                                                            @if(!empty($zalog['guid']))
-                                                            <div class="col-md-12">
-                                                                <div class="left-side">
-                                                                    <p class="header">Ссылка:</p>
-                                                                    <p class="text"><a href="https://fedresurs.ru/sfactmessages/{{ $zalog['guid'] }}" target="_blank">Перейти на fedresurs.ru</a></p>
-                                                                </div>
-                                                            </div>
-                                                            @endif
-                                                        </div>
-                                                    @endif
-                                                @endforeach
-                                            </div>
-                                        
-                                        {{-- ЧЕРНЫЕ СПИСКИ, Росфин и другие с данными --}}
-                                        @else
-                                            <div class="row no-gutters information">
-                                                <div class="col-12">
-                                                    <div class="left-side">
-                                                        <p class="text">Данные найдены в системе</p>
-                                                        @if(is_array($rawData) && count($rawData) > 0)
-                                                            <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow: auto;"><code>{{ json_encode($rawData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</code></pre>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                            </div>
                                         @endif
-                                    @endif
-                                    
-                                    {{-- Технические данные для отладки --}}
-                                    <div class="mt-4">
-                                        <small class="text-muted">
-                                            <a href="#" onclick="event.preventDefault(); this.nextElementSibling.classList.toggle('d-none'); return false;">
-                                                Показать технические данные
-                                            </a>
-                                        </small>
-                                        <div class="d-none mt-2">
-                                            <pre class="bg-dark text-light p-3 rounded" style="max-height: 300px; overflow: auto;"><code>{{ json_encode($response, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</code></pre>
+                                        
+                                        {{-- Технические данные для отладки --}}
+                                        <div class="mt-4">
+                                            <small class="text-muted">
+                                                <a href="#" onclick="event.preventDefault(); this.nextElementSibling.classList.toggle('d-none'); return false;">
+                                                    Показать технические данные
+                                                </a>
+                                            </small>
+                                            <div class="d-none mt-2">
+                                                <pre class="bg-dark text-light p-3 rounded" style="max-height: 300px; overflow: auto;"><code>{{ json_encode($response, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</code></pre>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </section>
+                        </section>
+                    @endif
                 @endforeach
 
                 {{-- Блок "Обезопасьте себя от проблем!" --}}
@@ -739,23 +764,25 @@
             </div>
 
             {{-- Сайдбар --}}
-            <div class="col-xl-3 col-lg-3 pr-xl-0 pr-md-2 d-xl-block d-lg-block  d-md-block">
+            <div class="col-xl-3 col-lg-3 pr-xl-0 pr-md-2 d-xl-block d-lg-block d-md-block">
                 <div class="sidebar" id="ancor" style="position: sticky; top: 85px;">
                     <h3>Оглавление</h3>
                     <ul>
-                        @foreach($decodedApiResponses as $target => $response)
-                            @php
-                                $title = getBlockTitle($target);
-                                $rawData = getResponseData($response);
-                                $hasData = hasData($rawData);
-                                $iconClass = getIconClass($target, $hasData);
-                            @endphp
-                            <a href="#{{ $target }}">
-                                <li id="{{ $target }}">
-                                    <span class="status-icon-small status-{{ $iconClass }}"></span>
-                                    {{ $title }}
-                                </li>
-                            </a>
+                        @foreach($blockOrder as $target)
+                            @if(isset($decodedApiResponses[$target]))
+                                @php
+                                    $title = getBlockTitle($target);
+                                    $rawData = getResponseData($decodedApiResponses[$target]);
+                                    $hasData = hasData($rawData);
+                                    $iconClass = getIconClass($target, $hasData);
+                                @endphp
+                                <a href="#{{ $target }}">
+                                    <li id="{{ $target }}">
+                                        <span class="status-icon-small status-{{ $iconClass }}"></span>
+                                        {{ $title }}
+                                    </li>
+                                </a>
+                            @endif
                         @endforeach
                     </ul>
                 </div>
@@ -787,15 +814,28 @@
     .row.info .text { color: #333; font-size: 16px; font-weight: 500; }
     .row.footer .head.fot { color: #6c757d; font-size: 13px; font-style: italic; }
     .white-block { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 20px 0; padding: 20px; }
-    .row.head.infos, .row.head.success, .row.head.danger { border-bottom: 2px solid #0d6efd; padding-bottom: 10px; margin-bottom: 20px; }
-    .row.head.infos span.infos, .row.head.success span.success, .row.head.danger span.danger { font-size: 18px; font-weight: 600; color: #333; }
-    .row.head.danger { border-bottom-color: #dc3545; }
-    .row.head.success { border-bottom-color: #28a745; }
+    
+    /* Стили для заголовков как в оригинале */
     .head-img { width: 24px; height: 24px; margin-right: 10px; display: inline-block; }
     h3.order { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 15px; display: inline-block; }
+    
+    /* Убираем лишние заголовки */
+    .row.head.infos, .row.head.success, .row.head.danger {
+        border: none;
+        background: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .row.head.infos span.infos,
+    .row.head.success span.success,
+    .row.head.danger span.danger {
+        display: none;
+    }
+    
     .row.infos { padding: 10px 0; border-bottom: 1px solid #eee; }
     .row.infos .head { color: #6c757d; }
-    .row.infos .text { color: #333; font-weight: 500; }
+    .row.infos .text { color: #333; font-weight: 500; display: flex; align-items: center; gap: 8px; }
     .back { background: #f8f9fa; padding: 20px; border-radius: 8px; }
     .row.heads { font-size: 18px; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #0d6efd; }
     .sidebar { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: sticky; top: 85px; }
@@ -809,6 +849,7 @@
     .left-side .header, .right-side .header { font-weight: 600; color: #495057; margin-bottom: 3px; font-size: 14px; }
     .left-side .text, .right-side .text { color: #333; font-size: 14px; word-break: break-word; }
     .full-width-divider { border-bottom: 1px solid #eaeaea; width: 100%; margin: 15px 0; }
+    .text-footer { margin-top: 5px; margin-bottom: 20px; color: #6c757d; font-size: 13px; font-style: italic; }
     .totop { position: fixed; bottom: 30px; right: 30px; width: 50px; height: 50px; background: #0d6efd; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.3s; z-index: 1000; }
     .totop.show { opacity: 1; }
     .totop svg { width: 30px; height: 30px; stroke: white; }
@@ -847,18 +888,6 @@
     .status-danger {
         background-color: #dc3545;
     }
-    
-    /* Для блока общей сводки */
-    .row.infos .text {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    /* Для заголовков блоков */
-    .row.no-gutters .head-img.status-icon {
-        margin-right: 10px;
-    }
 </style>
 @endpush
 
@@ -896,7 +925,6 @@
                 }
             });
             
-            // Если ничего не найдено, активируем первый пункт
             if (!found && $('#ancor ul a').first().length) {
                 $('#ancor ul a').removeClass('active');
                 $('#ancor ul a').first().addClass('active');

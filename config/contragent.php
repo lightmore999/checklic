@@ -23,6 +23,6 @@ return [
     ],
     
     // Настройки
-    'polling_interval' => 10,      // секунды между проверками
-    'max_polling_attempts' => 60,  // максимум попыток  
+    'polling_interval' => 30,      // секунды между проверками
+    'max_polling_attempts' => 2880,  // максимум попыток  
 ];

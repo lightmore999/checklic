@@ -64,12 +64,19 @@
         <div class="d-flex gap-2">
             @if($isAdmin || $isManager)
                 <a href="{{ route($routePrefix . 'organization.edit', $organization->id) }}" 
-                   class="btn btn-primary">
+                class="btn btn-primary">
                     <i class="bi bi-pencil me-1"></i> Редактировать
                 </a>
             @endif
+            
+            <!-- ДОБАВЛЕНА НОВАЯ КНОПКА -->
+            <a href="{{ route('limits.history', ['organization_id' => $organization->id]) }}" 
+            class="btn btn-info">
+                <i class="bi bi-clock-history me-1"></i> История лимитов
+            </a>
+            
             <a href="{{ $isAdmin ? route('admin.dashboard') : route('manager.dashboard') }}" 
-               class="btn btn-secondary">
+            class="btn btn-secondary">
                 <i class="bi bi-arrow-left me-1"></i> Назад
             </a>
         </div>

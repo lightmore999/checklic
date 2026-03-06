@@ -197,12 +197,6 @@
                             Логи действий
                         </a>
                         
-                        <!-- ⭐ НОВОЕ: Логи лимитов и подписок -->
-                        <a href="{{ route('admin.limit-logs.index') }}" 
-                        class="nav-link {{ request()->routeIs('admin.limit-logs.*') ? 'active' : '' }}">
-                            <i class="nav-icon bi bi-pie-chart-fill"></i>
-                            Логи лимитов
-                        </a>
                     @endif
 
                     <!-- Manager Section -->

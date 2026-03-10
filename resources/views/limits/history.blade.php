@@ -370,14 +370,12 @@
                                 <td>
                                     @if($subscription)
                                         @if($subscriptionUrl)
-                                            <a href="{{ $subscriptionUrl }}" class="text-decoration-none" target="_blank">
                                                 <div>
                                                     <small>{{ $subscription->name ?? 'Подписка #' . $subscription->id }}</small>
                                                     @if($subscription->user)
                                                         <small class="text-muted d-block">{{ $subscription->user->name }}</small>
                                                     @endif
                                                 </div>
-                                            </a>
                                         @else
                                             <div>
                                                 <small>{{ $subscription->name ?? 'Подписка #' . $subscription->id }}</small>
@@ -637,7 +635,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 tooltip: {
                     callbacks: {
-                        label: function(context) {
+                        label: function(context) {  
                             return context.dataset.label + ': ' + context.raw;
                         }
                     }

@@ -361,13 +361,14 @@
                                                         <i class="bi bi-person"></i>
                                                     </a>
                                                 @endif
-                                                @if((auth()->user()->isAdmin() || auth()->user()->isManager()) && $limit->getAvailableQuantity() > 0 && $subscription)
+                                                <!-- @if($limit->getAvailableQuantity() > 0 && $subscription)
                                                     <button type="button" class="btn btn-sm btn-success" 
-                                                            data-bs-toggle="modal" data-bs-target="#delegateModal{{ $limit->id }}" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#delegateModal{{ $limit->id }}" 
                                                             title="Делегировать">
                                                         <i class="bi bi-share"></i>
                                                     </button>
-                                                @endif
+                                                @endif -->
                                             </div>
                                         </td>
                                     </tr>
@@ -518,17 +519,18 @@
 </div>
 
 <!-- Модальные окна для делегирования -->
-@foreach($limits as $limit)
-    @php
-        $subscription = $limit->subscription;
-        $user = $subscription->user ?? null;
-    @endphp
-    @if((auth()->user()->isAdmin() || auth()->user()->isManager()) && $limit->getAvailableQuantity() > 0 && $subscription)
+<!-- @foreach($limits as $limit)
+    @if($limit->getAvailableQuantity() > 0 && $limit->subscription)
         <div class="modal fade" id="delegateModal{{ $limit->id }}" tabindex="-1" aria-labelledby="delegateModalLabel{{ $limit->id }}" aria-hidden="true">
             <div class="modal-dialog">
                 <div class="modal-content">
-                    <form action="{{ route('limits.delegate', $limit) }}" method="POST">
+                    <form action="{{ route('delegated-limits.store') }}" method="POST">
                         @csrf
+                        <input type="hidden" name="limit_id" value="{{ $limit->id }}">
+                        @if(request()->has('organization_id'))
+                            <input type="hidden" name="redirect_to_organization" value="{{ request('organization_id') }}">
+                        @endif
+                        
                         <div class="modal-header bg-success text-white">
                             <h5 class="modal-title" id="delegateModalLabel{{ $limit->id }}">
                                 <i class="bi bi-share me-2"></i>
@@ -551,8 +553,7 @@
                             
                             <div class="mb-3">
                                 <label class="form-label">Пользователь <span class="text-danger">*</span></label>
-                                <select name="user_id" class="form-select select2-delegate" 
-                                        data-exclude-user-id="{{ $user ? $user->id : '' }}" required>
+                                <select name="user_id" class="form-select select2-delegate-{{ $limit->id }}" required>
                                     <option value="">Поиск пользователя...</option>
                                 </select>
                                 <small class="text-muted">Выберите сотрудника для делегирования</small>
@@ -579,7 +580,7 @@
             </div>
         </div>
     @endif
-@endforeach
+@endforeach -->
 
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -639,7 +640,7 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/ru.js"></script>
 <script>
     $(document).ready(function() {
-        // Инициализация Select2 для пользователей
+        // Инициализация Select2 для пользователей в фильтрах
         $('.select2-user').select2({
             theme: 'default',
             language: 'ru',
@@ -698,44 +699,59 @@
             $('#filterForm').submit();
         });
 
-        // Инициализация Select2 для делегирования
-        $('.select2-delegate').each(function() {
-            let excludeUserId = $(this).data('exclude-user-id');
-            let modal = $(this).closest('.modal');
-            
-            $(this).select2({
-                theme: 'default',
-                language: 'ru',
-                placeholder: 'Поиск пользователя...',
-                allowClear: true,
-                width: '100%',
-                dropdownParent: modal,
-                minimumInputLength: 0,
-                ajax: {
-                    url: '{{ route("users.search") }}',
-                    dataType: 'json',
-                    delay: 300,
-                    data: function(params) {
-                        return {
-                            search: params.term || '',
-                            organization_id: $('select[name="organization_id"]').val(),
-                            exclude_user_id: excludeUserId
-                        };
-                    },
-                    processResults: function(data) {
-                        // Исключаем текущего пользователя
-                        let filtered = data.filter(function(user) {
-                            return user.id != excludeUserId;
-                        });
-                        
-                        return {
-                            results: filtered
-                        };
-                    },
-                    cache: true
-                }
-            });
-        });
+        // Инициализация Select2 для каждого модального окна
+        @foreach($limits as $limit)
+            @if($limit->getAvailableQuantity() > 0 && $limit->subscription)
+                (function() {
+                    let ownerId = '{{ $limit->subscription->user_id ?? '' }}';
+                    let currentUserRole = '{{ auth()->user()->role }}';
+                    let isOrgOwner = {{ auth()->user()->isOrgOwner() ? 'true' : 'false' }};
+                    
+                    $('.select2-delegate-{{ $limit->id }}').select2({
+                        theme: 'default',
+                        language: 'ru',
+                        placeholder: 'Поиск пользователя...',
+                        allowClear: true,
+                        width: '100%',
+                        dropdownParent: $('#delegateModal{{ $limit->id }}'),
+                        minimumInputLength: 0,
+                        ajax: {
+                            url: '{{ route("users.search") }}',
+                            dataType: 'json',
+                            delay: 300,
+                            data: function(params) {
+                                return {
+                                    search: params.term || '',
+                                    organization_id: $('select[name="organization_id"]').val(),
+                                    for_delegation: true
+                                };
+                            },
+                            processResults: function(data) {
+                                // Фильтруем результаты на клиенте
+                                let filtered = data.filter(function(user) {
+                                    // Исключаем владельца лимита
+                                    if (user.id == ownerId) {
+                                        return false;
+                                    }
+                                    
+                                    // Для владельца показываем только сотрудников
+                                    if (isOrgOwner && user.role !== 'org_member') {
+                                        return false;
+                                    }
+                                    
+                                    return true;
+                                });
+                                
+                                return {
+                                    results: filtered
+                                };
+                            },
+                            cache: true
+                        }
+                    });
+                })();
+            @endif
+        @endforeach
 
         // Инициализация Bootstrap Tooltips
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));

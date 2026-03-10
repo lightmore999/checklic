@@ -12,6 +12,12 @@
             return $words[ ($number % 100 > 4 && $number % 100 < 20) ? 2 : $cases[min($number % 10, 5)] ];
         }
     }
+    
+    $currentUser = Auth::user();
+    $isAdmin = $currentUser->isAdmin();
+    $isManager = $currentUser->isManager();
+    $isOrgOwner = $currentUser->isOrgOwner();
+    $isOrgMember = $currentUser->isOrgMember();
 @endphp
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -41,10 +47,13 @@
             </h5>
         </div>
         <div class="collapse show" id="filters">
-            <div class="card-body" style="padding: 1.5rem;"> <!-- Добавлен явный padding -->
+            <div class="card-body" style="padding: 1.5rem;">
                 <form method="GET" action="{{ route('reports.index') }}" id="filterForm">
                     <div class="row">
                         <!-- Первая строка: Основные фильтры -->
+                        
+                        {{-- Фильтр по организации - показываем только админам и менеджерам --}}
+                        @if($isAdmin || $isManager)
                         <div class="col-md-3 mb-3">
                             <label class="form-label">Организация</label>
                             <select name="organization_id" class="form-select" id="organizationFilter">
@@ -56,7 +65,10 @@
                                 @endforeach
                             </select>
                         </div>
+                        @endif
                         
+                        {{-- Фильтр по пользователю - показываем только админам и менеджерам --}}
+                        @if($isAdmin || $isManager)
                         <div class="col-md-3 mb-3">
                             <label class="form-label">Пользователь</label>
                             <select name="user_id" class="form-select" id="userFilter">
@@ -69,30 +81,59 @@
                                 @endforeach
                             </select>
                         </div>
+                        @endif
                         
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Тип отчета</label>
-                            <select name="report_type_id" class="form-select">
-                                <option value="">Все типы</option>
-                                @foreach($reportTypes as $type)
-                                    <option value="{{ $type->id }}" {{ request('report_type_id') == $type->id ? 'selected' : '' }}>
-                                        {{ $type->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Статус</label>
-                            <select name="status" class="form-select">
-                                <option value="">Все статусы</option>
-                                @foreach($statuses as $value => $label)
-                                    <option value="{{ $value }}" {{ request('status') == $value ? 'selected' : '' }}>
-                                        {{ $label }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
+                        {{-- Корректируем ширину колонок в зависимости от того, какие фильтры показаны --}}
+                        @if($isAdmin || $isManager)
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Тип отчета</label>
+                                <select name="report_type_id" class="form-select">
+                                    <option value="">Все типы</option>
+                                    @foreach($reportTypes as $type)
+                                        <option value="{{ $type->id }}" {{ request('report_type_id') == $type->id ? 'selected' : '' }}>
+                                            {{ $type->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Статус</label>
+                                <select name="status" class="form-select">
+                                    <option value="">Все статусы</option>
+                                    @foreach($statuses as $value => $label)
+                                        <option value="{{ $value }}" {{ request('status') == $value ? 'selected' : '' }}>
+                                            {{ $label }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @else
+                            {{-- Для владельцев и сотрудников - только тип отчета и статус, но в 6 колонок --}}
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Тип отчета</label>
+                                <select name="report_type_id" class="form-select">
+                                    <option value="">Все типы</option>
+                                    @foreach($reportTypes as $type)
+                                        <option value="{{ $type->id }}" {{ request('report_type_id') == $type->id ? 'selected' : '' }}>
+                                            {{ $type->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Статус</label>
+                                <select name="status" class="form-select">
+                                    <option value="">Все статусы</option>
+                                    @foreach($statuses as $value => $label)
+                                        <option value="{{ $value }}" {{ request('status') == $value ? 'selected' : '' }}>
+                                            {{ $label }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
                         
                         <!-- Вторая строка: Поиск по ФИО и паспорту -->
                         <div class="col-md-3 mb-3">
@@ -149,9 +190,16 @@
                             <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
                         </div>
                         
-                        <div class="col-md-6 mb-3">
-                            <!-- Пусто для выравнивания -->
-                        </div>
+                        {{-- Пустые колонки для выравнивания в зависимости от количества фильтров --}}
+                        @if($isAdmin || $isManager)
+                            <div class="col-md-6 mb-3">
+                                <!-- Пусто для выравнивания -->
+                            </div>
+                        @else
+                            <div class="col-md-3 mb-3">
+                                <!-- Пусто для выравнивания -->
+                            </div>
+                        @endif
                         
                         <div class="col-md-3 mb-3 d-flex align-items-end justify-content-end">
                             <div class="d-flex gap-2 w-100">
@@ -169,7 +217,8 @@
         </div>
     </div>
 
-    <!-- Таблица отчетов -->
+    <!-- Таблица отчетов (без изменений) -->
+     
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
             <h5 class="mb-0">
@@ -297,22 +346,76 @@
                                                 <span class="badge bg-warning">
                                                     <i class="bi bi-clock"></i> В ожидании
                                                 </span>
+                                                
+                                                <!-- Прогресс для контрагентов -->
+                                                @if($report->isContragent())
+                                                    @php
+                                                        $progress = $report->getApiProgress();
+                                                    @endphp
+                                                    @if($progress['total'] > 0)
+                                                        <div class="mt-2" style="min-width: 120px;">
+                                                            <div class="d-flex justify-content-between small mb-1">
+                                                                <span class="fw-semibold">{{ $progress['completed'] }}/{{ $progress['total'] }}</span>
+                                                                <span class="text-muted">{{ $progress['percentage'] }}%</span>
+                                                            </div>
+                                                            <div class="progress" style="height: 6px;">
+                                                                @php
+                                                                    $progressClass = $progress['percentage'] >= 100 ? 'bg-success' : 
+                                                                                    ($progress['percentage'] > 60 ? 'bg-info' : 'bg-warning');
+                                                                @endphp
+                                                                <div class="progress-bar {{ $progressClass }}" 
+                                                                    style="width: {{ $progress['percentage'] }}%"
+                                                                    role="progressbar">
+                                                                </div>
+                                                            </div>
+                                                            @if($progress['failed'] > 0)
+                                                                <div class="small text-danger mt-1">
+                                                                    <i class="bi bi-exclamation-triangle-fill"></i> 
+                                                                    {{ $progress['failed'] }} с ошибкой
+                                                                </div>
+                                                            @endif
+                                                            @if($progress['pending'] > 0)
+                                                                <div class="small text-muted">
+                                                                    {{ $progress['pending'] }} в очереди
+                                                                </div>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                @endif
                                                 @break
-                                            @case('processing')
-                                                <span class="badge bg-info">
-                                                    <i class="bi bi-gear"></i> В обработке
-                                                </span>
-                                                @break
+                                                
                                             @case('completed')
                                                 <span class="badge bg-success">
                                                     <i class="bi bi-check-circle"></i> Завершен
                                                 </span>
+                                                @if($report->isContragent())
+                                                    @php
+                                                        $progress = $report->getApiProgress();
+                                                    @endphp
+                                                    @if($progress['total'] > 0)
+                                                        <div class="small text-success mt-1">
+                                                            <i class="bi bi-check-circle-fill"></i> 
+                                                            Получено {{ $progress['completed'] }}/{{ $progress['total'] }} источников
+                                                            @if($progress['failed'] > 0)
+                                                                <span class="text-danger">({{ $progress['failed'] }} ошибок)</span>
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                @endif
                                                 @break
+                                                
                                             @case('failed')
                                                 <span class="badge bg-danger">
                                                     <i class="bi bi-x-circle"></i> Ошибка
                                                 </span>
+                                                @if($report->isContragent() && $report->getMetaData('errors'))
+                                                    <div class="small text-danger mt-1">
+                                                        <i class="bi bi-exclamation-triangle-fill"></i> 
+                                                        Ошибка при обработке
+                                                    </div>
+                                                @endif
                                                 @break
+                                                
                                             @case('cancelled')
                                                 <span class="badge bg-secondary">
                                                     <i class="bi bi-slash-circle"></i> Отменен

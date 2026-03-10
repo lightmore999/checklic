@@ -166,35 +166,46 @@ class DelegatedLimitController extends Controller
                 ->withInput();
         }
         
-        // Проверяем, что сотрудник доступен для делегирования
+        // Получаем целевого пользователя
         $targetUser = User::find($request->user_id);
-        if (!$targetUser || !$targetUser->isOrgMember() || !$targetUser->is_active) {
-            return redirect()->back()
-                ->with('error', 'Некорректный сотрудник для делегирования')
-                ->withInput();
-        }
         
-        // Проверяем, что сотрудник относится к той же организации, что и владелец лимита
-        if ($owner && $owner->isOrgOwner()) {
-            $organizationId = $owner->orgOwnerProfile->organization_id ?? null;
+        // ===== НОВАЯ ЛОГИКА ПРОВЕРКИ ДЛЯ ВЛАДЕЛЬЦА =====
+        // Если текущий пользователь - владелец, проверяем, что целевой пользователь - его подчиненный
+        if ($user->isOrgOwner()) {
+            // Проверяем, что целевой пользователь - сотрудник и подчиняется этому владельцу
+            if (!$targetUser || !$targetUser->isOrgMember()) {
+                return redirect()->back()
+                    ->with('error', 'Вы можете делегировать лимиты только своим сотрудникам')
+                    ->withInput();
+            }
+            
+            $organizationId = $user->orgOwnerProfile->organization_id ?? null;
             
             if (!$organizationId) {
                 return redirect()->back()
-                    ->with('error', 'Не удалось определить организацию владельца')
+                    ->with('error', 'Не удалось определить вашу организацию')
                     ->withInput();
             }
             
             $isValidEmployee = OrgMemberProfile::where('user_id', $targetUser->id)
                 ->where('organization_id', $organizationId)
-                ->where('boss_id', $ownerId)
+                ->where('boss_id', $user->id)
                 ->where('is_active', true)
                 ->exists();
             
             if (!$isValidEmployee) {
                 return redirect()->back()
-                    ->with('error', 'Этот сотрудник не относится к организации владельца лимита')
+                    ->with('error', 'Этот сотрудник не относится к вашей организации или не является вашим подчиненным')
                     ->withInput();
             }
+        }
+        // ===== КОНЕЦ НОВОЙ ЛОГИКИ =====
+        
+        // Проверяем, что сотрудник доступен для делегирования (общая проверка)
+        if (!$targetUser || !$targetUser->is_active) {
+            return redirect()->back()
+                ->with('error', 'Некорректный сотрудник для делегирования')
+                ->withInput();
         }
         
         // Проверяем, что у владельца достаточно лимита
@@ -213,7 +224,7 @@ class DelegatedLimitController extends Controller
                 $request->quantity
             );
             
-            // Уменьшаем оригинальный лимит (используем метод decrementLimit, который уже есть в модели)
+            // Уменьшаем оригинальный лимит
             $limit->decrementLimit($request->quantity);
             
             // Логируем успешное делегирование
@@ -719,47 +730,47 @@ class DelegatedLimitController extends Controller
      * Проверить, можно ли удалить делегированный лимит
      */
     private function canDeleteDelegatedLimit($userId, DelegatedLimit $delegatedLimit)
-    {
-        $user = User::find($userId);
-        
-        if (!$user) {
+{
+    $user = User::find($userId);
+    
+    if (!$user) {
+        return false;
+    }
+    
+    // Админ может удалять любые делегированные лимиты
+    if ($user->isAdmin()) {
+        return true;
+    }
+    
+    // Владелец может удалять (возвращать) только свои делегированные лимиты
+    if ($user->isOrgOwner()) {
+        return $delegatedLimit->limit->user_id == $userId;
+    }
+    
+    // Менеджер может удалять делегированные лимиты в своих организациях
+    if ($user->isManager()) {
+        $ownerId = $delegatedLimit->limit->user_id ?? null;
+        if (!$ownerId) {
             return false;
         }
         
-        // Админ может удалять любые делегированные лимиты
-        if ($user->isAdmin()) {
-            return true;
+        $owner = User::find($ownerId);
+        if (!$owner || !$owner->isOrgOwner()) {
+            return false;
         }
         
-        // Владелец может удалять (возвращать) только свои делегированные лимиты
-        if ($user->isOrgOwner()) {
-            return $delegatedLimit->limit->user_id == $userId;
+        $ownerOrganizationId = $owner->orgOwnerProfile->organization_id ?? null;
+        if (!$ownerOrganizationId) {
+            return false;
         }
         
-        // Менеджер может удалять делегированные лимиты в своих организациях
-        if ($user->isManager()) {
-            $ownerId = $delegatedLimit->limit->user_id ?? null;
-            if (!$ownerId) {
-                return false;
-            }
-            
-            $owner = User::find($ownerId);
-            if (!$owner || !$owner->isOrgOwner()) {
-                return false;
-            }
-            
-            $ownerOrganizationId = $owner->orgOwnerProfile->organization_id ?? null;
-            if (!$ownerOrganizationId) {
-                return false;
-            }
-            
-            return Organization::where('id', $ownerOrganizationId)
-                ->whereHas('manager', function($query) use ($userId) {
-                    $query->where('user_id', $userId);
-                })
-                ->exists();
-        }
-        
-        return false;
+        return Organization::where('id', $ownerOrganizationId)
+            ->whereHas('manager', function($query) use ($userId) {
+                $query->where('user_id', $userId);
+            })
+            ->exists();
     }
+    
+    return false;
+}
 }

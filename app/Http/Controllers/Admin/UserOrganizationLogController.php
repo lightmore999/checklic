@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\UserOrganizationLog;
 use App\Models\User;
+use App\Models\Organization; // ДОБАВИТЬ ЭТУ СТРОКУ
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -69,10 +70,31 @@ class UserOrganizationLogController extends Controller
             });
         }
 
+        // === НОВЫЙ ФИЛЬТР ПО ОРГАНИЗАЦИИ ===
+        if ($request->filled('organization_id')) {
+            $organization = Organization::find($request->organization_id);
+            if ($organization) {
+                // Получаем ID пользователей этой организации
+                $userIds = User::whereHas('orgOwnerProfile', function($q) use ($organization) {
+                        $q->where('organization_id', $organization->id);
+                    })
+                    ->orWhereHas('orgMemberProfile', function($q) use ($organization) {
+                        $q->where('organization_id', $organization->id);
+                    })
+                    ->pluck('id');
+                
+                $query->whereIn('user_id', $userIds);
+            }
+        }
+
         $logs = $query->paginate(50)->withQueryString();
 
         // Для фильтров
         $users = User::orderBy('name')->get();
+        
+        // === ДОБАВЛЯЕМ СПИСОК ОРГАНИЗАЦИЙ ===
+        $organizations = Organization::orderBy('name')->get();
+        
         $entityTypes = [
             'user' => 'Пользователи',
             'organization' => 'Организации',
@@ -91,7 +113,8 @@ class UserOrganizationLogController extends Controller
             'force_delete' => 'Полное удаление',
         ];
 
-        return view('admin.logs.index', compact('logs', 'users', 'entityTypes', 'actions'));
+        // === ПЕРЕДАЕМ $organizations В ШАБЛОН ===
+        return view('admin.logs.index', compact('logs', 'users', 'organizations', 'entityTypes', 'actions'));
     }
 
     /**
@@ -150,6 +173,21 @@ class UserOrganizationLogController extends Controller
         }
         if ($request->filled('entity_id')) {
             $query->where('entity_id', $request->entity_id);
+        }
+        // === ДОБАВЛЯЕМ ФИЛЬТР ПО ОРГАНИЗАЦИИ В ЭКСПОРТ ===
+        if ($request->filled('organization_id')) {
+            $organization = Organization::find($request->organization_id);
+            if ($organization) {
+                $userIds = User::whereHas('orgOwnerProfile', function($q) use ($organization) {
+                        $q->where('organization_id', $organization->id);
+                    })
+                    ->orWhereHas('orgMemberProfile', function($q) use ($organization) {
+                        $q->where('organization_id', $organization->id);
+                    })
+                    ->pluck('id');
+                
+                $query->whereIn('user_id', $userIds);
+            }
         }
 
         $logs = $query->latest()->get();

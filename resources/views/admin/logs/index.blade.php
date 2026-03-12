@@ -1,100 +1,134 @@
 @extends('layouts.app')
 
 @section('title', 'Логи действий пользователей и организаций')
+@section('page-icon', 'bi-journal-text')
 
 @section('content')
-@php
-    use App\Models\User;
-    use App\Models\Organization;
-    use App\Models\Manager;
-    use App\Models\OrgOwnerProfile;
-    use App\Models\OrgMemberProfile;
-@endphp
-<div class="container-fluid px-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="mt-4">
-            <i class="bi bi-journal-text me-2"></i>
-            Логи действий
-        </h1>
-        
-        <div class="btn-group">
-            <a href="{{ route('admin.logs.export', request()->query()) }}" class="btn btn-success">
-                <i class="bi bi-download"></i> Экспорт в CSV
-            </a>
+<div class="container-fluid py-4">
+    <!-- Заголовок с градиентом -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 bg-gradient-primary text-white shadow-lg" 
+                 style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);">
+                <div class="card-body p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div class="d-flex align-items-center">
+                            <div class="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center me-4" 
+                                 style="width: 70px; height: 70px; font-size: 2rem; font-weight: 500; color: white; border: 3px solid rgba(255,255,255,0.3);">
+                                <i class="bi bi-journal-text"></i>
+                            </div>
+                            <div>
+                                <h1 class="h2 mb-2">Логи действий</h1>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span class="badge bg-white text-primary px-3 py-2">
+                                        <i class="bi bi-database me-1"></i>Всего: {{ $logs->total() }}
+                                    </span>
+                                    <span class="badge bg-white bg-opacity-25 px-3 py-2">
+                                        <i class="bi bi-calendar me-1"></i>{{ now()->format('d.m.Y') }}
+                                    </span>
+                                </div>
+                                <nav aria-label="breadcrumb">
+                                    <ol class="breadcrumb mb-0">
+                                        <li class="breadcrumb-item">
+                                            <a href="{{ route('admin.dashboard') }}" class="text-white opacity-75">
+                                                Панель админа
+                                            </a>
+                                        </li>
+                                        <li class="breadcrumb-item active text-white" aria-current="page">
+                                            Логи действий
+                                        </li>
+                                    </ol>
+                                </nav>
+                            </div>
+                        </div>
+                        <div>
+                            <a href="{{ route('admin.logs.export', request()->query()) }}" class="btn btn-light">
+                                <i class="bi bi-download me-2"></i>Экспорт в CSV
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Статистика -->
-    <div class="row mb-4" id="statistics-container">
+    <div class="row g-4 mb-4" id="statistics-container">
         <div class="col-xl-3 col-md-6">
-            <div class="card bg-primary text-white mb-4">
+            <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-primary bg-opacity-10 me-3" 
+                             style="width: 48px; height: 48px;"></div>
                         <div>
-                            <div class="small">Всего записей</div>
-                            <div class="h3" id="stat-total">0</div>
+                            <h6 class="text-muted mb-1">Всего записей</h6>
+                            <h3 class="mb-0 fw-bold" id="stat-total">0</h3>
                         </div>
-                        <i class="bi bi-database fs-1 opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-xl-3 col-md-6">
-            <div class="card bg-success text-white mb-4">
+            <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-success bg-opacity-10 me-3" 
+                             style="width: 48px; height: 48px;"></div>
                         <div>
-                            <div class="small">За сегодня</div>
-                            <div class="h3" id="stat-today">0</div>
+                            <h6 class="text-muted mb-1">За сегодня</h6>
+                            <h3 class="mb-0 fw-bold" id="stat-today">0</h3>
                         </div>
-                        <i class="bi bi-calendar-day fs-1 opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-xl-3 col-md-6">
-            <div class="card bg-warning text-white mb-4">
+            <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-warning bg-opacity-10 me-3" 
+                             style="width: 48px; height: 48px;"></div>
                         <div>
-                            <div class="small">За неделю</div>
-                            <div class="h3" id="stat-week">0</div>
+                            <h6 class="text-muted mb-1">За неделю</h6>
+                            <h3 class="mb-0 fw-bold" id="stat-week">0</h3>
                         </div>
-                        <i class="bi bi-calendar-week fs-1 opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-xl-3 col-md-6">
-            <div class="card bg-danger text-white mb-4">
+            <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-danger bg-opacity-10 me-3" 
+                             style="width: 48px; height: 48px;"></div>
                         <div>
-                            <div class="small">За месяц</div>
-                            <div class="h3" id="stat-month">0</div>
+                            <h6 class="text-muted mb-1">За месяц</h6>
+                            <h3 class="mb-0 fw-bold" id="stat-month">0</h3>
                         </div>
-                        <i class="bi bi-calendar-month fs-1 opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Фильтры -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <i class="bi bi-funnel me-1"></i>
-            Фильтры
-            <button class="btn btn-sm btn-link float-end" type="button" data-bs-toggle="collapse" data-bs-target="#filters">
-                <i class="bi bi-chevron-down"></i>
-            </button>
+    <!-- Карточка с фильтрами -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-4">
+            <h5 class="mb-0">
+                <i class="bi bi-funnel text-primary me-2"></i>
+                Фильтры
+                <button class="btn btn-sm btn-link float-end text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#filters">
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+            </h5>
         </div>
         <div class="collapse show" id="filters">
-            <div class="card-body">
+            <div class="card-body pt-3">
                 <form method="GET" action="{{ route('admin.logs.index') }}" id="filterForm" class="row g-3">
                     <!-- Фильтр по организации -->
                     <div class="col-md-3">
-                        <label class="form-label">Организация</label>
+                        <label class="form-label small fw-semibold">Организация</label>
                         <select name="organization_id" id="organization_id" class="form-select select2-organization">
                             <option value="">Все организации</option>
                             @foreach($organizations ?? [] as $org)
@@ -107,7 +141,7 @@
 
                     <!-- Фильтр по пользователю с поиском -->
                     <div class="col-md-3">
-                        <label class="form-label">Пользователь</label>
+                        <label class="form-label small fw-semibold">Пользователь</label>
                         <select name="user_id" id="user_id" class="form-select select2-user" data-placeholder="Поиск пользователя...">
                             <option value="">Все пользователи</option>
                             @foreach($users as $userOption)
@@ -120,7 +154,7 @@
                     </div>
 
                     <div class="col-md-2">
-                        <label class="form-label">Тип сущности</label>
+                        <label class="form-label small fw-semibold">Тип сущности</label>
                         <select name="entity_type" class="form-select">
                             <option value="">Все типы</option>
                             @foreach($entityTypes as $value => $label)
@@ -132,7 +166,7 @@
                     </div>
 
                     <div class="col-md-2">
-                        <label class="form-label">Действие</label>
+                        <label class="form-label small fw-semibold">Действие</label>
                         <select name="action" class="form-select">
                             <option value="">Все действия</option>
                             @foreach($actions as $value => $label)
@@ -144,32 +178,34 @@
                     </div>
 
                     <div class="col-md-1">
-                        <label class="form-label">ID сущности</label>
+                        <label class="form-label small fw-semibold">ID сущности</label>
                         <input type="number" name="entity_id" class="form-control" value="{{ request('entity_id') }}" placeholder="ID">
                     </div>
 
                     <div class="col-md-2">
-                        <label class="form-label">Поиск по тексту</label>
+                        <label class="form-label small fw-semibold">Поиск по тексту</label>
                         <input type="text" name="search" class="form-control" value="{{ request('search') }}" placeholder="Поиск...">
                     </div>
 
                     <div class="col-md-2">
-                        <label class="form-label">Дата с</label>
+                        <label class="form-label small fw-semibold">Дата с</label>
                         <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
                     </div>
 
                     <div class="col-md-2">
-                        <label class="form-label">Дата по</label>
+                        <label class="form-label small fw-semibold">Дата по</label>
                         <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
                     </div>
 
-                    <div class="col-12">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-search"></i> Применить фильтры
-                        </button>
-                        <a href="{{ route('admin.logs.index') }}" class="btn btn-secondary">
-                            <i class="bi bi-eraser"></i> Сбросить
-                        </a>
+                    <div class="col-12 mt-3">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-search me-2"></i>Применить фильтры
+                            </button>
+                            <a href="{{ route('admin.logs.index') }}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-counterclockwise me-2"></i>Сбросить
+                            </a>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -178,10 +214,10 @@
 
     <!-- Активные фильтры -->
     @if(request()->anyFilled(['organization_id', 'user_id', 'entity_type', 'action', 'entity_id', 'search', 'date_from', 'date_to']))
-        <div class="alert alert-info py-2 mb-3">
+        <div class="alert alert-info py-2 mb-4">
             <div class="d-flex align-items-center flex-wrap gap-2">
-                <i class="bi bi-funnel me-1"></i>
-                <span>Активные фильтры:</span>
+                <i class="bi bi-funnel-fill me-1"></i>
+                <span class="fw-semibold">Активные фильтры:</span>
                 
                 @if(request('organization_id'))
                     @php 
@@ -225,25 +261,27 @@
     @endif
 
     <!-- Таблица логов -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <i class="bi bi-table me-1"></i>
-            Список действий
-            <span class="badge bg-secondary ms-2">{{ $logs->total() }}</span>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0 pt-4 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-table text-primary me-2"></i>
+                Список действий
+            </h5>
+            <span class="badge bg-primary">{{ $logs->total() }} всего</span>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover table-bordered align-middle">
+                <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>ID</th>
-                            <th>Дата</th>
-                            <th>Пользователь</th>
-                            <th>Тип</th>
-                            <th>ID сущности</th>
-                            <th>Действие</th>
-                            <th>IP</th>
-                            <th class="text-center">Детали</th>
+                            <th style="width: 60px;">ID</th>
+                            <th style="min-width: 150px;">Дата</th>
+                            <th style="min-width: 200px;">Пользователь</th>
+                            <th style="min-width: 120px;">Тип</th>
+                            <th style="min-width: 200px;">Сущность</th>
+                            <th style="min-width: 100px;">Действие</th>
+                            <th style="min-width: 120px;">IP</th>
+                            <th style="width: 80px;" class="text-center">Детали</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -257,7 +295,7 @@
                                 if ($log->entity_type === 'user') {
                                     $entityUser = \App\Models\User::find($entityId);
                                     if ($entityUser) {
-                                        $entityInfo = $entityUser->name . ' (' . $entityUser->email . ') - ' . $entityUser->getRoleDisplayName();
+                                        $entityInfo = $entityUser->name . ' (' . $entityUser->email . ')';
                                         // Для пользователей нет отдельного маршрута, используем фильтр
                                         $entityRoute = '#';
                                     }
@@ -269,7 +307,6 @@
                                         if ($entityOrg->inn) {
                                             $entityInfo .= ' (ИНН: ' . $entityOrg->inn . ')';
                                         }
-                                        // Для организации используем маршрут показа организации
                                         $entityRoute = route('admin.organization.show', $entityId);
                                     }
                                 } 
@@ -277,7 +314,6 @@
                                     $entityManager = \App\Models\Manager::with('user')->find($entityId);
                                     if ($entityManager && $entityManager->user) {
                                         $entityInfo = $entityManager->user->name . ' (Менеджер)';
-                                        // Для менеджера используем маршрут показа менеджера
                                         $entityRoute = route('admin.managers.show', $entityId);
                                     }
                                 } 
@@ -287,7 +323,6 @@
                                         $entityInfo = $entityOwner->user->name . ' (Владелец)';
                                         if ($entityOwner->organization) {
                                             $entityInfo .= ' - ' . $entityOwner->organization->name;
-                                            // Для владельца ведем на страницу организации
                                             $entityRoute = route('admin.organization.show', $entityOwner->organization->id);
                                         }
                                     }
@@ -298,30 +333,64 @@
                                         $entityInfo = $entityMember->user->name . ' (Сотрудник)';
                                         if ($entityMember->organization) {
                                             $entityInfo .= ' - ' . $entityMember->organization->name;
-                                            // Для сотрудника ведем на страницу просмотра сотрудника
                                             $entityRoute = route('admin.org-members.show', [
-                                                'organizationId' => $entityMember->organization_id, 
-                                                'memberId' => $entityId
+                                                $entityMember->organization_id, 
+                                                $entityId
                                             ]);
                                         }
                                     }
                                 }
+                                
+                                $badgeClass = match($log->action) {
+                                    'create' => 'success',
+                                    'update' => 'primary',
+                                    'delete', 'force_delete' => 'danger',
+                                    'restore' => 'warning',
+                                    'login', 'logout' => 'info',
+                                    default => 'secondary'
+                                };
                             @endphp
                             <tr>
-                                <td><code>#{{ $log->id }}</code></td>
-                                <td>{{ $log->created_at->format('d.m.Y H:i:s') }}</td>
+                                <td>
+                                    <span class="badge bg-secondary">#{{ $log->id }}</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="rounded-circle bg-light d-flex align-items-center justify-content-center me-2" 
+                                             style="width: 28px; height: 28px;">
+                                            <i class="bi bi-clock text-primary small"></i>
+                                        </div>
+                                        <div>
+                                            <span class="small">{{ $log->created_at->format('d.m.Y') }}</span>
+                                            <small class="text-muted d-block">{{ $log->created_at->format('H:i:s') }}</small>
+                                        </div>
+                                    </div>
+                                </td>
                                 <td>
                                     @if($log->user)
-                                        <a href="#" onclick="event.preventDefault(); document.getElementById('filter-user-{{ $log->user_id }}').submit();" class="text-decoration-none">
-                                            <strong>{{ $log->user->name }}</strong>
-                                            <br>
-                                            <small class="text-muted">{{ $log->user->email }}</small>
-                                        </a>
+                                        <div class="d-flex align-items-center">
+                                            <div class="rounded-circle bg-{{ $log->user->getRoleColor() ?? 'secondary' }} bg-opacity-10 d-flex align-items-center justify-content-center me-2" 
+                                                 style="width: 32px; height: 32px; font-size: 0.9rem; color: {{ $log->user->getRoleColor() === 'success' ? '#198754' : ($log->user->getRoleColor() === 'danger' ? '' : '#0d6efd') }};">
+                                                {{ strtoupper(substr($log->user->name, 0, 1)) }}
+                                            </div>
+                                            <div>
+                                                <a href="#" onclick="event.preventDefault(); document.getElementById('filter-user-{{ $log->user_id }}').submit();" class="fw-semibold text-decoration-none">
+                                                    {{ $log->user->name }}
+                                                </a>
+                                                <small class="text-muted d-block">{{ $log->user->email }}</small>
+                                            </div>
+                                        </div>
                                         <form id="filter-user-{{ $log->user_id }}" method="GET" action="{{ route('admin.logs.index') }}" class="d-none">
                                             <input type="hidden" name="user_id" value="{{ $log->user_id }}">
                                         </form>
                                     @else
-                                        <span class="text-muted">Система</span>
+                                        <div class="d-flex align-items-center">
+                                            <div class="rounded-circle bg-secondary bg-opacity-10 d-flex align-items-center justify-content-center me-2" 
+                                                 style="width: 32px; height: 32px; color: #6c757d;">
+                                                <i class="bi bi-robot"></i>
+                                            </div>
+                                            <span class="text-muted">Система</span>
+                                        </div>
                                     @endif
                                 </td>
                                 <td>
@@ -332,14 +401,14 @@
                                         @if($entityRoute && $entityRoute !== '#')
                                             <a href="{{ $entityRoute }}" class="text-decoration-none" target="_blank">
                                                 <div class="d-flex flex-column">
-                                                    <strong>{{ Str::limit($entityInfo, 50) }}</strong>
+                                                    <strong>{{ Str::limit($entityInfo, 40) }}</strong>
                                                     <small class="text-muted">ID: {{ $log->entity_id }}</small>
                                                 </div>
                                             </a>
                                         @else
                                             <a href="#" onclick="event.preventDefault(); document.getElementById('filter-entity-{{ $log->id }}').submit();" class="text-decoration-none">
                                                 <div class="d-flex flex-column">
-                                                    <strong>{{ Str::limit($entityInfo, 50) }}</strong>
+                                                    <strong>{{ Str::limit($entityInfo, 40) }}</strong>
                                                     <small class="text-muted">ID: {{ $log->entity_id }}</small>
                                                 </div>
                                             </a>
@@ -359,37 +428,32 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @php
-                                        $badgeClass = match($log->action) {
-                                            'create' => 'success',
-                                            'update' => 'primary',
-                                            'delete', 'force_delete' => 'danger',
-                                            'restore' => 'warning',
-                                            'login', 'logout' => 'info',
-                                            default => 'secondary'
-                                        };
-                                    @endphp
-                                    <span class="badge bg-{{ $badgeClass }}">{{ $log->action_name }}</span>
+                                    <span class="badge bg-{{ $badgeClass }} px-3 py-2">{{ $log->action_name }}</span>
                                 </td>
                                 <td>
                                     @if($log->ip_address)
-                                        <code>{{ $log->ip_address }}</code>
+                                        <code class="bg-light p-1 rounded">{{ $log->ip_address }}</code>
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted small">—</span>
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    <a href="{{ route('admin.logs.show', $log) }}" class="btn btn-sm btn-outline-primary">
+                                    <a href="{{ route('admin.logs.show', $log) }}" class="btn btn-sm btn-outline-primary rounded-circle"
+                                       style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;"
+                                       title="Просмотр деталей">
                                         <i class="bi bi-eye"></i>
                                     </a>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center text-muted py-5">
-                                    <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-                                    <p class="mb-0">Логи не найдены</p>
-                                    <small class="text-muted">Попробуйте изменить параметры фильтрации</small>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="rounded-circle bg-secondary bg-opacity-10 d-flex align-items-center justify-content-center mx-auto mb-3" 
+                                         style="width: 80px; height: 80px;">
+                                        <i class="bi bi-inbox fs-1 text-secondary"></i>
+                                    </div>
+                                    <h5 class="text-muted mb-3">Логи не найдены</h5>
+                                    <p class="text-muted mb-0">Попробуйте изменить параметры фильтрации</p>
                                 </td>
                             </tr>
                         @endforelse
@@ -397,45 +461,54 @@
                 </table>
             </div>
 
-            <div class="d-flex justify-content-between align-items-center mt-3">
-                <div>
-                    <p class="text-muted small">
-                        Показано с {{ $logs->firstItem() ?? 0 }} по {{ $logs->lastItem() ?? 0 }} из {{ $logs->total() }} записей
-                    </p>
+            <!-- Пагинация -->
+            @if($logs->hasPages())
+                <div class="d-flex justify-content-between align-items-center mt-4 px-4 pb-4">
+                    <div class="text-muted small">
+                        Показано {{ $logs->firstItem() ?? 0 }} - {{ $logs->lastItem() ?? 0 }} 
+                        из {{ $logs->total() }} записей
+                    </div>
+                    <div>
+                        {{ $logs->withQueryString()->links() }}
+                    </div>
                 </div>
-                <div>
-                    {{ $logs->withQueryString()->links() }}
+            @elseif($logs->total() > 0 && !$logs->hasPages())
+                <div class="text-center py-3 border-top">
+                    <div class="text-muted small">
+                        Всего {{ $logs->total() }} записей
+                    </div>
                 </div>
-            </div>
+            @endif
         </div>
     </div>
 
     <!-- Форма очистки старых логов -->
-    <div class="card mb-4 border-warning">
-        <div class="card-header bg-warning text-white">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            Очистка логов
+    <div class="card border-0 shadow-sm border-warning">
+        <div class="card-header bg-warning text-white border-0">
+            <h5 class="mb-0">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                Очистка логов
+            </h5>
         </div>
         <div class="card-body">
-            <form action="{{ route('admin.logs.clean') }}" method="POST" class="row g-3 align-items-center">
+            <form action="{{ route('admin.logs.clean') }}" method="POST" class="row g-3 align-items-end">
                 @csrf
                 <div class="col-auto">
-                    <label class="col-form-label">Удалить записи старше</label>
-                </div>
-                <div class="col-auto">
-                    <input type="number" name="days" class="form-control" value="30" min="1" max="365" required>
-                </div>
-                <div class="col-auto">
-                    <span class="col-form-label">дней</span>
+                    <label class="form-label fw-semibold">Удалить записи старше</label>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="number" name="days" class="form-control" value="30" min="1" max="365" style="width: 80px;" required>
+                        <span>дней</span>
+                    </div>
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-warning" onclick="return confirm('Вы уверены? Это действие нельзя отменить.')">
-                        <i class="bi bi-trash"></i> Очистить
+                        <i class="bi bi-trash me-2"></i>Очистить
                     </button>
                 </div>
             </form>
-            <small class="text-muted d-block mt-2">
-                <i class="bi bi-info-circle"></i> Рекомендуется хранить логи не более 90 дней для экономии места в БД.
+            <small class="text-muted d-block mt-3">
+                <i class="bi bi-info-circle me-1"></i>
+                Рекомендуется хранить логи не более 90 дней для экономии места в БД.
             </small>
         </div>
     </div>
@@ -445,13 +518,116 @@
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
+    /* ТОЧНО КАК ВО ВСЕХ СТРАНИЦАХ */
+
+    /* Круги всегда идеальные */
+    .rounded-circle {
+        border-radius: 50% !important;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+    }
+
+    /* Карточки - скругление 1rem (16px) */
+    .card {
+        border-radius: 1rem;
+        transition: all 0.2s;
+    }
+
+    .card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+
+    /* Бейджи - сильно скругленные 30px */
+    .badge {
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        border-radius: 30px;
+        padding: 0.35em 0.65em;
+    }
+
+    /* Заголовки карточек */
+    .card-header {
+        background-color: #fff;
+        border-bottom: 1px solid rgba(0,0,0,.125);
+        padding: 1rem 1.25rem;
+    }
+
+    .card-header h5, .card-header h6 {
+        margin-bottom: 0;
+        font-weight: 600;
+    }
+
+    .card-body {
+        padding: 1.25rem;
+    }
+
+    /* Градиент для заголовка */
+    .bg-gradient-primary {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    }
+
+    /* Таблицы */
+    .table th {
+        font-weight: 600;
+        color: #495057;
+        background-color: #f8f9fa;
+    }
+
+    .table td {
+        vertical-align: middle;
+    }
+
+    /* Для иконок в кружках */
+    .bg-opacity-10 {
+        --bs-bg-opacity: 0.1;
+    }
+
+    /* Для текста в кружках с буквами */
+    .rounded-circle.bg-primary, 
+    .rounded-circle.bg-success, 
+    .rounded-circle.bg-info,
+    .rounded-circle.bg-warning,
+    .rounded-circle.bg-danger {
+        font-weight: 500;
+    }
+
+    /* Для форм */
+    .form-label {
+        font-size: 0.85rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .form-control, .form-select {
+        border-radius: 0.5rem;
+        border: 1px solid #dee2e6;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    /* Для алертов */
+    .alert-info {
+        background-color: #cff4fc;
+        border-color: #b6effb;
+        color: #055160;
+        border-radius: 0.75rem;
+    }
+
+    /* Select2 стили */
     .select2-container {
         width: 100% !important;
     }
     .select2-container--default .select2-selection--single {
         height: 38px;
         border: 1px solid #dee2e6;
-        border-radius: 6px;
+        border-radius: 0.5rem;
     }
     .select2-container--default .select2-selection--single .select2-selection__rendered {
         line-height: 38px;
@@ -459,6 +635,37 @@
     }
     .select2-container--default .select2-selection--single .select2-selection__arrow {
         height: 38px;
+    }
+    
+    /* Стили для кнопок действий */
+    .btn-sm.rounded-circle {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Стили для ссылок */
+    a.text-decoration-none:hover {
+        text-decoration: underline !important;
+    }
+    
+    .table a {
+        color: #0d6efd;
+    }
+    
+    .table a:hover {
+        color: #0a58ca;
+    }
+    
+    /* Для IP адреса */
+    code {
+        background-color: #f8f9fa;
+        padding: 0.2rem 0.4rem;
+        border-radius: 0.25rem;
+        font-size: 0.85rem;
     }
 </style>
 @endpush

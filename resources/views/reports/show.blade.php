@@ -519,7 +519,7 @@
         background: #f8f9fa;
         padding: 15px;
         margin: 10px 0;
-        border-left: 4px solid #dc3545;
+        border-left: 4px solid  #fd7e14;
         cursor: pointer;
         transition: background-color 0.2s;
     }
@@ -527,7 +527,7 @@
         background: #e9ecef;
     }
     .additional-block.danger span {
-        color: #dc3545;
+        color:  #fd7e14;
         font-weight: 600;
     }
     .danger-additional-hidden {
@@ -545,7 +545,7 @@
     .accordion-danger {
         padding: 15px;
         background: #f8f9fa;
-        border-left: 4px solid #dc3545;
+        border-left: 4px solid  #fd7e14;
         margin-bottom: 15px;
     }
     .left-side {

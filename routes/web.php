@@ -7,6 +7,7 @@ use App\Http\Controllers\DelegatedLimitController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\Admin\UserOrganizationLogController;
+use App\Models\Organization;
 
 // Главная страница
 Route::get('/', function () {
@@ -52,6 +53,10 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     
     // Главная панель админа
     Route::get('/dashboard', 'App\Http\Controllers\AdminController@dashboard')->name('dashboard');
+    Route::get('/profile/edit', 'App\Http\Controllers\AdminController@editProfile')->name('profile.edit');
+    Route::put('/profile/update', 'App\Http\Controllers\AdminController@updateProfile')->name('profile.update');
+    Route::get('/profile/change-password', 'App\Http\Controllers\AdminController@showChangePasswordForm')->name('profile.change-password');
+    Route::put('/profile/change-password', 'App\Http\Controllers\AdminController@changePassword')->name('profile.change-password.update');
     
     // Управление менеджерами
     Route::get('/managers', 'App\Http\Controllers\ManagerController@index')->name('managers.index');
@@ -272,6 +277,38 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/limits/history', [App\Http\Controllers\LimitHistoryController::class, 'index'])->name('limits.history');
     Route::get('/limits/history/export', [App\Http\Controllers\LimitHistoryController::class, 'export'])->name('limits.history.export');
 });
+
+// ============================
+// API МАРШРУТЫ ДЛЯ ПОЛУЧЕНИЯ ИНФОРМАЦИИ
+// ============================
+
+// Получение информации об организации (для AJAX)
+Route::middleware(['auth'])->get('/organizations/{id}/get', function($id) {
+    $organization = \App\Models\Organization::with(['owner.user'])->find($id);
+    
+    if (!$organization) {
+        return response()->json(['success' => false, 'message' => 'Организация не найдена']);
+    }
+    
+    $owner = null;
+    if ($organization->owner && $organization->owner->user) {
+        $owner = [
+            'id' => $organization->owner->user->id,
+            'name' => $organization->owner->user->name,
+            'email' => $organization->owner->user->email,
+            'has_active_subscriptions' => $organization->owner->user->hasActiveSubscription(),
+        ];
+    }
+    
+    return response()->json([
+        'success' => true,
+        'organization' => [
+            'id' => $organization->id,
+            'name' => $organization->name,
+        ],
+        'owner' => $owner
+    ]);
+})->name('organizations.get');
 
 
 

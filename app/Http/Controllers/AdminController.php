@@ -8,6 +8,8 @@ use App\Models\Manager;
 use App\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 
 class AdminController extends Controller
 {
@@ -153,5 +155,100 @@ class AdminController extends Controller
             'subscriptionsCount',
             'activeSubscriptionsCount'
         ));
+    }
+
+    /**
+     * Показать форму редактирования профиля администратора
+     */
+    public function editProfile()
+    {
+        $user = Auth::user();
+        
+        if (!$user->isAdmin()) {
+            abort(403, 'Доступ запрещен');
+        }
+        
+        return view('admin.profile.edit', compact('user'));
+    }
+
+    /**
+     * Обновить профиль администратора
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = Auth::user();
+        
+        if (!$user->isAdmin()) {
+            abort(403, 'Доступ запрещен');
+        }
+        
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'phone' => 'nullable|string|max:20',
+        ]);
+        
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+        
+        $user->update([
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+        ]);
+        
+        return redirect()->route('admin.dashboard')
+            ->with('success', 'Профиль успешно обновлен');
+    }
+
+    /**
+     * Показать форму изменения пароля
+     */
+    public function showChangePasswordForm()
+    {
+        $user = Auth::user();
+        
+        if (!$user->isAdmin()) {
+            abort(403, 'Доступ запрещен');
+        }
+        
+        return view('admin.profile.change-password', compact('user'));
+    }
+
+    /**
+     * Изменить пароль
+     */
+    public function changePassword(Request $request)
+    {
+        $user = Auth::user();
+        
+        if (!$user->isAdmin()) {
+            abort(403, 'Доступ запрещен');
+        }
+        
+        $validator = Validator::make($request->all(), [
+            'current_password' => 'required|current_password',
+            'new_password' => 'required|string|min:8|confirmed',
+        ], [
+            'current_password.current_password' => 'Текущий пароль не совпадает',
+            'new_password.min' => 'Пароль должен содержать минимум 8 символов',
+            'new_password.confirmed' => 'Пароли не совпадают',
+        ]);
+        
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+        
+        $user->update([
+            'password' => Hash::make($request->new_password),
+        ]);
+        
+        return redirect()->route('admin.dashboard')
+            ->with('success', 'Пароль успешно изменен');
     }
 }

@@ -4,80 +4,113 @@
 @section('page-icon', 'bi-clock-history')
 
 @section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="mb-0">
-            <i class="bi bi-clock-history text-info me-2"></i>
-            История операций с лимитами
-        </h2>
-        <div class="btn-group">
-            <a href="{{ route('limits.history.export', request()->query()) }}" class="btn btn-success">
-                <i class="bi bi-download me-2"></i>
-                Экспорт CSV
-            </a>
+<div class="container-fluid py-4">
+    <!-- Заголовок с градиентом -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 bg-gradient-info text-white shadow-lg" 
+                 style="background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);">
+                <div class="card-body p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div class="d-flex align-items-center">
+                            <div class="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center me-4" 
+                                 style="width: 70px; height: 70px; font-size: 2rem; font-weight: 500; color: white; border: 3px solid rgba(255,255,255,0.3);">
+                                <i class="bi bi-clock-history"></i>
+                            </div>
+                            <div>
+                                <h1 class="h2 mb-2">История операций с лимитами</h1>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span class="badge bg-white text-info px-3 py-2">
+                                        <i class="bi bi-database me-1"></i>Всего: {{ $logs->total() }}
+                                    </span>
+                                    <span class="badge bg-white bg-opacity-25 px-3 py-2">
+                                        <i class="bi bi-calendar me-1"></i>{{ now()->format('d.m.Y') }}
+                                    </span>
+                                </div>
+                                <nav aria-label="breadcrumb">
+                                    <ol class="breadcrumb mb-0">
+                                        <li class="breadcrumb-item">
+                                            <a href="{{ route(Auth::user()->isAdmin() ? 'admin.dashboard' : 'manager.dashboard') }}" 
+                                               class="text-white opacity-75">
+                                                Панель {{ Auth::user()->isAdmin() ? 'админа' : 'менеджера' }}
+                                            </a>
+                                        </li>
+                                        <li class="breadcrumb-item active text-white" aria-current="page">
+                                            История операций
+                                        </li>
+                                    </ol>
+                                </nav>
+                            </div>
+                        </div>
+                        <div>
+                            <a href="{{ route('limits.history.export', request()->query()) }}" class="btn btn-light">
+                                <i class="bi bi-download me-2"></i>Экспорт CSV
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Статистика за период -->
     @if(isset($stats) && $stats['total_operations'] > 0)
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm bg-primary text-white">
+    <div class="row g-4 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-primary bg-opacity-10 me-3" 
+                             style="width: 48px; height: 48px;"></div>
                         <div>
-                            <div class="small text-white-50">Всего операций</div>
-                            <div class="h3 mb-0">{{ $stats['total_operations'] }}</div>
+                            <h6 class="text-muted mb-1">Всего операций</h6>
+                            <h3 class="mb-0 fw-bold">{{ $stats['total_operations'] }}</h3>
                         </div>
-                        <i class="bi bi-list-check fs-1 opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm bg-success text-white">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-success bg-opacity-10 me-3" 
+                             style="width: 48px; height: 48px;"></div>
                         <div>
-                            <div class="small text-white-50">Начислено</div>
-                            <div class="h3 mb-0">
-                                {{ $stats['by_action']['return_quantity']['total_quantity'] ?? 0 }}
-                            </div>
+                            <h6 class="text-muted mb-1">Начислено</h6>
+                            <h3 class="mb-0 fw-bold">{{ $stats['by_action']['return_quantity']['total_quantity'] ?? 0 }}</h3>
                         </div>
-                        <i class="bi bi-arrow-up-circle fs-1 opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm bg-danger text-white">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-danger bg-opacity-10 me-3" 
+                             style="width: 48px; height: 48px;"></div>
                         <div>
-                            <div class="small text-white-50">Списано</div>
-                            <div class="h3 mb-0">
-                                {{ abs($stats['by_action']['use_quantity']['total_quantity'] ?? 0) }}
-                            </div>
+                            <h6 class="text-muted mb-1">Списано</h6>
+                            <h3 class="mb-0 fw-bold">{{ abs($stats['by_action']['use_quantity']['total_quantity'] ?? 0) }}</h3>
                         </div>
-                        <i class="bi bi-arrow-down-circle fs-1 opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm bg-info text-white">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-info bg-opacity-10 me-3" 
+                             style="width: 48px; height: 48px;"></div>
                         <div>
-                            <div class="small text-white-50">Создано/Делегировано</div>
-                            <div class="h3 mb-0">
-                                {{ ($stats['by_action']['create']['total_quantity'] ?? 0) + ($stats['by_action']['delegate']['total_quantity'] ?? 0) }}
-                            </div>
+                            <h6 class="text-muted mb-1">Создано/Делегировано</h6>
+                            <h3 class="mb-0 fw-bold">{{ ($stats['by_action']['create']['total_quantity'] ?? 0) + ($stats['by_action']['delegate']['total_quantity'] ?? 0) }}</h3>
                         </div>
-                        <i class="bi bi-plus-circle fs-1 opacity-50"></i>
                     </div>
                 </div>
             </div>
@@ -87,36 +120,36 @@
     <!-- График по дням (если выбран период) -->
     @if(count($stats['daily']) > 0)
     <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white py-3">
+        <div class="card-header bg-white border-0 pt-4">
             <h5 class="mb-0">
-                <i class="bi bi-graph-up me-2"></i>
+                <i class="bi bi-graph-up text-primary me-2"></i>
                 Активность по дням
             </h5>
         </div>
         <div class="card-body">
-            <canvas id="dailyChart" style="height: 300px;"></canvas>
+            <canvas id="dailyChart" style="height: 300px; width: 100%;"></canvas>
         </div>
     </div>
     @endif
     @endif
 
-    <!-- Фильтры -->
+    <!-- Карточка с фильтрами -->
     <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header bg-white py-3">
+        <div class="card-header bg-white border-0 pt-4">
             <h5 class="mb-0">
-                <i class="bi bi-funnel me-2"></i>
+                <i class="bi bi-funnel text-primary me-2"></i>
                 Фильтры
-                <button class="btn btn-sm btn-link float-end" type="button" data-bs-toggle="collapse" data-bs-target="#filters">
+                <button class="btn btn-sm btn-link float-end text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#filters">
                     <i class="bi bi-chevron-down"></i>
                 </button>
             </h5>
         </div>
         <div class="collapse show" id="filters">
-            <div class="card-body">
+            <div class="card-body pt-3">
                 <form method="GET" action="{{ route('limits.history') }}" id="filterForm" class="row g-3">
                     <!-- Фильтр по организации -->
                     <div class="col-md-3">
-                        <label class="form-label">Организация</label>
+                        <label class="form-label small fw-semibold">Организация</label>
                         <select name="organization_id" id="organization_id" class="form-select select2-organization">
                             <option value="">Все организации</option>
                             @foreach($organizations ?? [] as $org)
@@ -129,7 +162,7 @@
 
                     <!-- Фильтр по пользователю с поиском -->
                     <div class="col-md-3">
-                        <label class="form-label">Пользователь</label>
+                        <label class="form-label small fw-semibold">Пользователь</label>
                         <select name="user_id" id="user_id" class="form-select select2-user" data-placeholder="Поиск пользователя...">
                             <option value="">Все пользователи</option>
                             @foreach($users as $userOption)
@@ -143,7 +176,7 @@
 
                     <!-- Фильтр по подписке -->
                     <div class="col-md-3">
-                        <label class="form-label">Подписка</label>
+                        <label class="form-label small fw-semibold">Подписка</label>
                         <select name="subscription_id" class="form-select select2-subscription">
                             <option value="">Все подписки</option>
                             @foreach($subscriptions as $sub)
@@ -156,7 +189,7 @@
 
                     <!-- Фильтр по типу операции -->
                     <div class="col-md-3">
-                        <label class="form-label">Тип операции</label>
+                        <label class="form-label small fw-semibold">Тип операции</label>
                         <select name="action" class="form-select">
                             <option value="">Все операции</option>
                             @foreach($actions as $value => $label)
@@ -169,7 +202,7 @@
 
                     <!-- Фильтр по типу отчета -->
                     <div class="col-md-3">
-                        <label class="form-label">Тип отчета</label>
+                        <label class="form-label small fw-semibold">Тип отчета</label>
                         <select name="report_type_id" class="form-select">
                             <option value="">Все типы</option>
                             @foreach($reportTypes as $type)
@@ -182,23 +215,23 @@
 
                     <!-- Фильтр по дате -->
                     <div class="col-md-3">
-                        <label class="form-label">Дата с</label>
+                        <label class="form-label small fw-semibold">Дата с</label>
                         <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
                     </div>
 
                     <div class="col-md-3">
-                        <label class="form-label">Дата по</label>
+                        <label class="form-label small fw-semibold">Дата по</label>
                         <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
                     </div>
 
                     <!-- Кнопки действий -->
-                    <div class="col-12">
-                        <div class="d-flex justify-content-end gap-2">
-                            <button type="submit" class="btn btn-info">
-                                <i class="bi bi-funnel me-1"></i> Применить фильтры
+                    <div class="col-12 mt-3">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-funnel me-2"></i>Применить фильтры
                             </button>
-                            <a href="{{ route('limits.history') }}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-counterclockwise me-1"></i> Сбросить
+                            <a href="{{ route('limits.history') }}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-counterclockwise me-2"></i>Сбросить
                             </a>
                         </div>
                     </div>
@@ -209,10 +242,10 @@
 
     <!-- Активные фильтры -->
     @if(request()->anyFilled(['organization_id', 'user_id', 'subscription_id', 'action', 'report_type_id', 'date_from', 'date_to']))
-        <div class="alert alert-info py-2 mb-3">
+        <div class="alert alert-info py-2 mb-4">
             <div class="d-flex align-items-center flex-wrap gap-2">
-                <i class="bi bi-funnel me-1"></i>
-                <span>Активные фильтры:</span>
+                <i class="bi bi-funnel-fill me-1"></i>
+                <span class="fw-semibold">Активные фильтры:</span>
                 
                 @if(request('organization_id'))
                     @php 
@@ -261,18 +294,18 @@
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="bg-light">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
                         <tr>
-                            <th>Дата</th>
-                            <th>Операция</th>
-                            <th>Кто</th>
-                            <th>Кому</th>
-                            <th>Подписка</th>
-                            <th>Тип отчета</th>
-                            <th>Кол-во</th>
-                            <th>Баланс</th>
-                            <th></th>
+                            <th style="min-width: 150px;">Дата</th>
+                            <th style="min-width: 120px;">Операция</th>
+                            <th style="min-width: 180px;">Кто</th>
+                            <th style="min-width: 180px;">Кому</th>
+                            <th style="min-width: 200px;">Подписка</th>
+                            <th style="min-width: 150px;">Тип отчета</th>
+                            <th style="width: 80px;">Кол-во</th>
+                            <th style="min-width: 120px;">Баланс</th>
+                            <th style="width: 60px;"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -320,11 +353,20 @@
                                 $subscriptionUrl = $subscription ? route('subscriptions.show', $subscription->id) : null;
                             @endphp
                             <tr>
-                                <td class="text-nowrap">
-                                    <small>{{ $log->created_at->format('d.m.Y H:i:s') }}</small>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="rounded-circle bg-light d-flex align-items-center justify-content-center me-2" 
+                                             style="width: 28px; height: 28px;">
+                                            <i class="bi bi-clock text-primary small"></i>
+                                        </div>
+                                        <div>
+                                            <span class="small">{{ $log->created_at->format('d.m.Y') }}</span>
+                                            <small class="text-muted d-block">{{ $log->created_at->format('H:i:s') }}</small>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td>
-                                    <span class="badge bg-{{ $log->operation_color }} fs-6">
+                                    <span class="badge bg-{{ $log->operation_color }} px-3 py-2">
                                         <i class="bi {{ $log->operation_icon }} me-1"></i>
                                         {{ $log->action_name }}
                                     </span>
@@ -332,88 +374,119 @@
                                 <td>
                                     @if($log->user)
                                         @if($actorUrl)
-                                            <a href="{{ $actorUrl }}" class="text-decoration-none" target="_blank">
+                                            <a href="{{ $actorUrl }}" class="text-decoration-none">
                                                 <div class="d-flex align-items-center">
-                                                    <span class="fw-semibold">{{ $log->user->name }}</span>
-                                                    <small class="text-muted ms-1">({{ $log->user->getRoleDisplayName() }})</small>
+                                                    <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center me-2" 
+                                                         style="width: 28px; height: 28px; font-size: 0.8rem; color: #0d6efd;">
+                                                        {{ strtoupper(substr($log->user->name, 0, 1)) }}
+                                                    </div>
+                                                    <div>
+                                                        <span class="fw-semibold small">{{ $log->user->name }}</span>
+                                                        <small class="text-muted d-block">{{ $log->user->getRoleDisplayName() }}</small>
+                                                    </div>
                                                 </div>
                                             </a>
                                         @else
                                             <div class="d-flex align-items-center">
-                                                <span class="fw-semibold">{{ $log->user->name }}</span>
-                                                <small class="text-muted ms-1">({{ $log->user->getRoleDisplayName() }})</small>
+                                                <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center me-2" 
+                                                     style="width: 28px; height: 28px; font-size: 0.8rem; color: #0d6efd;">
+                                                    {{ strtoupper(substr($log->user->name, 0, 1)) }}
+                                                </div>
+                                                <div>
+                                                    <span class="fw-semibold small">{{ $log->user->name }}</span>
+                                                    <small class="text-muted d-block">{{ $log->user->getRoleDisplayName() }}</small>
+                                                </div>
                                             </div>
                                         @endif
                                     @else
-                                        <span class="text-muted">Система</span>
+                                        <div class="d-flex align-items-center">
+                                            <div class="rounded-circle bg-secondary bg-opacity-10 d-flex align-items-center justify-content-center me-2" 
+                                                 style="width: 28px; height: 28px; color: #6c757d;">
+                                                <i class="bi bi-robot"></i>
+                                            </div>
+                                            <span class="text-muted small">Система</span>
+                                        </div>
                                     @endif
                                 </td>
                                 <td>
                                     @if($targetUser)
                                         @if($targetUrl)
-                                            <a href="{{ $targetUrl }}" class="text-decoration-none" target="_blank">
-                                                <div>
-                                                    <span class="fw-semibold">{{ $targetUser->name }}</span>
-                                                    <small class="text-muted d-block">{{ $targetUser->getRoleDisplayName() }}</small>
+                                            <a href="{{ $targetUrl }}" class="text-decoration-none">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center me-2" 
+                                                         style="width: 28px; height: 28px; font-size: 0.8rem; color: #198754;">
+                                                        {{ strtoupper(substr($targetUser->name, 0, 1)) }}
+                                                    </div>
+                                                    <div>
+                                                        <span class="fw-semibold small">{{ $targetUser->name }}</span>
+                                                        <small class="text-muted d-block">{{ $targetUser->getRoleDisplayName() }}</small>
+                                                    </div>
                                                 </div>
                                             </a>
                                         @else
-                                            <div>
-                                                <span class="fw-semibold">{{ $targetUser->name }}</span>
-                                                <small class="text-muted d-block">{{ $targetUser->getRoleDisplayName() }}</small>
+                                            <div class="d-flex align-items-center">
+                                                <div class="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center me-2" 
+                                                     style="width: 28px; height: 28px; font-size: 0.8rem; color: #198754;">
+                                                    {{ strtoupper(substr($targetUser->name, 0, 1)) }}
+                                                </div>
+                                                <div>
+                                                    <span class="fw-semibold small">{{ $targetUser->name }}</span>
+                                                    <small class="text-muted d-block">{{ $targetUser->getRoleDisplayName() }}</small>
+                                                </div>
                                             </div>
                                         @endif
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted small">—</span>
                                     @endif
                                 </td>
                                 <td>
                                     @if($subscription)
                                         @if($subscriptionUrl)
+                                            <a href="{{ $subscriptionUrl }}" class="text-decoration-none">
                                                 <div>
-                                                    <small>{{ $subscription->name ?? 'Подписка #' . $subscription->id }}</small>
+                                                    <span class="fw-semibold small">{{ $subscription->name ?? 'Подписка #' . $subscription->id }}</span>
                                                     @if($subscription->user)
                                                         <small class="text-muted d-block">{{ $subscription->user->name }}</small>
                                                     @endif
                                                 </div>
+                                            </a>
                                         @else
                                             <div>
-                                                <small>{{ $subscription->name ?? 'Подписка #' . $subscription->id }}</small>
+                                                <span class="fw-semibold small">{{ $subscription->name ?? 'Подписка #' . $subscription->id }}</span>
                                                 @if($subscription->user)
                                                     <small class="text-muted d-block">{{ $subscription->user->name }}</small>
                                                 @endif
                                             </div>
                                         @endif
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted small">—</span>
                                     @endif
                                 </td>
                                 <td>
                                     @if($reportType)
-                                        <small>{{ $reportType->name }}</small>
+                                        <span class="small">{{ $reportType->name }}</span>
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted small">—</span>
                                     @endif
                                 </td>
                                 <td>
                                     @if($log->display_quantity)
-                                        <span class="badge bg-{{ $log->display_quantity > 0 ? 'success' : ($log->display_quantity < 0 ? 'danger' : 'secondary') }} fs-6">
+                                        <span class="badge bg-{{ $log->display_quantity > 0 ? 'success' : ($log->display_quantity < 0 ? 'danger' : 'secondary') }} bg-opacity-10 text-{{ $log->display_quantity > 0 ? 'success' : ($log->display_quantity < 0 ? 'danger' : 'secondary') }} px-3 py-2">
                                             {{ $log->display_quantity > 0 ? '+' : '' }}{{ $log->display_quantity }}
                                         </span>
-                                        @if($log->action === 'create')
-                                            <small class="d-block text-muted">создание</small>
-                                        @endif
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted small">—</span>
                                     @endif
                                 </td>
                                 <td>
                                     @if($log->display_balance_before !== '—' || $log->display_balance_after !== '—')
-                                        <small>
-                                            {{ $log->display_balance_before }} → {{ $log->display_balance_after }}
-                                        </small>
+                                        <div class="d-flex align-items-center">
+                                            <span class="small fw-semibold">{{ $log->display_balance_before }}</span>
+                                            <i class="bi bi-arrow-right mx-1 text-muted small"></i>
+                                            <span class="small fw-semibold">{{ $log->display_balance_after }}</span>
+                                        </div>
                                     @else
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted small">—</span>
                                     @endif
                                 </td>
                                 <td>
@@ -427,9 +500,12 @@
                         @empty
                             <tr>
                                 <td colspan="9" class="text-center py-5">
-                                    <i class="bi bi-clock-history display-4 text-muted d-block mb-3"></i>
-                                    <h5 class="text-muted">История операций пуста</h5>
-                                    <p class="text-muted">Попробуйте изменить параметры фильтрации</p>
+                                    <div class="rounded-circle bg-secondary bg-opacity-10 d-flex align-items-center justify-content-center mx-auto mb-3" 
+                                         style="width: 80px; height: 80px;">
+                                        <i class="bi bi-clock-history fs-1 text-secondary"></i>
+                                    </div>
+                                    <h5 class="text-muted mb-3">История операций пуста</h5>
+                                    <p class="text-muted mb-0">Попробуйте изменить параметры фильтрации</p>
                                 </td>
                             </tr>
                         @endforelse
@@ -438,14 +514,22 @@
             </div>
 
             <!-- Пагинация -->
-            <div class="d-flex justify-content-between align-items-center px-3 py-3 border-top">
-                <div class="text-muted small">
-                    Показано {{ $logs->firstItem() ?? 0 }} - {{ $logs->lastItem() ?? 0 }} из {{ $logs->total() }}
+            @if($logs->hasPages())
+                <div class="d-flex justify-content-between align-items-center mt-4 px-4 pb-4">
+                    <div class="text-muted small">
+                        Показано {{ $logs->firstItem() ?? 0 }} - {{ $logs->lastItem() ?? 0 }} из {{ $logs->total() }}
+                    </div>
+                    <div>
+                        {{ $logs->withQueryString()->links() }}
+                    </div>
                 </div>
-                <div>
-                    {{ $logs->withQueryString()->links() }}
+            @elseif($logs->total() > 0 && !$logs->hasPages())
+                <div class="text-center py-3 border-top">
+                    <div class="text-muted small">
+                        Всего {{ $logs->total() }} записей
+                    </div>
                 </div>
-            </div>
+            @endif
         </div>
     </div>
 </div>
@@ -454,23 +538,116 @@
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
-    .text-white-50 {
-        color: rgba(255,255,255,0.7);
+    /* ТОЧНО КАК ВО ВСЕХ СТРАНИЦАХ */
+
+    /* Круги всегда идеальные */
+    .rounded-circle {
+        border-radius: 50% !important;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
     }
-    .badge.fs-6 {
-        font-size: 0.9rem;
-        padding: 0.5rem 0.8rem;
+
+    /* Карточки - скругление 1rem (16px) */
+    .card {
+        border-radius: 1rem;
+        transition: all 0.2s;
     }
+
+    .card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    }
+
+    /* Бейджи - сильно скругленные 30px */
+    .badge {
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        border-radius: 30px;
+        padding: 0.35em 0.65em;
+    }
+
+    /* Заголовки карточек */
+    .card-header {
+        background-color: #fff;
+        border-bottom: 1px solid rgba(0,0,0,.125);
+        padding: 1rem 1.25rem;
+    }
+
+    .card-header h5, .card-header h6 {
+        margin-bottom: 0;
+        font-weight: 600;
+    }
+
+    .card-body {
+        padding: 1.25rem;
+    }
+
+    /* Градиент для заголовка */
+    .bg-gradient-info {
+        background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);
+    }
+
+    /* Таблицы */
+    .table th {
+        font-weight: 600;
+        color: #495057;
+        background-color: #f8f9fa;
+    }
+
     .table td {
         vertical-align: middle;
     }
+
+    /* Для иконок в кружках */
+    .bg-opacity-10 {
+        --bs-bg-opacity: 0.1;
+    }
+
+    /* Для текста в кружках с буквами */
+    .rounded-circle.bg-primary, 
+    .rounded-circle.bg-success, 
+    .rounded-circle.bg-info,
+    .rounded-circle.bg-warning,
+    .rounded-circle.bg-danger {
+        font-weight: 500;
+    }
+
+    /* Для форм */
+    .form-label {
+        font-size: 0.85rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .form-control, .form-select {
+        border-radius: 0.5rem;
+        border: 1px solid #dee2e6;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    /* Для алертов */
+    .alert-info {
+        background-color: #cff4fc;
+        border-color: #b6effb;
+        color: #055160;
+        border-radius: 0.75rem;
+    }
+
+    /* Select2 стили */
     .select2-container {
         width: 100% !important;
     }
     .select2-container--default .select2-selection--single {
         height: 38px;
         border: 1px solid #dee2e6;
-        border-radius: 6px;
+        border-radius: 0.5rem;
     }
     .select2-container--default .select2-selection--single .select2-selection__rendered {
         line-height: 38px;
@@ -480,20 +657,32 @@
         height: 38px;
     }
     
+    /* Стили для кнопок действий */
+    .btn-sm.rounded-circle {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
     /* Стили для ссылок */
+    a.text-decoration-none:hover {
+        text-decoration: underline !important;
+    }
+    
     .table a {
         color: #0d6efd;
-        transition: color 0.2s;
-        text-decoration: none;
     }
     
     .table a:hover {
         color: #0a58ca;
-        text-decoration: underline !important;
     }
     
-    .table a .fw-semibold:hover {
-        text-decoration: underline;
+    /* Для баланса */
+    .bi-arrow-right {
+        font-size: 0.8rem;
     }
 </style>
 @endpush
@@ -600,7 +789,7 @@ document.addEventListener('DOMContentLoaded', function() {
         data: {
             labels: dates.map(date => {
                 const d = new Date(date);
-                return d.toLocaleDateString('ru-RU');
+                return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
             }),
             datasets: [
                 {
@@ -621,7 +810,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     label: 'Использовано',
                     data: used.map(v => Math.abs(v)),
                     backgroundColor: 'rgba(220, 53, 69, 0.5)',
-                    borderColor: '#dc3545',
+                    borderColor: ' #fd7e14',
                     borderWidth: 1
                 }
             ]

@@ -19,6 +19,7 @@ require_once app_path('Helpers/dossier-v2.php');
 
 class ReportController extends Controller
 {
+
     /**
      * Показать список отчетов
      */
@@ -42,17 +43,15 @@ class ReportController extends Controller
                 // Пользователь является владельцем организации, которую ведет менеджер
                 $q->whereHas('orgOwnerProfile', function($q2) use ($user) {
                     $q2->whereHas('organization', function($q3) use ($user) {
-                        $q3->whereHas('manager', function($q4) use ($user) {
-                            $q4->where('user_id', $user->id);
-                        });
+                        // ИСПРАВЛЕНО: используем manager_id для связи с организацией
+                        $q3->where('manager_id', $user->id);
                     });
                 })
                 // ИЛИ пользователь является сотрудником организации, которую ведет менеджер
                 ->orWhereHas('orgMemberProfile', function($q2) use ($user) {
                     $q2->whereHas('organization', function($q3) use ($user) {
-                        $q3->whereHas('manager', function($q4) use ($user) {
-                            $q4->where('user_id', $user->id);
-                        });
+                        // ИСПРАВЛЕНО: используем manager_id для связи с организацией
+                        $q3->where('manager_id', $user->id);
                     });
                 })
                 // ИЛИ это сам менеджер
@@ -90,9 +89,9 @@ class ReportController extends Controller
             } elseif ($user->isManager()) {
                 // Менеджер имеет доступ только к своим организациям
                 $hasAccess = Organization::where('id', $organizationId)
-                    ->whereHas('manager', function($q) use ($user) {
-                        $q->where('user_id', $user->id);
-                    })->exists();
+                    // ИСПРАВЛЕНО: используем manager_id
+                    ->where('manager_id', $user->id)
+                    ->exists();
             } elseif ($user->isOrgOwner()) {
                 // Владелец имеет доступ только к своей организации
                 $ownerOrgId = $user->orgOwnerProfile->organization_id ?? null;
@@ -127,10 +126,12 @@ class ReportController extends Controller
                 // Проверяем, относится ли пользователь к организациям менеджера
                 $hasAccess = User::where('id', $targetUserId)
                     ->where(function($q) use ($user) {
-                        $q->whereHas('orgOwnerProfile.organization.manager', function($q2) use ($user) {
-                            $q2->where('user_id', $user->id);
-                        })->orWhereHas('orgMemberProfile.organization.manager', function($q2) use ($user) {
-                            $q2->where('user_id', $user->id);
+                        $q->whereHas('orgOwnerProfile.organization', function($q2) use ($user) {
+                            // ИСПРАВЛЕНО: используем manager_id
+                            $q2->where('manager_id', $user->id);
+                        })->orWhereHas('orgMemberProfile.organization', function($q2) use ($user) {
+                            // ИСПРАВЛЕНО: используем manager_id
+                            $q2->where('manager_id', $user->id);
                         })->orWhere('id', $user->id);
                     })->exists();
             }
@@ -245,9 +246,8 @@ class ReportController extends Controller
             $organizations = Organization::orderBy('name')->get();
         } elseif ($user->isManager()) {
             // Менеджер видит только свои организации
-            $organizations = Organization::whereHas('manager', function($q) use ($user) {
-                $q->where('user_id', $user->id);
-            })->orderBy('name')->get();
+            $organizations = Organization::where('manager_id', $user->id)
+                ->orderBy('name')->get();
         } elseif ($user->isOrgOwner()) {
             // Владелец видит только свою организацию
             $organizationId = $user->orgOwnerProfile->organization_id ?? null;
@@ -270,9 +270,8 @@ class ReportController extends Controller
                 $hasAccess = true;
             } elseif ($user->isManager()) {
                 $hasAccess = Organization::where('id', $organizationId)
-                    ->whereHas('manager', function($q) use ($user) {
-                        $q->where('user_id', $user->id);
-                    })->exists();
+                    ->where('manager_id', $user->id)
+                    ->exists();
             } elseif ($user->isOrgOwner()) {
                 $ownerOrgId = $user->orgOwnerProfile->organization_id ?? null;
                 $hasAccess = ($ownerOrgId == $organizationId);
@@ -298,9 +297,8 @@ class ReportController extends Controller
             if ($user->isAdmin()) {
                 $users = User::where('is_active', true)->orderBy('name')->get();
             } elseif ($user->isManager()) {
-                $organizationIds = Organization::whereHas('manager', function($q) use ($user) {
-                    $q->where('user_id', $user->id);
-                })->pluck('id');
+                $organizationIds = Organization::where('manager_id', $user->id)
+                    ->pluck('id');
                 
                 $users = User::where('id', $user->id)
                     ->orWhereHas('orgOwnerProfile', function($q) use ($organizationIds) {

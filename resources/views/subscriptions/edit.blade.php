@@ -212,7 +212,7 @@
         background-color: #fff3cd;
     }
     .limit-input.error {
-        border-color: #dc3545;
+        border-color:  #fd7e14;
         background-color: #f8d7da;
     }
     .balance-indicator {

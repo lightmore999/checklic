@@ -75,7 +75,12 @@ class Subscription extends Model
     }
 
     /**
-     * Получить оставшееся время подписки в днях
+     * Получить количество дней до окончания подписки (для отображения)
+     * Положительное значение - осталось дней
+     * Отрицательное значение - просрочено дней
+     * Пример: если заканчивается 16.03, сегодня 12.03 → 4 дня осталось (16-12)
+     *         если заканчивается 16.03, сегодня 16.03 → 0 дней (истекает сегодня)
+     *         если заканчивается 16.03, сегодня 17.03 → -1 день (просрочена на 1 день)
      */
     public function getRemainingDays(): ?int
     {
@@ -83,11 +88,11 @@ class Subscription extends Model
             return null;
         }
         
-        if ($this->isExpired()) {
-            return 0;
-        }
+        $now = now()->startOfDay();
+        $endDate = $this->ends_at->startOfDay();
         
-        return now()->diffInDays($this->ends_at, false);
+        // Разница в днях (положительная если endDate в будущем)
+        return $now->diffInDays($endDate, false);
     }
 
     /**
@@ -191,5 +196,13 @@ class Subscription extends Model
     public function limits()
     {
         return $this->hasMany(Limit::class, 'subscription_id');
+    }
+
+    /**
+     * @deprecated Удалить этот метод, используйте getRemainingDays()
+     */
+    public function getDaysAfterEnd(): ?int
+    {
+        return $this->getRemainingDays();
     }
 }

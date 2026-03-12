@@ -611,8 +611,8 @@
     
     .btn-outline-secondary:hover {
         background-color: #f8f9fa;
-        color: #dc3545;
-        border-color: #dc3545;
+        color:  #fd7e14;
+        border-color:  #fd7e14;
     }
     
     /* Адаптивность */

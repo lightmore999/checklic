@@ -40,7 +40,7 @@
     <div class="row mb-4">
         <div class="col-12">
             <div class="card border-0 bg-gradient-primary text-white shadow-lg" 
-                 style="background: linear-gradient(135deg, {{ $isAdmin ? '#dc3545' : '#0d6efd' }} 0%, {{ $isAdmin ? '#a71d2a' : '#0a58ca' }} 100%);">
+                 style="background: linear-gradient(135deg, {{ $isAdmin ? ' #fd7e14' : '#0d6efd' }} 0%, {{ $isAdmin ? '#a71d2a' : '#0a58ca' }} 100%);">
                 <div class="card-body p-4">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                         <div class="d-flex align-items-center">

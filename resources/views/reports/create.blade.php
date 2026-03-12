@@ -1094,12 +1094,12 @@
     }
     
     .selected-region-tag i:hover {
-        color: #dc3545;
+        color:  #fd7e14;
     }
     
     /* Стили для валидации */
     .is-invalid {
-        border-color: #dc3545 !important;
+        border-color:  #fd7e14 !important;
         background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e");
         background-repeat: no-repeat;
         background-position: right calc(0.375em + 0.1875rem) center;
@@ -1107,7 +1107,7 @@
     }
     
     .is-invalid:focus {
-        border-color: #dc3545;
+        border-color:  #fd7e14;
         box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
     }
     
@@ -1116,7 +1116,7 @@
         width: 100%;
         margin-top: 0.25rem;
         font-size: 0.875em;
-        color: #dc3545;
+        color:  #fd7e14;
     }
 </style>
 @endpush
